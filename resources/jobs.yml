@@ -1,0 +1,29 @@
+resources:
+  jobs:
+    tpch_medallion_pipeline_job:
+      name: tpch_medallion_pipeline_job
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      tasks:
+        - task_key: bronze_task
+          timeout_seconds: 7200
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.bronze_pipeline.id}
+            full_refresh: false
+
+        - task_key: silver_task
+          depends_on:
+            - task_key: bronze_task
+          timeout_seconds: 7200
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.silver_pipeline.id}
+            full_refresh: false
+
+        - task_key: gold_task
+          depends_on:
+            - task_key: silver_task
+          timeout_seconds: 7200
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.gold_pipeline.id}
+            full_refresh: false

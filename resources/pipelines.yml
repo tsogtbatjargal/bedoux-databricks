@@ -1,0 +1,34 @@
+resources:
+  pipelines:
+    bronze_pipeline:
+      name: bronze_pipeline
+      catalog: ${var.catalog}
+      schema: bronze
+      serverless: true
+      photon: true
+      continuous: false
+      libraries:
+        - file:
+            path: ../src/bronze.py
+
+    silver_pipeline:
+      name: silver_pipeline
+      catalog: ${var.catalog}
+      schema: silver
+      serverless: true
+      photon: true
+      continuous: false
+      libraries:
+        - file:
+            path: ../src/silver.py
+
+    gold_pipeline:
+      name: gold_pipeline
+      catalog: ${var.catalog}
+      schema: gold
+      serverless: true
+      photon: true
+      continuous: false
+      libraries:
+        - file:
+            path: ../src/gold.py

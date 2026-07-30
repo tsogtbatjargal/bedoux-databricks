@@ -1,0 +1,19 @@
+bundle:
+  name: bedoux_databricks
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog used by all three layers
+    default: workspace
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-3f70aae3-11d5.cloud.databricks.com
+    run_as:
+      user_name: tsoglog.uli@gmail.com
