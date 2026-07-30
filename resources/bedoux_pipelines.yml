@@ -1,0 +1,34 @@
+resources:
+  pipelines:
+    bedoux_bronze_pipeline:
+      name: bedoux_bronze_pipeline
+      catalog: ${var.catalog}
+      schema: bedoux_bronze
+      serverless: true
+      photon: true
+      continuous: false
+      libraries:
+        - file:
+            path: ../src/bedoux/bronze.py
+
+    bedoux_silver_pipeline:
+      name: bedoux_silver_pipeline
+      catalog: ${var.catalog}
+      schema: bedoux_silver
+      serverless: true
+      photon: true
+      continuous: false
+      libraries:
+        - file:
+            path: ../src/bedoux/silver.py
+
+    bedoux_gold_pipeline:
+      name: bedoux_gold_pipeline
+      catalog: ${var.catalog}
+      schema: bedoux_gold
+      serverless: true
+      photon: true
+      continuous: false
+      libraries:
+        - file:
+            path: ../src/bedoux/gold.py

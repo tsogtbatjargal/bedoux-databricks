@@ -52,13 +52,13 @@ All support `-o json` for machine-readable output.
 `SERIALIZED_SPACE` is an opaque JSON blob describing the space's tables/layout — the CLI
 help itself says the intended way to get one is to `get-space --include-serialized-space`
 on an *existing* space and adapt it, not to hand-author it from scratch. In practice the
-UI is the practical path for a brand-new space. To point a space at this project's Gold
+UI is the practical path for a brand-new space. To point a space at Track 1's Gold
 layer:
 
 1. Databricks UI → **Genie** → **New space**.
 2. Add tables: `workspace.gold.gold_monthly_revenue_by_region`,
    `workspace.gold.gold_customer_lifetime_value`, `workspace.gold.gold_top_products`.
-3. Attach a Pro/Serverless SQL warehouse you have **CAN USE** on.
+3. Attach the one available 2X-Small SQL warehouse (Free Edition allows only one).
 4. Note the resulting `space_id` and use it with the commands above.
 
 Once it exists, you can clone/template it via the CLI:
@@ -72,3 +72,24 @@ databricks genie create-space <warehouse-id> "$(jq -r .serialized_space /tmp/spa
 
 This step touches the live workspace, so it's left for you to trigger explicitly rather
 than done as part of scaffolding this repo.
+
+## Creating a Bedoux Genie space (Track 2, not yet done)
+
+Same process, pointed at Track 2's Gold layer instead — this is the one meant to carry
+the portfolio's brand narrative:
+
+1. Databricks UI → **Genie** → **New space**, title it something like
+   "Bedoux Ops & Marketing Analytics".
+2. Add tables: `workspace.bedoux_gold.gold_campaign_performance`,
+   `workspace.bedoux_gold.gold_client_funnel`, `workspace.bedoux_gold.gold_ogi_ops_health`.
+3. Attach the same 2X-Small warehouse (Free Edition has only the one — both Genie
+   spaces necessarily share it).
+4. In the space's description, note plainly that the underlying data is synthetic/
+   fictional (see [`contracts-bedoux.md`](contracts-bedoux.md)) — this keeps the demo
+   honest for anyone exploring it.
+5. Sample questions to demo once the job has run at least once:
+   - "Which campaign has the best cost per lead?"
+   - "What's the conversion rate by channel?"
+   - "Show me the client funnel for the last three months."
+   - "What's ogi's daily-plan success rate this month?"
+   - "Which day had the most Telegram messages handled?"

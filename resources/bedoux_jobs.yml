@@ -1,0 +1,31 @@
+resources:
+  jobs:
+    bedoux_analytics_job:
+      name: bedoux_analytics_job
+      max_concurrent_runs: 1
+      # No `schedule` block on purpose: manual / workflow_dispatch trigger only,
+      # to stay well inside Databricks Free Edition's compute quota.
+      queue:
+        enabled: true
+      tasks:
+        - task_key: bedoux_bronze_task
+          timeout_seconds: 3600
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.bedoux_bronze_pipeline.id}
+            full_refresh: false
+
+        - task_key: bedoux_silver_task
+          depends_on:
+            - task_key: bedoux_bronze_task
+          timeout_seconds: 3600
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.bedoux_silver_pipeline.id}
+            full_refresh: false
+
+        - task_key: bedoux_gold_task
+          depends_on:
+            - task_key: bedoux_silver_task
+          timeout_seconds: 3600
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.bedoux_gold_pipeline.id}
+            full_refresh: false
