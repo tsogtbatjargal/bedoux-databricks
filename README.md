@@ -121,5 +121,8 @@ databricks bundle run bedoux_analytics_job --profile bedoux-databricks
 
 ## Genie
 
-See [`docs/genie.md`](docs/genie.md) for CLI usage and how to stand up a
-Genie space over each track's Gold layer.
+Both tracks have a live Genie space over their Gold layer, sharing the one available
+2X-Small warehouse: **TPC-H Medallion Analytics** (`01f18c57fa251338962ee7a34efab97e`)
+and **Bedoux Ops & Marketing Analytics** (`01f18c5765861b98a829e34fcec67160`). See
+[`docs/genie.md`](docs/genie.md) for CLI usage, the exact `serialized_space` JSON used
+to create each, and sample questions verified end-to-end.

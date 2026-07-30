@@ -17,17 +17,17 @@ databricks auth login --host https://dbc-3f70aae3-11d5.cloud.databricks.com --pr
 databricks genie list-spaces --profile bedoux-databricks -o json
 ```
 
-Two spaces exist:
+Three spaces exist:
 
 - **Bakehouse Sales Starter Space** (`space_id` `01f18b9bdf111b9e89e4c53068229731`) —
   the sample space Databricks ships by default, over fictional bakery data.
+- **TPC-H Medallion Analytics** (`space_id` `01f18c57fa251338962ee7a34efab97e`) —
+  Track 1's space, over `workspace.gold.*`.
 - **Bedoux Ops & Marketing Analytics** (`space_id` `01f18c5765861b98a829e34fcec67160`) —
-  this project's Track 2 space, over `workspace.bedoux_gold.*`. See below for how it
-  was created and verified.
+  Track 2's space, over `workspace.bedoux_gold.*`.
 
-There is no Genie space yet over Track 1's `workspace.gold` tables
-(`gold_monthly_revenue_by_region`, `gold_customer_lifetime_value`, `gold_top_products`)
-— see "Creating a Genie space for this project" below.
+Both project spaces were created the same way — see "Creating a Genie space via the
+CLI" below for the worked pattern and the exact `serialized_space` JSON used for each.
 
 ## Commands
 
@@ -52,48 +52,66 @@ All support `-o json` for machine-readable output.
 ./scripts/genie.sh reply <space-id> <conversation-id> "Now break that down by month"
 ```
 
-## Creating a Genie space for Track 1 (not yet done)
+## Creating a Genie space via the CLI
 
 `databricks genie create-space WAREHOUSE_ID SERIALIZED_SPACE` works with a
-hand-authored `serialized_space` JSON — see the worked example below (Track 2's space
-was built exactly this way; the CLI help's suggestion to clone `get-space
---include-serialized-space` from an existing space isn't actually necessary). To point
-a space at Track 1's Gold layer, reuse the same `serialized_space` JSON shape, with:
+hand-authored `serialized_space` JSON — the CLI help's suggestion to clone
+`get-space --include-serialized-space` from an existing space first isn't actually
+necessary; the schema (`config.sample_questions`, `data_sources.tables`,
+`instructions.text_instructions`) is simple enough to write directly. One gotcha:
+**`data_sources.tables` must be sorted alphabetically by `identifier`**, or the API
+rejects the payload with `Invalid export proto: data_sources.tables must be sorted by
+identifier`. Each `sample_questions`/`text_instructions` entry also needs a unique
+`id` string (any value works, e.g. `uuid4().hex`).
+
+```bash
+databricks genie create-space <warehouse-id> "$(cat serialized_space.json)" \
+  --title "<title>" --description "<description>" --profile bedoux-databricks
+```
+
+### Track 1 — TPC-H Medallion Analytics (done)
+
+`space_id` **`01f18c57fa251338962ee7a34efab97e`**, warehouse `e63747243511532c`.
 
 ```json
-"data_sources": {
-  "tables": [
-    {"identifier": "workspace.gold.gold_monthly_revenue_by_region"},
-    {"identifier": "workspace.gold.gold_customer_lifetime_value"},
-    {"identifier": "workspace.gold.gold_top_products"}
-  ]
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {"question": ["What was the monthly revenue trend by region?"]},
+      {"question": ["Who are the top 10 customers by lifetime value?"]},
+      {"question": ["Which products generate the most revenue?"]},
+      {"question": ["What is the total revenue across all regions this year?"]},
+      {"question": ["Which customer value segment has the most customers?"]}
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {"identifier": "workspace.gold.gold_customer_lifetime_value"},
+      {"identifier": "workspace.gold.gold_monthly_revenue_by_region"},
+      {"identifier": "workspace.gold.gold_top_products"}
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {"content": [
+        "This is the TPC-H benchmark dataset (samples.tpch), used as a classic data-engineering exercise -- not Bedoux business data.",
+        "Revenue is defined consistently as sum(l_extendedprice * (1 - l_discount)).",
+        "gold_customer_lifetime_value.value_segment buckets customers into Low/Medium/High by revenue percentile.",
+        "gold_top_products.revenue_rank ranks products by total_revenue descending (rank 1 = highest revenue)."
+      ]}
+    ]
+  }
 }
 ```
 
-attached to the same 2X-Small warehouse (`e63747243511532c` — Free Edition allows only
-one, shared across both spaces).
+Verified end-to-end: `databricks genie start-conversation 01f18c57fa251338962ee7a34efab97e
+"Who are the top 5 customers by lifetime value?"` correctly ranked by `total_revenue`
+descending and returned the top 5, with a chart attachment.
 
-This step touches the live workspace, so it's left for you to trigger explicitly rather
-than done as part of scaffolding this repo.
+### Track 2 — Bedoux Ops & Marketing Analytics (done)
 
-## The Bedoux Genie space (Track 2, done)
-
-`space_id` **`01f18c5765861b98a829e34fcec67160`**, title "Bedoux Ops & Marketing
-Analytics", attached to the one available 2X-Small warehouse (`e63747243511532c`).
-
-Turns out `create-space` *can* be hand-authored from scratch after all — the
-`serialized_space` JSON schema is simple enough (`config.sample_questions`,
-`data_sources.tables`, `instructions.text_instructions`) to write directly, without
-needing to clone an existing space first. Built with:
-
-```bash
-databricks genie create-space e63747243511532c "$(cat serialized_space.json)" \
-  --title "Bedoux Ops & Marketing Analytics" \
-  --description "Portfolio demo Genie space over synthetic/fictional Bedoux marketing + ops data. Not real business data." \
-  --profile bedoux-databricks
-```
-
-where `serialized_space.json` was:
+`space_id` **`01f18c5765861b98a829e34fcec67160`**, warehouse `e63747243511532c`.
 
 ```json
 {
@@ -126,9 +144,6 @@ where `serialized_space.json` was:
   }
 }
 ```
-
-(each `sample_questions`/`text_instructions` entry also needs a unique `id` string —
-any value works, e.g. a `uuid4().hex`.)
 
 Verified end-to-end: `databricks genie start-conversation 01f18c5765861b98a829e34fcec67160
 "Which campaign has the best cost per lead?"` correctly generated SQL that filters out
