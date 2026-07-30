@@ -1,8 +1,14 @@
-"""Pure business-logic functions for the Gold layer.
+"""Pure business-logic functions -- the tested reference spec for the Gold layer.
 
 Kept separate from gold.py and free of any Spark/DLT import so they're unit
-testable in plain pytest (no cluster, no workspace). gold.py wraps these as UDFs
-and applies them to the small, already-aggregated Gold-grain DataFrames.
+testable in plain pytest (no cluster, no workspace). gold.py reimplements this
+same logic as native Spark column expressions rather than importing these
+functions directly: a UDF wrapping them would need its closure shipped to
+every executor via cloudpickle, which requires distributing the `bedoux`
+package cluster-wide (a wheel/addPyFile build step disproportionate to three
+one-line formulas) -- and native column expressions are the faster, more
+idiomatic choice for arithmetic this simple anyway. These functions stay the
+authoritative, tested definition that gold.py's expressions must match.
 """
 
 

@@ -1,5 +1,4 @@
 import sys
-import os
 
 import dlt
 from pyspark.sql.functions import current_timestamp, lit
@@ -7,8 +6,12 @@ from pyspark.sql.functions import current_timestamp, lit
 # Bronze Layer: materialized, idempotent recompute from the seeded synthetic
 # generator. No real upstream stream to read incrementally -- see
 # docs/contracts-bedoux.md for why this differs from Track 1's Bronze.
+#
+# DLT runs this file in a notebook-like cell with no `__file__`, so the shared
+# src/ root is passed in via pipeline `configuration` (bundle.sourcePath,
+# resolved from the bundle's ${workspace.file_path}) instead.
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(spark.conf.get("bundle.sourcePath"))  # noqa: F821
 from bedoux import generator  # noqa: E402
 
 N_CLIENTS = 10

@@ -1,21 +1,18 @@
-import sys
-import os
-
 import dlt
-from pyspark.sql.functions import col, sum as _sum, count, when, date_trunc, to_date, avg, udf
-from pyspark.sql.types import DoubleType
+from pyspark.sql.functions import col, sum as _sum, count, when, date_trunc, to_date, avg, lit
 
 # Gold Layer: business-ready tables, one per business question.
-# Reads workspace.bedoux_silver ONLY. Business logic lives in transforms.py,
-# unit tested in tests/test_transforms.py, applied here as UDFs over the small
-# already-aggregated Gold-grain result sets.
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from bedoux.transforms import conversion_rate, cost_per_lead, ops_success_rate  # noqa: E402
-
-conversion_rate_udf = udf(conversion_rate, DoubleType())
-cost_per_lead_udf = udf(cost_per_lead, DoubleType())
-ops_success_rate_udf = udf(ops_success_rate, DoubleType())
+# Reads workspace.bedoux_silver ONLY.
+#
+# The three metrics below (conversion_rate, cost_per_lead, ops_success_rate)
+# are native Spark column expressions, not UDFs wrapping transforms.py.
+# transforms.py's pure functions are the tested reference spec for these
+# formulas (see tests/test_transforms.py) -- they aren't imported here because
+# a UDF's closure gets shipped to executors via cloudpickle, which requires
+# the `bedoux` package to be distributed to every executor (a wheel/addPyFile
+# build step disproportionate to three one-line formulas). Native column
+# expressions are also the idiomatic, faster choice over Python UDFs for
+# arithmetic this simple.
 
 
 @dlt.table(
@@ -34,8 +31,14 @@ def gold_campaign_performance():
     return (
         campaigns.join(lead_agg, "campaign_id", "left")
         .fillna({"lead_count": 0, "won_count": 0})
-        .withColumn("conversion_rate", conversion_rate_udf(col("won_count"), col("lead_count")))
-        .withColumn("cost_per_lead", cost_per_lead_udf(col("budget"), col("lead_count")))
+        .withColumn(
+            "conversion_rate",
+            when(col("lead_count") > 0, col("won_count") / col("lead_count")).otherwise(lit(0.0)),
+        )
+        .withColumn(
+            "cost_per_lead",
+            when(col("lead_count") > 0, col("budget") / col("lead_count")).otherwise(lit(None)),
+        )
         .select(
             "campaign_id", "client_id", "channel", "budget", "status",
             "lead_count", "won_count", "conversion_rate", "cost_per_lead",
@@ -92,7 +95,8 @@ def gold_ogi_ops_health():
 
     return (
         daily.withColumn(
-            "success_rate", ops_success_rate_udf(col("success_count"), col("total_events"))
+            "success_rate",
+            when(col("total_events") > 0, col("success_count") / col("total_events")).otherwise(lit(0.0)),
         )
         .select(
             "event_date", "total_events", "success_count", "success_rate",

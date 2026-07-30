@@ -17,11 +17,17 @@ databricks auth login --host https://dbc-3f70aae3-11d5.cloud.databricks.com --pr
 databricks genie list-spaces --profile bedoux-databricks -o json
 ```
 
-Right now there is one: **Bakehouse Sales Starter Space** (`space_id`
-`01f18b9bdf111b9e89e4c53068229731`) — the sample space Databricks ships by default, over
-fictional bakery data. There is no Genie space yet over this project's `workspace.gold`
-tables (`gold_monthly_revenue_by_region`, `gold_customer_lifetime_value`,
-`gold_top_products`) — see "Creating a Genie space for this project" below.
+Two spaces exist:
+
+- **Bakehouse Sales Starter Space** (`space_id` `01f18b9bdf111b9e89e4c53068229731`) —
+  the sample space Databricks ships by default, over fictional bakery data.
+- **Bedoux Ops & Marketing Analytics** (`space_id` `01f18c5765861b98a829e34fcec67160`) —
+  this project's Track 2 space, over `workspace.bedoux_gold.*`. See below for how it
+  was created and verified.
+
+There is no Genie space yet over Track 1's `workspace.gold` tables
+(`gold_monthly_revenue_by_region`, `gold_customer_lifetime_value`, `gold_top_products`)
+— see "Creating a Genie space for this project" below.
 
 ## Commands
 
@@ -46,50 +52,85 @@ All support `-o json` for machine-readable output.
 ./scripts/genie.sh reply <space-id> <conversation-id> "Now break that down by month"
 ```
 
-## Creating a Genie space for this project (not yet done)
+## Creating a Genie space for Track 1 (not yet done)
 
-`databricks genie create-space WAREHOUSE_ID SERIALIZED_SPACE` exists, but
-`SERIALIZED_SPACE` is an opaque JSON blob describing the space's tables/layout — the CLI
-help itself says the intended way to get one is to `get-space --include-serialized-space`
-on an *existing* space and adapt it, not to hand-author it from scratch. In practice the
-UI is the practical path for a brand-new space. To point a space at Track 1's Gold
-layer:
+`databricks genie create-space WAREHOUSE_ID SERIALIZED_SPACE` works with a
+hand-authored `serialized_space` JSON — see the worked example below (Track 2's space
+was built exactly this way; the CLI help's suggestion to clone `get-space
+--include-serialized-space` from an existing space isn't actually necessary). To point
+a space at Track 1's Gold layer, reuse the same `serialized_space` JSON shape, with:
 
-1. Databricks UI → **Genie** → **New space**.
-2. Add tables: `workspace.gold.gold_monthly_revenue_by_region`,
-   `workspace.gold.gold_customer_lifetime_value`, `workspace.gold.gold_top_products`.
-3. Attach the one available 2X-Small SQL warehouse (Free Edition allows only one).
-4. Note the resulting `space_id` and use it with the commands above.
-
-Once it exists, you can clone/template it via the CLI:
-
-```bash
-databricks genie get-space <space-id> --include-serialized-space -o json > /tmp/space.json
-# extract .serialized_space, edit as needed, then:
-databricks genie create-space <warehouse-id> "$(jq -r .serialized_space /tmp/space.json)" \
-  --title "New Space" --profile bedoux-databricks
+```json
+"data_sources": {
+  "tables": [
+    {"identifier": "workspace.gold.gold_monthly_revenue_by_region"},
+    {"identifier": "workspace.gold.gold_customer_lifetime_value"},
+    {"identifier": "workspace.gold.gold_top_products"}
+  ]
+}
 ```
+
+attached to the same 2X-Small warehouse (`e63747243511532c` — Free Edition allows only
+one, shared across both spaces).
 
 This step touches the live workspace, so it's left for you to trigger explicitly rather
 than done as part of scaffolding this repo.
 
-## Creating a Bedoux Genie space (Track 2, not yet done)
+## The Bedoux Genie space (Track 2, done)
 
-Same process, pointed at Track 2's Gold layer instead — this is the one meant to carry
-the portfolio's brand narrative:
+`space_id` **`01f18c5765861b98a829e34fcec67160`**, title "Bedoux Ops & Marketing
+Analytics", attached to the one available 2X-Small warehouse (`e63747243511532c`).
 
-1. Databricks UI → **Genie** → **New space**, title it something like
-   "Bedoux Ops & Marketing Analytics".
-2. Add tables: `workspace.bedoux_gold.gold_campaign_performance`,
-   `workspace.bedoux_gold.gold_client_funnel`, `workspace.bedoux_gold.gold_ogi_ops_health`.
-3. Attach the same 2X-Small warehouse (Free Edition has only the one — both Genie
-   spaces necessarily share it).
-4. In the space's description, note plainly that the underlying data is synthetic/
-   fictional (see [`contracts-bedoux.md`](contracts-bedoux.md)) — this keeps the demo
-   honest for anyone exploring it.
-5. Sample questions to demo once the job has run at least once:
-   - "Which campaign has the best cost per lead?"
-   - "What's the conversion rate by channel?"
-   - "Show me the client funnel for the last three months."
-   - "What's ogi's daily-plan success rate this month?"
-   - "Which day had the most Telegram messages handled?"
+Turns out `create-space` *can* be hand-authored from scratch after all — the
+`serialized_space` JSON schema is simple enough (`config.sample_questions`,
+`data_sources.tables`, `instructions.text_instructions`) to write directly, without
+needing to clone an existing space first. Built with:
+
+```bash
+databricks genie create-space e63747243511532c "$(cat serialized_space.json)" \
+  --title "Bedoux Ops & Marketing Analytics" \
+  --description "Portfolio demo Genie space over synthetic/fictional Bedoux marketing + ops data. Not real business data." \
+  --profile bedoux-databricks
+```
+
+where `serialized_space.json` was:
+
+```json
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {"question": ["Which campaign has the best cost per lead?"]},
+      {"question": ["What is the conversion rate by channel?"]},
+      {"question": ["Show me the client funnel for the last three months."]},
+      {"question": ["What's ogi's daily-plan success rate this month?"]},
+      {"question": ["Which day had the most Telegram messages handled?"]}
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {"identifier": "workspace.bedoux_gold.gold_campaign_performance"},
+      {"identifier": "workspace.bedoux_gold.gold_client_funnel"},
+      {"identifier": "workspace.bedoux_gold.gold_ogi_ops_health"}
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {"content": [
+        "This data is entirely synthetic and fictional, generated by a seeded data generator for a portfolio project. It does not represent Bedoux's real business data.",
+        "cost_per_lead is NULL (not 0) when a campaign generated no leads -- treat NULL as \"no data\", not \"free acquisition\".",
+        "conversion_rate is the share of leads that reached the won stage.",
+        "gold_ogi_ops_health tracks the ogi agent's own daily-plan runs and Telegram messages handled, one row per day."
+      ]}
+    ]
+  }
+}
+```
+
+(each `sample_questions`/`text_instructions` entry also needs a unique `id` string —
+any value works, e.g. a `uuid4().hex`.)
+
+Verified end-to-end: `databricks genie start-conversation 01f18c5765861b98a829e34fcec67160
+"Which campaign has the best cost per lead?"` correctly generated SQL that filters out
+NULL `cost_per_lead` rows before ranking, and returned "campaign ID 29, cost per lead
+14.335."

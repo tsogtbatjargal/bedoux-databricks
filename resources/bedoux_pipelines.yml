@@ -7,6 +7,8 @@ resources:
       serverless: true
       photon: true
       continuous: false
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
       libraries:
         - file:
             path: ../src/bedoux/bronze.py
