@@ -6,6 +6,14 @@
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
+        <!-- Unity Catalog backdrop (painted first = furthest behind, spans both tracks) -->
+        <mxCell id="uc" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;dashed=1;fillOpacity=15;verticalAlign=bottom;align=center;fontSize=12;fontColor=#9673a6;spacingBottom=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="140" width="1090" height="440" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-label" value="Unity Catalog &#8212; governance layer &#183; catalog: workspace" style="text;html=1;align=center;verticalAlign=middle;fontSize=12;fontColor=#9673a6;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="10" y="558" width="1090" height="20" as="geometry" />
+        </mxCell>
+
         <!-- background track panels (painted first = behind) -->
         <mxCell id="bg1" value="Track 1 &#8212; TPC-H Medallion&#xa;(classic DE benchmark, done right)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f7ff;strokeColor=#6c8ebf;dashed=1;verticalAlign=top;align=center;fontSize=14;fontStyle=1;spacingTop=14;" vertex="1" parent="1">
           <mxGeometry x="30" y="150" width="320" height="420" as="geometry" />
@@ -47,14 +55,22 @@
           <mxGeometry x="780" y="490" width="260" height="40" as="geometry" />
         </mxCell>
 
+        <!-- Shared SQL Warehouse -->
+        <mxCell id="warehouse" value="SQL Warehouse&#xa;2X-Small &#183; shared (Free Edition limit)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="600" width="540" height="50" as="geometry" />
+        </mxCell>
+
         <!-- Genie -->
-        <mxCell id="genie" value="Genie / AI-BI&#xa;natural-language queries over both Gold layers&#xa;shared 2X-Small SQL warehouse (Free Edition limit)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="430" y="610" width="540" height="70" as="geometry" />
+        <mxCell id="genie1" value="Genie: TPC-H Medallion Analytics&#xa;natural-language queries over workspace.gold.*&#xa;space_id 01f18c57fa251338962ee7a34efab97e" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="680" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="genie2" value="Genie: Bedoux Ops &amp; Marketing&#xa;natural-language queries over workspace.bedoux_gold.*&#xa;space_id 01f18c5765861b98a829e34fcec67160" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="680" width="320" height="60" as="geometry" />
         </mxCell>
 
         <!-- Free Edition constraints note -->
         <mxCell id="note" value="Databricks Free Edition constraints that shaped this design:&#xa;&#8226; Serverless-only compute, one SQL warehouse fixed at 2X-Small&#xa;&#8226; Max 5 concurrent job tasks &#8212; both jobs run sequentially, never at once&#xa;&#8226; One active Lakeflow pipeline per pipeline type &#8212; no concurrent DLT runs&#xa;&#8226; No account console / service principals &#8212; CI/CD uses a personal access token (a paid workspace would use OIDC + a service principal instead)&#xa;&#8226; Non-commercial use only &#8212; Track 2's data is clearly fictional, not Bedoux's real business data&#xa;&#8226; No auto-schedule on either job &#8212; manual or workflow_dispatch trigger only, to protect the compute quota" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
-          <mxGeometry x="30" y="730" width="1300" height="170" as="geometry" />
+          <mxGeometry x="30" y="770" width="1300" height="170" as="geometry" />
         </mxCell>
 
         <!-- edges -->
@@ -76,10 +92,16 @@
         <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="silver2" target="gold2">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gold1" target="genie">
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gold1" target="warehouse">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gold2" target="genie">
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gold2" target="warehouse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="warehouse" target="genie1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="warehouse" target="genie2">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
