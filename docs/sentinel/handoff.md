@@ -1,7 +1,8 @@
 # Session handoff
 
 Updated: 2026-09-21 (second session). Read this after `AGENTS.md`, then verify
-the actual checkout.
+the actual checkout. Current state: `series/00-introduction` at `b9250aa`, two
+commits ahead of `main` at `4a04e77`, local only, working tree clean.
 
 ## Objective and decisions
 
@@ -27,13 +28,15 @@ optional. No runtime provider, API budget, AWS budget, or publication date is se
   bundle configuration. No pipeline, contract, CI, or workspace resource changed.
 - Linked the series from README and ignored local environment/Claude preference files.
 - No commits, remote branches, tags, PRs, model API calls, deployments, or posts
-  were created by this preparation. Changes are currently uncommitted.
+  were created by this preparation. These changes were later committed as
+  `bfd6fdd` in the session below.
 
 ## This review session (Claude Code, fresh)
 
-Still on `series/00-introduction` at base `4a04e77`; the preparation work remains
-uncommitted. Purpose was the recorded next task: confirm discovery and review the
-preparation diff against chapter 00's scope.
+On `series/00-introduction`, branched from `main` at `4a04e77`. This session
+reviewed the preparation, then — on the user's explicit instruction — committed
+it and changed CI. Nothing was pushed, merged, deployed, tagged, or deleted; the
+branch exists locally only and `main` is untouched.
 
 - Discovery verified in a genuinely fresh session, not asserted. `CLAUDE.md`'s
   `@AGENTS.md` import loaded, and both `sentinel-chapter` and `sentinel-story`
@@ -46,15 +49,55 @@ preparation diff against chapter 00's scope.
   authorization); no guardrail was lost, and the stale hardcoded workspace paths
   and personal email are correctly gone. No finding required a correction there.
 - Verified `branch-workflow.md`'s CI claim against `.github/workflows/ci.yml`:
-  the deploy job has no path filter and its `if` also matches `workflow_dispatch`,
-  so a documentation-only merge deploys and a dispatch deploys with `run_job` off.
-  The documented coupling is accurate and the decision is still open.
+  the deploy job had no path filter and its `if` also matched `workflow_dispatch`,
+  so a documentation-only merge deployed and a dispatch deployed with `run_job`
+  off. The documented coupling was accurate. The user then resolved it; see below.
 - One real defect found and fixed: README's "Project layout" block was stale
   after the preparation. It still described `ai_rules.md` as the guardrails and
   omitted `AGENTS.md`, `CLAUDE.md`, `docs/sentinel/`, `.agents/skills/`,
   `.claude/skills/`, and `.codex/config.toml`. All six entries now exist on disk.
-- No commits, pushes, tags, PRs, deployments, model API calls, or posts. The only
-  change made this session is the README layout block.
+## Commits made on this branch
+
+The user authorized committing chapter 00 and separating documentation from
+deployment in CI, on `series/00-introduction` only.
+
+- `bfd6fdd` — chapter 00 preparation: `AGENTS.md`, `CLAUDE.md`, both skill
+  bodies with their Claude adapters, `.codex/config.toml`, all of
+  `docs/sentinel/`, the `docs/ai_rules.md` pointer, and the README additions
+  including this session's layout fix. 17 files.
+- `b9250aa` — CI change, kept separate: documentation and agent-configuration
+  pushes no longer deploy Databricks.
+
+## CI deployment change (`b9250aa`)
+
+`.github/workflows/ci.yml` now separates documentation from deployment:
+
+- `push` to `main` carries `paths-ignore` for `**.md`, `docs/**`, `.agents/**`,
+  `.claude/**`, `.codex/**`, `.gitignore`, and `LICENSE`. A push whose every
+  changed file matches skips the workflow, so it cannot deploy.
+- `pull_request` stays unfiltered, so pipeline changes keep their full test and
+  `databricks bundle validate` signal, and documentation PRs still get checked.
+- `workflow_dispatch` gained an explicit `deploy` checkbox, default off. The
+  deploy job's `if` now requires it. `run_job` sits inside the deploy job, so it
+  cannot run a job without a deployment.
+
+The pattern is `**.md`, not `**/*.md`. The latter requires a literal slash and
+would not have matched root-level `README.md`, `AGENTS.md`, or `CLAUDE.md` —
+which alone would have left the chapter 00 commit deploying. A local simulation
+of GitHub's filter semantics caught this before the commit.
+
+Conditions checked by evaluating the patterns and the deploy `if` against real
+commits in this repository. All 16 cases passed: `bfd6fdd` and `4a04e77` skip;
+`5e2b7e1` (Track 2 pipeline), bundle/`resources` edits, `tests/` edits,
+`requirements-dev.txt`, workflow edits, and any docs+pipeline mix still deploy;
+dispatch deploys only when opted in; pull requests never deploy.
+
+**This is local evaluation of the conditions, not an observed GitHub Actions
+run.** Nothing has exercised the new workflow on GitHub. Two consequences worth
+knowing: a documentation-only push to `main` now produces no CI run and reports
+no checks, so a required status check on `push` would never be satisfied by such
+a merge; and merging a chapter that *does* change pipeline code still deploys, so
+that remains a deployment decision needing authorization.
 
 ## Verification
 
@@ -96,24 +139,33 @@ Code docs, TypeSafe/Jev links) were not re-fetched and carry their 2026-09-21 da
 
 ## Next local task
 
-Chapter 00's content has been reviewed and its local checks pass. Two things are
-now waiting on the user rather than on more local work:
+Chapter 00 is complete and committed locally at `b9250aa`, and the CI coupling
+that blocked integration is resolved. The branch has never been pushed. The next
+step is integration, which needs the user's explicit request:
 
-1. **Commit chapter 00.** The preparation plus this session's README fix are
-   still uncommitted on `series/00-introduction`. Committing needs the user's
-   go-ahead; do not push or open a PR without a separate request.
-2. **Decide the CI coupling before integrating.** Verified this session:
-   `.github/workflows/ci.yml` deploys the bundle on any push to `main`, including
-   a documentation-only merge, and on `workflow_dispatch` even with `run_job`
-   off. Either accept that a docs merge deploys, or change CI to gate `deploy`
-   (for example a `paths-ignore` on docs, or a manual-only deploy job) first.
-   Changing CI is itself a chapter-00-scope decision the user must authorize.
+1. **Push `series/00-introduction` and open a PR into `main`.** Not yet
+   authorized; the last instruction was to keep everything local. The PR itself
+   runs tests and `databricks bundle validate` and never deploys.
 
-A fresh Codex session should confirm its own instruction and skill discovery,
-since only Claude Code's has been exercised. Repeat the link/whitespace/TOML
-checks only if files change. Incorporate any user correction to the recorded
-defaults. Do not re-review the preparation diff; it has been reviewed once by
-each of the preparing and reviewing sessions.
+   One thing to decide before merging: **this particular merge will still
+   deploy.** `b9250aa` changes `.github/workflows/ci.yml`, which is deliberately
+   not in `paths-ignore`, and a push's filter is evaluated over every file the
+   push carries. So the merge commit runs the full test → validate → deploy
+   chain. That is the last merge with this property — once the new workflow is
+   on `main`, later documentation-only chapters skip CI entirely. Either accept
+   one deployment of an otherwise unchanged bundle, or land the CI change by
+   some route that does not push it to `main` while the old workflow is live.
+   Confirm with the user rather than assuming the deployment is acceptable.
+2. **Check GitHub's automatic head-branch deletion setting before the first
+   merge**, per `branch-workflow.md`; chapter branches are retained.
+3. **Tag `post/00-introduction`** only after the demonstrated commit is final and
+   the user asks. The introduction draft stays unpublished either way.
+
+Independent of that, a fresh Codex session should confirm its own instruction and
+skill discovery, since only Claude Code's has been exercised. Repeat the
+link/whitespace/TOML checks only if files change. Incorporate any user correction
+to the recorded defaults. Do not re-review the preparation diff; it has been
+reviewed once by each of the preparing and reviewing sessions.
 
 After chapter 00 is integrated, start `series/01-know-your-platform` from `main`.
 Map the current platform and write synthetic scenario specifications. Track 2's
