@@ -26,6 +26,21 @@ deliberate choice, not an oversight.
 Full architecture, diagram, and the Free-Edition trade-offs behind each design
 choice: [`docs/architecture.md`](docs/architecture.md).
 
+## The Art of Data Defense
+
+I'm extending Track 2 with **Bedoux Sentinel**, a portfolio series about data
+quality, sensitive-data handling, and agent-assisted incident investigation.
+The theme comes from applying ideas in *The Art of War* to a modern data platform.
+
+The [series plan](docs/sentinel/README.md) separates existing behavior from the
+capabilities still to build. Each chapter will have a retained branch and a stable
+post reference; `main` will accumulate the completed work. The finale will show
+one incident from detection through recovery.
+
+For development, start with [AGENTS.md](AGENTS.md) and the
+[session handoff](docs/sentinel/handoff.md). Codex and Claude Code share the same
+project guidance and chapter skills.
+
 ## What's demonstrated here
 
 - **Contracts-first modeling** — every layer's naming, grain, and business
@@ -65,6 +80,8 @@ which is serverless-only, non-commercial, and quota-limited. Concretely, that sh
 ## Project layout
 
 ```
+AGENTS.md                       # shared agent instructions (Codex + Claude Code)
+CLAUDE.md                       # Claude Code entry point; imports AGENTS.md
 databricks.yml                  # bundle definition (target: dev)
 resources/
   pipelines.yml, jobs.yml         # Track 1 (TPC-H)
@@ -79,8 +96,12 @@ tests/                            # pytest, no Spark/workspace dependency
 docs/
   contracts.md, contracts-bedoux.md   # locked layer/naming/business rules per track
   architecture.md, architecture.drawio  # diagram + design rationale
-  ai_rules.md                       # development guardrails (both tracks)
+  ai_rules.md                       # pointer to AGENTS.md (superseded)
   genie.md                          # Genie CLI usage + space setup
+  sentinel/                         # Art of Data Defense: roadmap, workflow, handoff
+.agents/skills/                    # shared chapter/story skill bodies
+.claude/skills/                    # Claude Code adapters onto those same bodies
+.codex/config.toml                 # Codex project settings (reasoning effort only)
 scripts/genie.sh                   # thin wrapper over `databricks genie ...`
 .github/workflows/ci.yml           # test -> validate -> deploy -> (manual) run
 ```
