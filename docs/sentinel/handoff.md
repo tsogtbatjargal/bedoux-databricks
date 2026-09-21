@@ -1,29 +1,33 @@
 # Session handoff
 
-Updated: 2026-09-21, after chapter 01 was integrated into `main`. Verify the
+Updated: 2026-09-21. Chapter 01 is integrated into `main`; chapter 02 is
+implemented locally on `series/02-quality-gate`, not yet pushed. Verify the
 checkout before working; this page records context, not permission for
 external actions.
 
 ## Current state
 
 - Chapter 01 is integrated via merge commit `442c7a8` (PR #2), which
-  fast-forwarded `main` from `66454c2`. Treat `git rev-parse main` as the
-  authoritative current tip rather than any SHA recorded in this file — this
-  page is a point-in-time record, not a live pointer (chapter 00's history
-  below shows why that matters: this file was already wrong twice from
-  hardcoded SHAs).
+  fast-forwarded `main` from `66454c2`. `main` has since taken three more
+  docs-only commits (handoff/roadmap updates). Treat `git rev-parse main` as
+  the authoritative current tip rather than any SHA recorded in this file —
+  this page is a point-in-time record, not a live pointer (chapter 00's
+  history below shows why that matters: this file was already wrong twice
+  from hardcoded SHAs).
 - Remote branch `series/01-know-your-platform` is retained at `4b23521`
   (`https://github.com/tsogtbatjargal/bedoux-databricks/tree/series/01-know-your-platform`).
   The local branch was deleted after passing every check in
   [branch workflow](branch-workflow.md): clean tree, no other worktree, remote
   tip matched local tip, and the chapter tip is an ancestor of both local and
   `origin/main`.
-- Working tree clean, on `main`. Nothing tagged or posted. `deleteBranchOnMerge`
-  was re-confirmed `false` immediately before this merge.
-- No Sentinel runtime exists yet. Chapter 01 was a mapping/documentation
-  exercise, not new pipeline behavior — no `src/bedoux` code changed.
-- Chapter 01's LinkedIn post remains undrafted (drafting it is a separate task
-  for `sentinel-story`, not done this session).
+- The checkout is currently on `series/02-quality-gate` (branched from `main`
+  at `3bdee7e`), one commit ahead (`89c334c`), working tree clean, **not
+  pushed**. This is the first chapter that changes `src/bedoux/*.py` — see
+  "Chapter 02" below.
+- Nothing tagged or posted. `deleteBranchOnMerge` was `false` as of chapter
+  01's merge.
+- Chapter 00/01's LinkedIn posts remain undrafted (drafting them is a
+  separate `sentinel-story` task).
 
 ## Chapter 01 — what shipped
 
@@ -156,21 +160,70 @@ Full session-by-session detail lived here before and is still in Git history
 - No live Databricks validation, deployment, model calls, or Genie query has
   ever been run against this project. That remains true through chapter 01.
 
+## Chapter 02 — implemented, not yet pushed
+
+`series/02-quality-gate` (branched from `main` at `3bdee7e`, commit `89c334c`)
+implements the roadmap's "02 — Defend before damage spreads" scope in full —
+see [`chapters/02-quality-gate.md`](chapters/02-quality-gate.md) for the
+complete design, scenario mapping, and verification table. Summary:
+
+- **Batch identity**: Bronze stamps `leads_raw`/`web_events_raw`/
+  `ops_events_raw` with `_row_id` (deterministic Python-list order) because
+  `_ingest_ts` ties across every row of one table computation and can't order
+  duplicates.
+- **Persistent quarantine with reasons**: each fact table's Silver stage now
+  produces `<source>_clean` and `<source>_quarantine` from a shared
+  `_flagged` view — rejected rows carry reason codes and a
+  `_quarantined_ts`; nothing is dropped silently anymore.
+- **Quality metrics + publication gate**: `quality_metrics`/`gate_status`
+  turn quarantine rates into a per-source `gate_passed`. `gold.py` withholds
+  a table's refresh (keeps previously published content) when a source it
+  depends on exceeds a 10% quarantine rate (5x the generator's ~2% baseline)
+  — reject individual records by default, withhold only past that threshold.
+  Documented as **not** whole-platform transactional publication.
+- Covers chapter 01's Scenario A (malformed batch), B (duplicate leads), C
+  (missing campaign reference), the normal control, and an explicit replay/
+  idempotence test — all as pure-function unit tests in
+  `tests/test_quality.py` (`quality.py` is the tested spec; `silver.py`/
+  `gold.py` reimplement it as native Spark expressions, same pattern as
+  `transforms.py`/`gold.py`).
+- `uv sync --locked` + `uv run --locked python -m pytest -q`: **28 passed**
+  (17 prior + 11 new), this session.
+- `docs/contracts-bedoux.md` updated to document the new Silver quarantine/
+  metrics/gate tables and Gold's gate, so contract and code stay in sync.
+- A related-but-unfixed finding recorded in the chapter doc: `clients_clean`/
+  `campaigns_clean`'s dedup window still orders on the tied `_ingest_ts`
+  (same class of bug `_row_id` fixes elsewhere) — left flagged, not fixed,
+  since it wasn't in this chapter's named scope and neither table has test
+  coverage to catch a regression.
+- **Not verified**: the publication gate's self-referencing read
+  (`spark.read.table` of a Gold table's own current state) and everything
+  else requiring a live pipeline run — no `DATABRICKS_HOST`/`DATABRICKS_TOKEN`,
+  no `~/.databrickscfg`, no `databricks` CLI in this environment. Same
+  limitation chapter 01 recorded.
+- **This chapter touches `src/` and `resources`-adjacent pipeline code for
+  the first time in the series.** Per `AGENTS.md`, merging it to `main` will
+  trigger `Validate bundle`/`Deploy bundle` on push (paths-filter matches
+  `src/**`) — integrating it is a real deployment decision, not a docs-only
+  push. Not pushed, no PR opened, nothing merged or deployed this session,
+  per explicit instruction.
+- Roadmap's chapter 02 row updated to "Implemented (local, unpushed)".
+
 ## Next task
 
-Chapters 00 and 01 are both integrated into `main`. Start
-`series/02-quality-gate` from the current tip of `main` (run `git rev-parse
-main` to confirm it) when authorized. Its scope
-(`docs/sentinel/roadmap.md`, "02 — Defend before damage spreads") is exactly
-what chapter 01's Scenario A/B/C were written to set up: batch identity,
-persistent quarantine with reasons, quality metrics, and a publication gate
-decision (reject individual records vs. withhold the Gold refresh) for
-malformed values, duplicate leads, and missing campaign references.
+When authorized: push `series/02-quality-gate`, open a PR into `main`, and
+expect **both** `Unit tests` and `Validate bundle` to run this time (paths-filter
+will match `src/bedoux/*.py`) — `Deploy bundle` only runs on a bundle-path push
+to `main` itself, not on the PR. Flag the merge/deploy decision explicitly
+before acting on it; do not merge on your own initiative. After merge, observe
+the actual `main`-push CI run (expect `Deploy bundle` to actually run this
+time — report what happens, not what's predicted) and follow
+[branch workflow](branch-workflow.md)'s cleanup checklist before removing the
+local branch.
 
-Before starting: update the roadmap's chapter 01 row from "In progress" to
-integrated, and read [branch workflow](branch-workflow.md) — create the new
-chapter branch from current `main`, not from a locally cached ref.
+Separately, and not blocking chapter 02 or 03: chapters 00 and 01's LinkedIn
+posts are still undrafted. Drafting them is a `sentinel-story` task, distinct
+from pipeline/doc implementation.
 
-Separately, and not blocking chapter 02: chapter 01's LinkedIn post is still
-undrafted. Drafting it is a `sentinel-story` task, distinct from pipeline/doc
-implementation.
+AWS extension-chapter context is unchanged and recorded above under
+"Decisions to preserve".
