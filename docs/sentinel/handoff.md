@@ -1,9 +1,11 @@
 # Session handoff
 
-Updated: 2026-09-21. Chapter 01 is integrated into `main`; chapter 02 is
-implemented locally on `series/02-quality-gate`, not yet pushed. Verify the
-checkout before working; this page records context, not permission for
-external actions.
+Updated: 2026-09-21. Chapter 01 is integrated into `main`; chapter 02 is on
+`series/02-quality-gate`, pushed, with [PR #3](https://github.com/tsogtbatjargal/bedoux-databricks/pull/3)
+open and **not merged** — its `Validate bundle` check is failing for a
+missing-CI-credentials reason, not a code defect (see "PR #3 opened" below).
+Verify the checkout before working; this page records context, not
+permission for external actions.
 
 ## Current state
 
@@ -20,10 +22,11 @@ external actions.
   [branch workflow](branch-workflow.md): clean tree, no other worktree, remote
   tip matched local tip, and the chapter tip is an ancestor of both local and
   `origin/main`.
-- The checkout is currently on `series/02-quality-gate` (branched from `main`
-  at `3bdee7e`), one commit ahead (`89c334c`), working tree clean, **not
-  pushed**. This is the first chapter that changes `src/bedoux/*.py` — see
-  "Chapter 02" below.
+- `series/02-quality-gate` (branched from `main` at `3bdee7e`) is pushed and
+  open as PR #3 at head `29adace`, three commits ahead of `main`. **Not
+  merged** — `Validate bundle` fails in CI for a missing-credentials reason;
+  see "PR #3 opened" below. This is the first chapter that changes
+  `src/bedoux/*.py`.
 - Nothing tagged or posted. `deleteBranchOnMerge` was `false` as of chapter
   01's merge.
 - Chapter 00/01's LinkedIn posts remain undrafted (drafting them is a
@@ -257,17 +260,62 @@ reads a Gold table's own current state while that table is being defined —
 a self-referencing read pattern no local test can validate against real
 DLT. No workspace credentials are available in this environment.
 
+## PR #3 opened, CI observed — a real environment finding
+
+Pushed `series/02-quality-gate` (user confirmed) and opened
+[PR #3](https://github.com/tsogtbatjargal/bedoux-databricks/pull/3) into
+`main` at head `29adace`. This is the first chapter branch to change
+`src/bedoux/*.py`, so unlike chapters 00/01, `paths-filter` matched and
+`Validate bundle` actually ran on the PR (not just `Unit tests`).
+
+Observed CI run [`35653758420`](https://github.com/tsogtbatjargal/bedoux-databricks/actions/runs/35653758420)
+(event `pull_request`, head `29adace`):
+
+- **`Detect bundle changes`: success.**
+- **`Unit tests`: success** (33 passed, same as local).
+- **`Validate bundle`: failure.** `databricks bundle validate --target dev`
+  exited 1 with `Error: failed during request visitor: default auth: cannot
+  configure default credentials...`. The job's own log shows
+  `DATABRICKS_HOST:` and `DATABRICKS_TOKEN:` both **empty** in the step's
+  env. Confirmed the root cause directly: `gh secret list` on this repo
+  returns **zero configured secrets** — `DATABRICKS_HOST`/`DATABRICKS_TOKEN`
+  were never set up as GitHub Actions secrets on this repository at all, not
+  a permissions or expiry problem. This is the same "no live Databricks
+  access" limitation every chapter so far has recorded locally
+  (`which databricks`, no `~/.databrickscfg`) — it turns out to also be true
+  in CI, not just this local dev environment. **Not a code defect and not
+  worked around**; reporting it honestly per instruction.
+- **`Deploy bundle`: skipped** — correctly: PRs never deploy regardless of
+  `Validate bundle`'s outcome, and it would have been blocked by the failed
+  dependency anyway.
+- `gh pr view 3`: `mergeable: MERGEABLE`, `mergeStateStatus: UNSTABLE` (the
+  failing `Validate bundle` check).
+
+**Not merged.** Merging this branch would deploy the bundle to the `dev`
+target on the resulting `main` push — but `Validate bundle` has never
+succeeded, and would fail on `main` too for the same credential reason.
+Stopped here per instruction to report the PR's `Validate bundle` result
+before any merge decision.
+
 ## Next task
 
-When authorized: push `series/02-quality-gate`, open a PR into `main`, and
-expect **both** `Unit tests` and `Validate bundle` to run this time (paths-filter
-will match `src/bedoux/*.py`) — `Deploy bundle` only runs on a bundle-path push
-to `main` itself, not on the PR. Flag the merge/deploy decision explicitly
-before acting on it; do not merge on your own initiative. After merge, observe
-the actual `main`-push CI run (expect `Deploy bundle` to actually run this
-time — report what happens, not what's predicted) and follow
-[branch workflow](branch-workflow.md)'s cleanup checklist before removing the
-local branch.
+This session's task is done pending the user's decision. Whoever picks this
+up next needs the user to decide one of:
+
+- Configure `DATABRICKS_HOST`/`DATABRICKS_TOKEN` as GitHub Actions secrets
+  (a real workspace-credential decision, not something to do
+  unprompted) and re-run `Validate bundle` on PR #3 before considering merge.
+- Explicitly accept merging without a passing `Validate bundle` (would still
+  fail identically on the `main` push and block `Deploy bundle` there too —
+  not a merge that would actually deploy anything, just a merge of code that
+  has never been validated against a live workspace).
+- Leave PR #3 open, unmerged, until workspace access exists.
+
+Whichever the user chooses, do not add or change repository secrets, and do
+not merge on your own initiative — both are explicitly the user's decision
+to make. `series/02-quality-gate` is retained (pushed, not deleted); nothing
+in `docs/sentinel/branch-workflow.md`'s local-cleanup checklist applies yet
+since nothing has merged.
 
 Separately, and not blocking chapter 02 or 03: chapters 00 and 01's LinkedIn
 posts are still undrafted. Drafting them is a `sentinel-story` task, distinct
