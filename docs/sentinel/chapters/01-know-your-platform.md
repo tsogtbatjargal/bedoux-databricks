@@ -1,7 +1,7 @@
 # Part 01 — Know your platform
 
-Status: implementation in progress on `series/01-know-your-platform`, local
-only. No post draft yet. This chapter is a mapping exercise: it describes what
+Status: integrated into `main` (merge commit `442c7a8`, PR #2). No post draft
+yet. This chapter is a mapping exercise: it describes what
 Track 2 (Bedoux) already does, states three synthetic incident scenarios and a
 normal control that later chapters will exercise, and records which claims
 below are verified against code versus untested against a live workspace.
