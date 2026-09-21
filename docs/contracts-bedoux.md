@@ -46,8 +46,10 @@ Gold. A Gold table never lives in Bronze or Silver.
 
 ## Bronze — `workspace.bedoux_bronze`
 
-What it is: a raw, append-only landing zone from the synthetic generator. No
-interpretation, no filtering.
+What it is: a raw landing zone from the synthetic generator. No interpretation,
+no filtering. **Not append-only**: unlike Track 1's Bronze, which streams from
+a live source and only ever adds rows, Track 2's Bronze is recomputed in full
+every pipeline run — see the recompute rule below.
 
 Rules:
 - One Bronze table per source entity. 5 tables total: `clients_raw`, `campaigns_raw`,
@@ -84,9 +86,15 @@ Rules:
   place Auto CDC is demonstrated, against data that actually changes
   incrementally — forcing the same pattern here would be cargo-culting it onto
   data it doesn't fit.
-- `leads`, `web_events`, `ops_events` are streaming tables with **data quality
-  expectations** on their key fields: not-null keys, valid funnel stage values,
-  non-negative amounts/latency. Rows that fail are dropped (`expect_or_drop`).
+- `leads`, `web_events`, `ops_events` are materialized tables (`@dlt.table`,
+  reading Bronze in batch via `spark.read.table`), with **data quality
+  expectations** on their key fields: not-null keys, valid funnel stage
+  values, non-negative amounts/latency. Rows that fail are dropped
+  (`expect_or_drop`) — dropped, not quarantined; no dead-letter table exists
+  yet. **Not streaming tables**: Track 1's equivalent tables are genuine DLT
+  streaming reads because Track 1's Bronze is append-only. Track 2's Bronze is
+  a full recompute each run (see above), so a streaming read over it isn't the
+  right tool — these tables read Bronze in batch instead.
 
 ---
 
