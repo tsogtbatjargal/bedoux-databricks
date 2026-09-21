@@ -30,10 +30,12 @@ Track 2 through a series called **The Art of Data Defense**. Its data is fiction
 ## Branches and delivery
 
 - Follow `docs/sentinel/branch-workflow.md`. Each chapter starts from integrated
-  `main`, merges back when ready, and retains its branch. Never automatically
-  delete chapter branches, force-push them, or move a published post tag.
-- Current CI deploys the bundle on a push to `main`. Treat merging/pushing there
-  as a deployment decision. Do not infer permission from a documentation task.
+  `main` and keeps its remote branch after merging. The user permits removing a
+  merged local chapter branch after verifying its remote copy and integration.
+  Never delete remote chapter branches, force-push them, or move published tags.
+- Current CI deploys on pushes to `main` that change pipeline/bundle paths.
+  Treat integrating those changes as a deployment decision. Documentation and
+  local-tooling changes alone run local tests without deployment.
 - Do not publish LinkedIn posts, send messages, install global tools, or spend on
   model calls merely because a chapter describes those activities.
 - Before ending implementation work, update `docs/sentinel/handoff.md` with what
@@ -55,8 +57,9 @@ bodies as Codex. Read only the references needed for the current task.
 
 - Search with `rg` first; read targeted ranges of large files (over 350 lines).
   Keep logs and diffs bounded. Do not print secrets or dump whole transcripts.
-- For Python behavior changes, run `python -m pytest tests/ -q` in an environment
-  with `requirements-dev.txt` installed. These tests do not exercise live Spark.
+- Use `uv sync --locked` and `uv run --locked python -m pytest -q` for local
+  Python checks. Dependencies belong in `pyproject.toml` and `uv.lock`; use the
+  project `.venv`, not system pip. These tests do not exercise live Spark.
 - For bundle changes, validate when workspace credentials are available; report
   missing access honestly. Deploying, binding, running jobs, and destructive SQL
   require authorization covering the actual workspace action.

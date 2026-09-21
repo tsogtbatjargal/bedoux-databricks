@@ -1,86 +1,109 @@
 # Branches that readers can revisit
 
-`main` holds the integrated project. Each chapter has a retained `series/NN-name`
-branch. Create it when that chapter starts, from `main` containing the previous
-chapter. The branch is cumulative: a reader gets a runnable project at that stage.
+`main` holds the integrated project. Each chapter starts from that version of
+`main` on a `series/NN-name` branch. Retain the **remote** chapter branch for
+readers. Once merged and safely preserved remotely, remove its local branch to
+keep the checkout tidy. The user explicitly chose this policy.
 
-Recommended post tags are `post/00-introduction`, `post/01-know-your-platform`,
-and so on, matching the branch suffix. A tag identifies the exact demonstrated
-commit even if a branch later needs a correction. Published tags never move.
+Post tags such as `post/00-introduction` identify the exact demonstrated commit.
+Published tags never move. Create future branches when their chapters start, not
+all at once from today's baseline.
 
 ## Chapter lifecycle
 
-1. Check for uncommitted work and inspect local/remote branch state. Preserve
-   unfinished work. Synchronize `main` without rewriting history when appropriate.
-2. Create the chapter branch from integrated `main`. Implement and verify its
-   acceptance criteria. Save the draft and sanitized evidence with the chapter.
-3. Review the diff, refresh the handoff, and commit the finished chapter when
-   authorized. For an independent review, name the base commit and target commit;
-   include untracked files if reviewing work before it is committed.
-4. Push/open a PR when requested. Prefer a merge commit to keep chapter ancestry
-   straightforward. Retain the head branch after merging; do not pass a delete
-   option to PR tooling. `main` must include the chapter before the next starts.
-5. After verifying the final demonstration commit, create an annotated post tag
-   on that exact commit and push the explicit branch/tag refs when authorized.
-   Do not tag unfinished work just to fill the index.
-6. Verify the public links, then publish only when the user requests publication.
-   Record the commit, tag, PR, evidence, and actual LinkedIn URL in the index.
+1. Inspect the checkout and preserve unfinished changes. Start the next chapter
+   from `main` after the preceding chapter has been integrated.
+2. Implement and verify the chapter. Save its evidence and post draft; update
+   the handoff with observed results and remaining work.
+3. Commit/push/open a PR within the user's authorization. Prefer a merge commit
+   so the chapter's commits remain ancestors of `main`.
+4. Keep the remote PR head branch after merging. Check GitHub's automatic
+   head-branch deletion setting before the first merge; disable it when settings
+   changes are authorized. Do not use PR-tool options that delete the head branch.
+5. Tag the final demonstrated commit when authorized. Push the explicit tag,
+   verify public links, and record publication separately from implementation.
+6. Clean up the merged local chapter branch using the checks below.
 
-There is no requirement to publish immediately after merging. Keep implementation
-and publication status separate. Verify GitHub's automatic head-branch deletion
-setting before the first merge and disable it when repository settings changes
-are authorized. Never assume a retained local branch means a remote one exists.
+## Local branch cleanup
 
-## Deployment coupling
+The user permits this after a merge; a new confirmation is not needed when the
+checks pass. Before deleting a specific local chapter branch:
 
-Originally `.github/workflows/ci.yml` deployed the bundle on every push to `main`,
-including documentation-only merges, and on every `workflow_dispatch` even with
-its job-run checkbox off. Chapter 00 separated documentation from deployment:
+- Require a clean working tree and verify it is not checked out in any worktree.
+- Fetch `origin` and verify the chapter branch still exists on the server with
+  `git ls-remote --exit-code --heads origin refs/heads/series/NN-name`.
+- Require its local tip to equal the fetched remote chapter tip. A stale tracking
+  ref alone is not evidence of preservation.
+- Require the chapter tip to be an ancestor of both local `main` and
+  `origin/main`, using `git merge-base --is-ancestor`. Update local `main`
+  with a fast-forward if needed.
+- Switch to `main` (or another appropriate working branch), then delete only the
+  verified local ref with `git branch -d series/NN-name`.
 
-- Pull requests are unfiltered. Every proposed change still runs tests and
-  `databricks bundle validate`, documentation included.
-- Pushes to `main` skip the workflow when *every* changed file is documentation
-  or agent configuration (`**.md`, `docs/**`, `.agents/**`, `.claude/**`,
-  `.codex/**`, `.gitignore`, `LICENSE`). A merge touching pipeline code,
-  `databricks.yml`, `resources/**`, `tests/**`, or the workflow itself still runs
-  the full test → validate → deploy chain. A commit mixing documentation with
-  pipeline code deploys, because `paths-ignore` skips only when nothing else
-  changed.
-- `workflow_dispatch` now takes an explicit `deploy` checkbox, default off.
-  Dispatching without it runs the checks and touches no workspace. `run_job`
-  still requires the deploy job, so it cannot run a job without a deployment.
+Use the exact branch name in place of the example. Never use `-D`, wildcard
+deletion, or `git push --delete`. If a squash/rebase merge means the ancestry
+check fails, leave the local branch and explain; do not force the cleanup.
+Never delete `main`, a remote chapter branch, or a published tag.
 
-So merging a documentation-only chapter into `main` no longer deploys, but
-merging a chapter that changes the pipeline does. Treat that second case as a
-deployment decision and confirm it before pushing.
+Restore a local copy later with
+`git switch --track origin/series/NN-name`. Remote retention is the archival
+requirement; a local branch is a working convenience.
 
-These conditions were verified by evaluating the filter patterns and the deploy
-job's `if` expression against real commits in this repository; they have not been
-observed in a live GitHub Actions run. Note that a documentation-only push to
-`main` produces no CI run at all, so it reports no checks — intended here, but it
-means a required status check on `push` would never be satisfied by such a merge.
+## CI and deployment
+
+Local tests run on every pull request, push to `main`, and manual dispatch.
+There are no workflow-level path exclusions. Use the always-running
+`Unit tests` check for local test status; workspace jobs may be skipped.
+
+A pinned `dorny/paths-filter` action detects changes to `src/**`,
+`resources/**`, or `databricks.yml`. For PRs it uses the changed-file API; for
+main pushes it compares the pre-push commit. Failed detection prevents dependent
+workspace jobs. Tests use the same locked uv environment as local development.
+
+- Pipeline/bundle PRs also validate the bundle, but never deploy.
+- Pipeline/bundle pushes to `main` validate, then deploy after successful tests.
+- Documentation, tests, dependency/tooling files, and workflow-only changes run
+  local tests without deployment. Mixed changes deploy if they affect bundle paths.
+- Manual dispatch validates the bundle; `deploy` must be selected to deploy.
+  `run_job` only runs the pipeline after a successful opted-in deployment.
+  Dispatch is not restricted to `main`: choosing another branch and checking
+  `deploy` deploys *that* branch's bundle to the dev target. The old workflow
+  behaved the same way. Treat the branch selector as part of the deployment
+  decision, or add a ref condition if that capability is not wanted.
+
+The preparation changes no bundle paths, so integrating it does not require a
+one-off deployment under this workflow. This supersedes the earlier
+`paths-ignore` approach in commit `b9250aa`. The workflow in the pushed revision
+controls that push; there is no need to find a special route around the old file.
+
+If a future bundle starts consuming other paths (for example runtime dependency
+files or packaged artifacts), extend the filter in the same change. A missing
+required credential can still prevent live validation. Local CI checks do not
+prove the workflow has run successfully on GitHub.
+
+Third-party actions are pinned by commit SHA with the intended version in a
+trailing comment. `databricks/setup-cli@main` is the exception: it still tracks a
+moving branch, which is inconsistent with the rest and worth pinning. Doing so
+needs a SHA looked up from the network, so it is left as a follow-up rather than
+guessed. Likewise, the pinned `dorny/paths-filter` and `astral-sh/setup-uv` SHAs
+were written offline and have not been resolved against GitHub; the first real
+workflow run will confirm them or fail fast on an unresolvable action.
 
 ## Corrections and references
 
-Treat a published chapter branch as a snapshot. Make later fixes on a new branch
-from `main`; use a new correction tag and explain the change. Do not merge later
-chapters back into old chapter branches. Do not rebase published branches.
+Treat a published remote branch as a snapshot. Make later fixes on a new branch
+from `main`, with a new correction tag. Do not merge future chapters back into old
+branches or rebase published history.
 
-For this repository the reference patterns are:
+Reference patterns (use only after verifying the remote refs):
 
 - Branch: `https://github.com/tsogtbatjargal/bedoux-databricks/tree/series/02-quality-gate`
 - Snapshot: `https://github.com/tsogtbatjargal/bedoux-databricks/tree/post/02-quality-gate`
 - Exact code: a GitHub permalink using the full commit SHA.
 
-These are patterns, not currently published links. Only use a link in a public
-post after the corresponding ref exists remotely and has been checked.
-
 ## Publication register
 
-No chapter has been published by this workflow yet. Add one row per publication:
+No chapter has been published by this workflow yet. Add a row per publication:
 
 | Part | Branch | Demonstrated commit | Post tag | PR | Evidence path | LinkedIn URL |
 | --- | --- | --- | --- | --- | --- | --- |
-
-Only chapter 00 is being prepared locally. Future chapter branches and post tags
-should be created at their lifecycle steps, not pre-created at a shared baseline.

@@ -9,8 +9,9 @@ see the note at the bottom).
 
 ```
 GitHub Actions CI/CD
-  pytest -> databricks bundle validate -> databricks bundle deploy
-  (workflow_dispatch also offers: run the job)
+  uv / pytest (every PR and main push)
+  bundle changes -> validate -> deploy (main only)
+  (manual dispatch: validate; opt in to deploy and optionally run the job)
         |                                   |
         v                                   v
  Track 1: TPC-H Medallion           Track 2: Bedoux Ops & Marketing

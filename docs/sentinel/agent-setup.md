@@ -75,10 +75,12 @@ Codex/Claude Code subscriptions do not establish API access or a runtime budget.
 
 ## Local verification and sources
 
-Python tests require `requirements-dev.txt`; CI uses Python 3.11. An isolated
-virtual environment is preferable to changing the system interpreter. A docs-only
-change can be checked with `git diff --check`, local-link checks, and skill/config
-validation. Live bundle checks and model calls must be reported separately.
+Python tests use the locked uv environment described in
+[Local development](../development.md). Run `uv sync --locked`, then
+`uv run --locked python -m pytest -q`. The project `.venv` is separate from system
+Python, coding-agent installations, and Databricks compute. A docs-only change can
+be checked with `git diff --check`, local-link checks, and skill/config validation.
+Live bundle checks and model calls must be reported separately.
 
 Configuration sources checked on 2026-09-21:
 

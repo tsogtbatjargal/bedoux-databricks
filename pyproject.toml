@@ -1,0 +1,16 @@
+[project]
+name = "bedoux-databricks"
+version = "0.1.0"
+description = "Portfolio lakehouse and Bedoux Sentinel development environment"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8,<9"]
+
+[tool.uv]
+# Databricks loads pipeline files directly; this repository is not a wheel.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

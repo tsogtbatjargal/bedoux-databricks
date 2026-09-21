@@ -12,7 +12,8 @@ The final video brings those pieces together.
 ## Start here
 
 - [Roadmap](roadmap.md): chapter scope, completion criteria, and current status.
-- [Branch workflow](branch-workflow.md): retained branches and stable post tags.
+- [Branch workflow](branch-workflow.md): retained remote branches, local cleanup, and post tags.
+- [Local development](../development.md): isolated uv environment and dependency updates.
 - [Agent setup](agent-setup.md): Codex, Claude Code, and optional Jev development.
 - [Writing guide](writing.md): voice, evidence, and the final video outline.
 - [Session handoff](handoff.md): where the next session should begin.

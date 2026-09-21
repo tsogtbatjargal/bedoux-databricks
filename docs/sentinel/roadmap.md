@@ -6,7 +6,7 @@ predecessor is integrated; do not create all future branches from today's baseli
 
 | Part | Branch | Working title | Build status | Publication |
 | --- | --- | --- | --- | --- |
-| 00 | `series/00-introduction` | The challenge | Committed locally; not integrated | Draft only |
+| 00 | `series/00-introduction` | The challenge | Committed locally; ready to integrate | Draft only |
 | 01 | `series/01-know-your-platform` | Know your platform | Planned | Not drafted |
 | 02 | `series/02-quality-gate` | Defend before damage spreads | Planned | Not drafted |
 | 03 | `series/03-protect-evidence` | Protect what matters | Planned | Not drafted |

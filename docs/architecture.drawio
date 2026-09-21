@@ -23,7 +23,7 @@
         </mxCell>
 
         <!-- CI/CD -->
-        <mxCell id="cicd" value="GitHub Actions CI/CD&#xa;pytest &#8594; bundle validate &#8594; bundle deploy&#xa;(workflow_dispatch: run job)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="1">
+        <mxCell id="cicd" value="GitHub Actions CI/CD&#xa;uv / pytest on every PR and main push&#xa;bundle changes &#8594; validate &#8594; deploy (main only)&#xa;(workflow_dispatch: opt in to deploy / run job)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="430" y="40" width="540" height="70" as="geometry" />
         </mxCell>
 
