@@ -233,6 +233,14 @@ later justifies it.
 entirely. This is an orchestration control, not an invariant enforced inside
 Gold. Chapter 06's permission work is where "who may refresh Gold" belongs.
 
+## Live verification
+
+None of this chapter has run. The credential options, what deploys
+automatically once secrets exist, and the three-stage demonstration
+(healthy baseline, withheld bad batch with the baseline proven intact,
+restored corrected batch) are specified in
+[live-verification.md](../live-verification.md).
+
 ## Verification and limits
 
 | Check | Status | Evidence |

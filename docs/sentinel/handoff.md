@@ -266,27 +266,46 @@ before any merge decision.
 
 ## Next task
 
-This session's task is done pending the user's decision. Whoever picks this
-up next needs the user to decide one of:
+Chapter 02 is implemented and locally tested. It is **not demonstrated** — the
+gate has never run. Do not describe it as working until a live run exists.
 
-- Configure `DATABRICKS_HOST`/`DATABRICKS_TOKEN` as GitHub Actions secrets
-  (a real workspace-credential decision, not something to do
-  unprompted) and re-run `Validate bundle` on PR #3 before considering merge.
-- Explicitly accept merging without a passing `Validate bundle` (would still
-  fail identically on the `main` push and block `Deploy bundle` there too —
-  not a merge that would actually deploy anything, just a merge of code that
-  has never been validated against a live workspace).
-- Leave PR #3 open, unmerged, until workspace access exists.
+PR #3 is open at head `29adace` plus the two commits from this session. It has
+not been updated on the remote; the branch is ahead of its PR head locally.
 
-Whichever the user chooses, do not add or change repository secrets, and do
-not merge on your own initiative — both are explicitly the user's decision
-to make. `series/02-quality-gate` is retained (pushed, not deleted); nothing
-in `docs/sentinel/branch-workflow.md`'s local-cleanup checklist applies yet
-since nothing has merged.
+Two things gate progress, in order:
 
-Separately, and not blocking chapter 02 or 03: chapters 00 and 01's LinkedIn
-posts are still undrafted. Drafting them is a `sentinel-story` task, distinct
-from pipeline/doc implementation.
+1. **Decide the credential path.** See
+   [live verification](live-verification.md) §1. The Free Edition docs do not
+   say whether PATs or service principals are available, and the README's claim
+   predates this chapter, so it must be checked in the workspace UI rather than
+   assumed. If only OAuth M2M exists, `.github/workflows/ci.yml` needs
+   `DATABRICKS_CLIENT_ID`/`DATABRICKS_CLIENT_SECRET` instead of
+   `DATABRICKS_TOKEN` — that edit is deliberately not made yet.
+2. **Understand what secrets switch on before setting them.** With secrets
+   configured, merging PR #3 runs `databricks bundle deploy --target dev`
+   automatically, because it touches `src/**` and `resources/**`. Deploy
+   creates/updates the pipelines and job; it does not run them. See §3 of the
+   runbook for the full before/after table.
 
-AWS extension-chapter context is unchanged and recorded above under
-"Decisions to preserve".
+Then run the three-stage demonstration in §4: healthy baseline, bad batch
+withheld with the baseline proven intact, corrected batch restored, plus a
+replay check. Record job run IDs, the gate task log, `gate_status` per stage,
+and row counts per stage. Only after that can the roadmap's chapter 02
+acceptance criteria be marked demonstrated rather than implemented.
+
+Known gaps to carry forward, not to fix by guessing:
+
+- `notebook_task` with `base_parameters` has never run on Free Edition
+  serverless. If the task type is rejected, the task type changes;
+  `quality.evaluate_gate` would not.
+- `{{job.start_time.iso_datetime}}` resolution and timezone comparison against
+  Spark's `_computed_ts` are assumed from documentation, not observed. Both
+  fail closed if wrong.
+- Stage 2 needs an invalid-rate knob that does not exist yet: `bronze.py`
+  hardcodes `generator.INVALID_RATE`. Add it as a pipeline `configuration`
+  value read with `spark.conf.get`, defaulting to the normal rate.
+- Running `bedoux_gold_pipeline` directly bypasses the gate entirely. That
+  belongs to chapter 06's permission work, not here.
+
+After chapter 02 is genuinely demonstrated and integrated, chapter 03
+(`series/03-protect-evidence`) starts from `main`.

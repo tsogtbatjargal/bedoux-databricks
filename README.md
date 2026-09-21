@@ -102,7 +102,8 @@ docs/
   architecture.md, architecture.drawio  # diagram + design rationale
   ai_rules.md                       # pointer to AGENTS.md (superseded)
   genie.md                          # Genie CLI usage + space setup
-  sentinel/                         # Art of Data Defense: roadmap, workflow, handoff
+  sentinel/                         # Art of Data Defense: roadmap, workflow, handoff,
+                                   #   live-verification runbook, chapters
 .agents/skills/                    # shared chapter/story skill bodies
 .claude/skills/                    # Claude Code adapters onto those same bodies
 .codex/config.toml                 # Codex project settings (reasoning effort only)
