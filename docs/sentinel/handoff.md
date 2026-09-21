@@ -1,30 +1,68 @@
 # Session handoff
 
-Updated: 2026-09-21, after chapter 00 was integrated into `main`. Verify the
-checkout before working; this page records context, not permission for external
-actions.
+Updated: 2026-09-21, mid-session on chapter 01. Verify the checkout before
+working; this page records context, not permission for external actions.
 
 ## Current state
 
-- Chapter 00 is integrated via merge commit `877e8d3` (PR #1), which
-  fast-forwarded `main` from `4a04e77`. Two docs-only commits landed on `main`
-  after the merge (`6be715b`, `66454c2`). Treat `git rev-parse main` as the
-  authoritative current tip rather than any SHA recorded in this file — this
-  page is a point-in-time record, not a live pointer.
-- Remote branch `series/00-introduction` is retained at `ea72679`
-  (`https://github.com/tsogtbatjargal/bedoux-databricks/tree/series/00-introduction`).
-  The local branch was deleted after passing every check in
-  [branch workflow](branch-workflow.md): clean tree, no other worktree, remote
-  tip matched local tip, and the chapter tip is an ancestor of both local and
-  `origin/main`.
-- Commits merged: `bfd6fdd` (chapter 00 preparation), `b9250aa` (first CI
-  separation), `a2231b7` (handoff), `04ded3a` (environment/CI/branch-policy
-  cleanup), `0988d88` (cleanup commit SHA recorded), `ea72679` (pinned
-  `databricks/setup-cli`, this session).
-- Working tree clean, on `main`. Nothing tagged or posted. Repo setting
-  `deleteBranchOnMerge` is `false`, confirmed via `gh repo view` before the
-  merge.
-- No Sentinel runtime exists yet. The launch post remains an unpublished draft.
+- On `series/01-know-your-platform`, created from `main` at `66454c2` (verify
+  the actual current `main` tip with `git rev-parse main`; do not trust a SHA
+  recorded here — see the chapter 00 history note below for why).
+- Local commits on this branch, none pushed:
+  - `2e1f81d` — fixed two stale `main` SHA references in this file that a
+    prior session's direct docs pushes had made stale.
+  - `f5ddfc7` — added `docs/sentinel/chapters/01-know-your-platform.md` (the
+    platform map, trust boundaries, three incident scenarios, one normal
+    control, and a capability-check table); fixed two discrepancies in
+    `docs/contracts-bedoux.md` (Bronze's "append-only" vs. "full recompute"
+    self-contradiction, and Silver's "streaming tables" claim vs. its actual
+    batch `@dlt.table` implementation); marked chapter 00 "Integrated into
+    main" and chapter 01 "In progress" in `docs/sentinel/roadmap.md`'s build
+    status column.
+- Working tree clean. Not pushed, no PR, nothing merged, deployed, tagged, or
+  posted this session.
+- `uv sync --locked` and `uv run --locked python -m pytest -q` both pass (17
+  passed) — no Python/pipeline code changed this session, docs only.
+
+## Chapter 01 scope — status against acceptance criteria
+
+All four required elements from `docs/sentinel/roadmap.md`'s chapter 01
+acceptance are done locally; see
+[`chapters/01-know-your-platform.md`](chapters/01-know-your-platform.md) for
+the full content:
+
+1. **Architecture/threat map distinguishing existing vs. planned parts** —
+   done. Every row in the platform map cites the source file it was verified
+   against (`src/bedoux/*.py`, `resources/bedoux_*.yml`, `databricks.yml`).
+2. **Three scenario inputs + expected behavior, explicit** — done: malformed
+   lead batch, duplicate leads, missing campaign reference, plus a normal
+   control. Chosen to match chapter 02's stated scope
+   ("malformed values, duplicate leads, and missing campaign references") so
+   chapter 02 can build directly against them. The other two scenarios from
+   the roadmap's shared set (unexpected sensitive field; instruction embedded
+   in an ops message) are out of scope here — reserved for chapters 03 and
+   06/07 respectively. Note: `ops_events` currently has no free-text field at
+   all, so the ops-message scenario needs a schema addition before chapter
+   06/07 can exercise it — flagged, not built.
+3. **Capability checks recorded as verified/unavailable/untested** — done, see
+   the table at the end of the chapter doc. Everything requiring live
+   Databricks access (`bundle validate`, a live pipeline run, Genie queries)
+   is **unavailable** in this environment: no `DATABRICKS_HOST`/
+   `DATABRICKS_TOKEN`, no `~/.databrickscfg`, and the `databricks` CLI is not
+   installed locally. This is an environment limit, not a choice — a session
+   with workspace credentials should record the live baseline.
+4. **Track 2 contract contradictions corrected** — done, both found while
+   writing the platform map (not the ones originally guessed at): Bronze's
+   opening line called itself "append-only" while its own rules three lines
+   down said "full recompute... not append-only"; Silver called
+   `leads`/`web_events`/`ops_events` "streaming tables" though `silver.py`
+   implements them as batch-reading `@dlt.table`s (that phrase was inherited
+   verbatim from Track 1's contract, where Bronze genuinely is append-only).
+   No pipeline code changed — only the contract text, to match what
+   `src/bedoux` already does.
+
+Nothing in this chapter's scope remains undone locally. What's left is
+integration (push/PR/merge), which was not authorized this session.
 
 ## Decisions to preserve
 
@@ -32,143 +70,83 @@ Build **Bedoux Sentinel** inside this repo, extending Track 2 with fictional dat
 The series is **The Art of Data Defense**: introduction, six working chapters,
 and a full demo. Use concrete, natural writing with measured evidence.
 
-The user's latest branch preference supersedes the old local-retention rule:
-**keep remote chapter branches and stable post tags; remove merged local chapter
-branches once their remote copy and integration are verified.** See
-[branch workflow](branch-workflow.md) for exact checks. Chapter 00 followed this
-policy: its local branch was removed after verification, its remote branch and
-`main` remain.
+The user's latest branch preference: **keep remote chapter branches and stable
+post tags; remove merged local chapter branches once their remote copy and
+integration are verified.** See [branch workflow](branch-workflow.md) for exact
+checks. Chapter 00 followed this policy: its local branch was removed after
+verification, its remote branch and `main` remain.
 
 Codex or Claude Code can implement; a separate session can review. Jev remains
 optional and uninstalled. No runtime provider, API budget, AWS budget, or
-publication date has been chosen.
+publication date has been chosen. No Sentinel runtime exists yet — chapter 01
+is still a mapping/documentation exercise, not new pipeline behavior.
 
-## Cleanup completed locally
+## Chapter 00 — integration history (compressed)
 
-- Added `pyproject.toml`, `uv.lock`, `.python-version`, and `mise.toml`.
-  uv manages the project's ignored `.venv`; Python 3.11 matches the existing
-  CI interpreter choice. Removed the superseded `requirements-dev.txt`.
-- Installed uv 0.12.17 through the existing mise tool manager and trusted this
-  repository's mise config. No global default or shell profile was changed.
-  Use `mise exec -- uv ...` if uv is not on PATH. Python and packages were
-  installed into managed/project locations, not system Python.
-- Local and CI checks now use `uv sync --locked` and
-  `uv run --locked python -m pytest -q`.
-- Replaced workflow-level path exclusions with a pinned change-detection action.
-  Every PR/main push gets local tests. Only `src/**`, `resources/**`, and
-  `databricks.yml` changes trigger automatic workspace validation/deployment;
-  PRs never deploy. Manual dispatch validates and deploys only if opted in.
-- Documentation, tests, tooling, and workflow-only changes do not deploy. The
-  full preparation diff has no bundle-path changes, so its merge does not need
-  the one-off deployment predicted by the previous handoff.
-- Updated the development, agent, branch, and README guidance. Replaced the
-  accumulated handoff history with this current summary; history remains in Git.
-- Kept both tracks, their contracts, diagrams, and Genie tooling. No unrelated
-  application files were identified for deletion.
+Full session-by-session detail lived here before and is still in Git history
+(`git log -- docs/sentinel/handoff.md`) if needed; compressed to the essentials
+that matter going forward, matching the precedent set by the cleanup session
+that did the same thing to the pre-chapter-00 history.
 
-## Verification and limits
+- Prepared on `series/00-introduction` across commits `bfd6fdd`, `b9250aa`,
+  `a2231b7`, `04ded3a`, `0988d88`, `ea72679` (the last pinned
+  `databricks/setup-cli` to a commit SHA and confirmed the `dorny/paths-filter`
+  and `astral-sh/setup-uv` pins resolve to their intended tags via the GitHub
+  API).
+- Pushed, opened PR #1, confirmed `deleteBranchOnMerge` was already `false`,
+  observed CI on the PR (`Unit tests` success, workspace jobs skipped — no
+  bundle path changed), merged with a merge commit (`877e8d3`, no branch
+  deletion), observed CI on the resulting `main` push (same no-deploy
+  pattern), then ran every check in
+  [branch workflow](branch-workflow.md)'s local-cleanup section before
+  deleting the local branch. The remote branch
+  (`series/00-introduction`) is retained at `ea72679`.
+- Two further docs-only commits landed directly on `main` after the merge
+  (`6be715b`, `66454c2`), each confirmed to run tests and skip workspace jobs.
+  This is why "current state" sections in this file now defer to
+  `git rev-parse main` instead of hardcoding a SHA — hardcoded SHAs here had
+  already gone stale twice.
 
-- `mise exec -- uv run --locked python -m pytest -q`: **17 passed**.
-- Interpreter: CPython 3.11.16; confirmed `sys.prefix != sys.base_prefix`
-  and environment path is this checkout's `.venv`.
-- `mise exec -- uv lock --check`: passed. Lock uses the public PyPI registry.
-- `mise exec actionlint@1.7.12 -- actionlint .github/workflows/ci.yml`: passed.
-  actionlint was installed in mise's managed tools for this check.
-- Local CI policy evaluation passed 10 path cases, all four dispatch flag
-  combinations, PR deployment exclusion, and the full preparation diff.
-  Conditions were read from the YAML and evaluated with Node. This does not
-  exercise the remote paths-filter action or GitHub event delivery.
-- Confirmed the virtual environment and local credential/preference files are ignored.
-- Documentation check: 16 project/doc Markdown files and 29 relative links passed;
-  TOML parsed, local/CI uv versions matched, and `git diff --check` was clean.
-- No live Databricks validation, deployment, model calls, or GitHub Actions run.
+## Verification and limits (chapter 00 preparation)
 
-Claude Code's previous fresh session verified its import and both skill adapters.
-This Codex session received both skills in its available-skill list and read and
-used `sentinel-chapter`. That verifies discovery here, not a fresh standalone
-Codex CLI invocation.
-
-### Review session (Claude Code, independent)
-
-Re-ran rather than trusted: `uv sync --locked` + `uv run --locked python -m
-pytest -q` → **17 passed**; `uv lock --check` passed; interpreter CPython 3.11.16
-with `sys.prefix` in this checkout's `.venv`; `actionlint` clean; 20 Markdown
-files / 29 relative links with none broken; all three TOML files parse;
-`git diff --check` clean. uv and mise versions match between `mise.toml` and the
-workflow pin.
-
-Independently evaluated the job gating from the YAML: nine event cases pass,
-including docs PR (tests only), bundle PR (validates, never deploys), docs push
-to `main` (no workspace job), bundle push (validate then deploy), and all four
-dispatch flag combinations. Also confirmed the pending diff touches no
-`src/**`, `resources/**`, or `databricks.yml` path, so integrating chapter 00
-deploys nothing. That supersedes the one-off-deployment warning written in the
-previous session, which applied to the superseded `paths-ignore` design.
-
-Three concrete fixes applied in the cleanup commit:
-
-- `.gitignore` did not cover mise's machine-local overrides. Added
-  `mise.local.toml` and `.mise.local.toml`, matching how `.env` and
-  `CLAUDE.local.md` are handled.
-- `docs/architecture.drawio` still showed `pytest → validate → deploy` as an
-  unconditional chain. Updated the label to the gated flow, matching
-  `architecture.md`. The file is diagram source with no committed export, so
-  nothing is now out of sync; XML still parses.
-- `branch-workflow.md` did not mention that `workflow_dispatch` is not
-  restricted to `main` — dispatching from a chapter branch with `deploy` checked
-  deploys that branch. Behavior is unchanged from the old workflow and was left
-  alone; it is now documented as a decision rather than a surprise.
-
-Previously deliberately not fixed, now resolved in this session (commit
-`ea72679`, before the merge): `databricks/setup-cli` is pinned to
-`d76f84cea9893ce68311a1f33fb0c95af6c963b7` (tag `v1.17.0`), looked up via the
-GitHub API (`gh api repos/databricks/setup-cli/tags`). The `dorny/paths-filter`
-(`ceb8a2b...c5cc9d`) and `astral-sh/setup-uv` (`c771a70...ca235ff9`) SHAs,
-written offline in the earlier session, were confirmed this session to resolve
-exactly to their intended tags `v4` and `v9.0.0` respectively
-(`gh api repos/<owner>/<repo>/git/refs/tags/<tag>` matched
-`gh api repos/<owner>/<repo>/commits/<sha>`). `actionlint` passed on the
-updated workflow.
-
-### Integration session (this session)
-
-- Pushed `series/00-introduction` (`ea72679`) and opened PR #1 into `main`:
-  `https://github.com/tsogtbatjargal/bedoux-databricks/pull/1`.
-- Confirmed `deleteBranchOnMerge` is `false` on the repo before merging
-  (`gh repo view ... --json deleteBranchOnMerge`).
-- Observed CI on the PR (run `35647524911`, event `pull_request`): `Detect
-  bundle changes` success, `Unit tests` success, `Validate bundle` skipped,
-  `Deploy bundle` skipped — matches the predicted no-deploy path since no
-  `src/**`, `resources/**`, or `databricks.yml` path changed.
-- Merged PR #1 with a merge commit (`gh pr merge 1 --merge`, no branch
-  deletion). Merge commit `877e8d3`; `main` fast-forwarded from `4a04e77`.
-- Observed CI on the resulting push to `main` (run `35647610948`, event
-  `push`): `Unit tests` success, `Validate bundle` skipped, `Deploy bundle`
-  skipped. No workspace deployment occurred.
-- Ran the local-branch-cleanup checks from
-  [branch workflow](branch-workflow.md) and all passed: clean tree, single
-  worktree, `git fetch origin` then `git ls-remote --exit-code --heads origin
-  refs/heads/series/00-introduction` found the branch, local tip
-  `ea72679` equaled the fetched remote tip, and
-  `git merge-base --is-ancestor series/00-introduction main`/`origin/main`
-  both succeeded after fast-forwarding local `main`. Deleted the local branch
-  with `git branch -d series/00-introduction` (not `-D`). The remote branch
-  is confirmed present at the same tip.
-- Did not tag, did not publish the LinkedIn draft, made no paid model calls.
-- Committed this handoff update directly on `main` (`6be715b`, docs-only, user
-  confirmed) and pushed it. Run `35647816040` (event `push`) confirmed the
-  same no-deploy pattern: `Unit tests` success, `Validate bundle`/`Deploy
-  bundle` skipped.
+- `mise exec -- uv run --locked python -m pytest -q`: 17 passed, confirmed
+  independently by two separate sessions (interpreter CPython 3.11.16,
+  `.venv` in this checkout both times).
+- `uv lock --check`, `actionlint .github/workflows/ci.yml`, and a documentation
+  check (Markdown files + relative links, TOML parse, `git diff --check`) all
+  passed, also confirmed independently by two sessions.
+- Local CI policy evaluation (path-filter conditions, dispatch flag
+  combinations, deployment gating) was evaluated from the YAML and with Node,
+  not by an actual GitHub Actions run — that only happened during the
+  integration session (PR #1 / merge to `main`), and it matched every local
+  prediction.
+- No live Databricks validation, deployment, model calls, or Genie query has
+  ever been run against this project. That remains true through chapter 01.
 
 ## Next task
 
-Chapter 00 is integrated. Start `series/01-know-your-platform` from the current
-tip of `main` (run `git rev-parse main` to confirm it; do not trust a SHA
-recorded here). Map the current platform, specify synthetic incidents, and
-reconcile Track 2's contract language with its batch/full-recompute
-implementation. Existing invalid rows are dropped, not quarantined; existing
-leads have email domains, not email/phone PII.
+Chapter 01's local work (platform map, scenarios, contract fixes, capability
+checks) is complete. Integration was not authorized this session. When
+authorized:
+
+1. Push `series/01-know-your-platform` and open a PR into `main`. This chapter
+   changes no bundle path either, so expect the same pattern as chapter 00:
+   `Unit tests` runs, `Validate bundle`/`Deploy bundle` skip.
+2. Before merging, re-confirm `deleteBranchOnMerge` is still `false`
+   (`gh repo view ... --json deleteBranchOnMerge`) — it was disabled before
+   chapter 00's merge, but re-check rather than assume it stayed that way.
+3. Merge with a merge commit (not squash/rebase), same as chapter 00, so the
+   ancestry-based local-branch-cleanup check in
+   [branch workflow](branch-workflow.md) keeps working.
+4. After merging and verifying, clean up the local branch using that same
+   checklist. Never `-D`, never delete the remote.
+
+Then start `series/02-quality-gate` from the then-current `main`. Its scope
+(`docs/sentinel/roadmap.md`, "02 — Defend before damage spreads") is exactly
+what chapter 01's Scenario A/B/C above were written to set up: batch identity,
+persistent quarantine with reasons, quality metrics, and a publication gate
+decision (reject individual records vs. withhold the Gold refresh) for
+malformed values, duplicate leads, and missing campaign references.
 
 Read [branch workflow](branch-workflow.md) before starting: create the new
-chapter branch from current `main`, not from the deleted local
-`series/00-introduction` ref.
+chapter branch from current `main`, not from a locally cached ref.
