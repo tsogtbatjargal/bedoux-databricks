@@ -26,11 +26,18 @@ working; this page records context, not permission for external actions.
     `expect_or_drop`, dropped rows not quarantined) instead of narrating their
     own revision history. The correction itself is recorded in git history and
     in `chapters/01-know-your-platform.md`, not in the contract's prose.
-- Working tree clean. Not pushed, no PR, nothing merged, deployed, tagged, or
-  posted this session. Pushing/PR/merge for this chapter is pending the user's
-  confirmation in-session.
+  - `5fffdf5` — recorded the tightening commit in this file.
 - `uv sync --locked` and `uv run --locked python -m pytest -q` both pass (17
   passed) — no Python/pipeline code changed this session, docs only.
+- Pushed `series/01-know-your-platform` (user confirmed) and opened PR #2 into
+  `main`: `https://github.com/tsogtbatjargal/bedoux-databricks/pull/2`.
+  Confirmed `deleteBranchOnMerge` is still `false` before merging
+  (`gh repo view ... --json deleteBranchOnMerge`). Observed CI on the PR (run
+  `35650868078`, event `pull_request`): `Detect bundle changes` success,
+  `Unit tests` success, `Validate bundle` skipped, `Deploy bundle` skipped —
+  matches the predicted no-deploy path since no `src/**`, `resources/**`, or
+  `databricks.yml` path changed. PR is `CLEAN`/`MERGEABLE`. Not yet merged —
+  pending the user's confirmation in-session.
 
 ## Chapter 01 scope — status against acceptance criteria
 
