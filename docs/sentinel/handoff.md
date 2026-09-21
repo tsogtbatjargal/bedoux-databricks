@@ -6,8 +6,11 @@ actions.
 
 ## Current state
 
-- Chapter 00 is integrated. `main` is at `877e8d3` (merge commit for PR #1),
-  fast-forwarded from `4a04e77`.
+- Chapter 00 is integrated via merge commit `877e8d3` (PR #1), which
+  fast-forwarded `main` from `4a04e77`. Two docs-only commits landed on `main`
+  after the merge (`6be715b`, `66454c2`). Treat `git rev-parse main` as the
+  authoritative current tip rather than any SHA recorded in this file — this
+  page is a point-in-time record, not a live pointer.
 - Remote branch `series/00-introduction` is retained at `ea72679`
   (`https://github.com/tsogtbatjargal/bedoux-databricks/tree/series/00-introduction`).
   The local branch was deleted after passing every check in
@@ -159,12 +162,13 @@ updated workflow.
 
 ## Next task
 
-Chapter 00 is integrated. Start `series/01-know-your-platform` from updated
-`main` (already at `877e8d3` locally). Map the current platform, specify
-synthetic incidents, and reconcile Track 2's contract language with its
-batch/full-recompute implementation. Existing invalid rows are dropped, not
-quarantined; existing leads have email domains, not email/phone PII.
+Chapter 00 is integrated. Start `series/01-know-your-platform` from the current
+tip of `main` (run `git rev-parse main` to confirm it; do not trust a SHA
+recorded here). Map the current platform, specify synthetic incidents, and
+reconcile Track 2's contract language with its batch/full-recompute
+implementation. Existing invalid rows are dropped, not quarantined; existing
+leads have email domains, not email/phone PII.
 
 Read [branch workflow](branch-workflow.md) before starting: create the new
-chapter branch from `main` at `877e8d3`, not from the deleted local
+chapter branch from current `main`, not from the deleted local
 `series/00-introduction` ref.
