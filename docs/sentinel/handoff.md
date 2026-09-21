@@ -187,8 +187,8 @@ complete design, scenario mapping, and verification table. Summary:
   `tests/test_quality.py` (`quality.py` is the tested spec; `silver.py`/
   `gold.py` reimplement it as native Spark expressions, same pattern as
   `transforms.py`/`gold.py`).
-- `uv sync --locked` + `uv run --locked python -m pytest -q`: **28 passed**
-  (17 prior + 11 new), this session.
+- `uv sync --locked` + `uv run --locked python -m pytest -q`: **33 passed**
+  (17 pre-chapter-02 + 16 in `test_quality.py`), this session.
 - `docs/contracts-bedoux.md` updated to document the new Silver quarantine/
   metrics/gate tables and Gold's gate, so contract and code stay in sync.
 - A related-but-unfixed finding recorded in the chapter doc: `clients_clean`/
@@ -208,6 +208,54 @@ complete design, scenario mapping, and verification table. Summary:
   push. Not pushed, no PR opened, nothing merged or deployed this session,
   per explicit instruction.
 - Roadmap's chapter 02 row updated to "Implemented (local, unpushed)".
+
+### Review fixes (before push)
+
+A review of the first implementation found one correctness bug and three
+spec divergences, all fixed on this branch before any push — see
+[`chapters/02-quality-gate.md`](chapters/02-quality-gate.md)'s "Review fixes"
+section for full detail. Summary:
+
+1. **Gate double-counting (real bug):** `gate_status` summed
+   `quality_metrics`' *exploded* per-reason counts, so a row with two reasons
+   (e.g. a duplicate that's also missing `campaign_id`) inflated both the
+   numerator and denominator of the quarantine rate — the reviewer's worked
+   example (100 leads, 10 duplicate+null rows) computed `18.2%` instead of
+   the true `10%`, which would have wrongly withheld a Gold refresh that
+   should have published. Fixed by adding `_row_counts` (one row in, one row
+   counted, sourced directly from the `_flagged` views) as `gate_status`'s
+   basis instead; `quality_metrics`' exploded breakdown is unchanged and
+   still useful, just no longer wired into the gate. Regression-tested:
+   `test_gate_rate_counts_rows_not_reasons_for_multi_reason_batch`.
+2. **Duplicate reason codes**: `quality.reconcile` previously gave duplicates
+   only `duplicate_<key>`, discarding classification reasons; `silver.py`
+   evaluates both independently and can emit both at once. Resolved in favor
+   of `silver.py`'s richer union-of-reasons behavior (the double-counting bug
+   above only exists because a row can carry two reasons, so collapsing to
+   one would hide the bug's premise) — `quality.reconcile` rewritten to
+   classify and dedup in one pass; `dedup_by_key` kept as a standalone,
+   no-longer-internally-used utility.
+3. **`web_events` null duration silently accepted**: `< 0` is `NULL` (not
+   `True`) for a `NULL` duration. Fixed to `.isNull() | (... < 0)`, matching
+   the `ops_events` pattern that already had this right.
+4. **`leads` null stage silently accepted — a regression** from the
+   pre-chapter-02 `expect_or_drop`, which did drop it: `~col(...).isin(...)`
+   is `NULL` for a `NULL` stage. Fixed with an explicit `isNull()` check.
+
+**Closed testing gap**: the original suite only exercised `quality.py`, so a
+`quality.py`/`silver.py` divergence passed green. Reason-code string
+literals in `silver.py` are now extracted into named `REASON_*` constants
+(with a comment block mapping each to its `quality.py` counterpart), and
+`test_silver_reason_constants_match_quality_spec` greps `silver.py`'s source
+text (no Spark/`dlt` import needed) to check those constants against
+`quality.py`'s reason vocabulary. This narrows but doesn't close the gap —
+the Spark join/window/control-flow *logic* itself still has no automated
+cross-check, same as `gold.py` vs. `transforms.py` always has had.
+
+**Still not verified** (unchanged by the fixes): `_publish_or_withhold`
+reads a Gold table's own current state while that table is being defined —
+a self-referencing read pattern no local test can validate against real
+DLT. No workspace credentials are available in this environment.
 
 ## Next task
 

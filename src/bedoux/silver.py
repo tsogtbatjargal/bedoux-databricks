@@ -35,6 +35,34 @@ from pyspark.sql.window import Window
 QUARANTINE_RATE_THRESHOLD = 0.10
 VALID_STAGES = {"new", "qualified", "won", "lost"}
 
+# Reason codes, extracted as constants rather than inline string literals at
+# each lit(...) call site, mirroring quality.py's classify_lead/
+# classify_web_event/classify_ops_event/reconcile literals exactly:
+#   REASON_NULL_CAMPAIGN_ID     <-> quality.classify_lead/classify_web_event: "null_campaign_id"
+#   REASON_UNKNOWN_CAMPAIGN_ID  <-> quality.classify_lead/classify_web_event: "unknown_campaign_id"
+#   REASON_INVALID_STAGE        <-> quality.classify_lead:                    "invalid_stage"
+#   REASON_INVALID_DURATION     <-> quality.classify_web_event:               "invalid_duration"
+#   REASON_INVALID_LATENCY      <-> quality.classify_ops_event:               "invalid_latency"
+#   REASON_ACCEPTED             <-> quality.py's reconcile: accepted rows carry no reason;
+#                                    "accepted" only exists here, as quality_metrics' label
+#                                    for the diagnostic per-reason breakdown.
+#   _duplicate_reason(key)      <-> quality.reconcile: f"duplicate_{key}"
+# A typo in one of these constants would silently diverge from the tested
+# spec with no live-pipeline test to catch it -- tests/test_quality.py greps
+# this file's source for these constants (silver.py can't be imported
+# without a live `dlt` runtime) and checks them against quality.py's reason
+# vocabulary, so a typo or a renamed/removed reason fails that test instead.
+REASON_NULL_CAMPAIGN_ID = "null_campaign_id"
+REASON_UNKNOWN_CAMPAIGN_ID = "unknown_campaign_id"
+REASON_INVALID_STAGE = "invalid_stage"
+REASON_INVALID_DURATION = "invalid_duration"
+REASON_INVALID_LATENCY = "invalid_latency"
+REASON_ACCEPTED = "accepted"
+
+
+def _duplicate_reason(key_column_name):
+    return f"duplicate_{key_column_name}"
+
 # =============================================================================
 # clients_clean / campaigns_clean: small deterministic dimensions.
 # Deliberately plain materialized tables, not Auto CDC -- see contracts doc for
@@ -105,13 +133,17 @@ def leads_flagged():
             "_reasons",
             array_remove(
                 array(
-                    when(col("campaign_id").isNull(), lit("null_campaign_id")),
+                    when(col("campaign_id").isNull(), lit(REASON_NULL_CAMPAIGN_ID)),
                     when(
                         col("campaign_id").isNotNull() & col("_known_campaign_id").isNull(),
-                        lit("unknown_campaign_id"),
+                        lit(REASON_UNKNOWN_CAMPAIGN_ID),
                     ),
-                    when(~col("stage").isin(*VALID_STAGES), lit("invalid_stage")),
-                    when(col("_dup_rank") > 1, lit("duplicate_lead_id")),
+                    # NULL-safe: `~col("stage").isin(...)` is NULL (not True) for a NULL
+                    # stage, so a null-stage row would otherwise pass through accepted --
+                    # a regression from the pre-chapter-02 expect_or_drop, which did drop
+                    # it. isNull() first forces the NULL case to quarantine explicitly.
+                    when(col("stage").isNull() | (~col("stage").isin(*VALID_STAGES)), lit(REASON_INVALID_STAGE)),
+                    when(col("_dup_rank") > 1, lit(_duplicate_reason("lead_id"))),
                 ),
                 None,
             ),
@@ -170,13 +202,19 @@ def web_events_flagged():
             "_reasons",
             array_remove(
                 array(
-                    when(col("campaign_id").isNull(), lit("null_campaign_id")),
+                    when(col("campaign_id").isNull(), lit(REASON_NULL_CAMPAIGN_ID)),
                     when(
                         col("campaign_id").isNotNull() & col("_known_campaign_id").isNull(),
-                        lit("unknown_campaign_id"),
+                        lit(REASON_UNKNOWN_CAMPAIGN_ID),
                     ),
-                    when(col("session_duration_seconds") < 0, lit("invalid_duration")),
-                    when(col("_dup_rank") > 1, lit("duplicate_event_id")),
+                    # NULL-safe: plain `< 0` is NULL (not True) for a NULL duration, so a
+                    # null-duration row would otherwise pass through accepted. Matches the
+                    # ops_events_flagged pattern below, which already gets this right.
+                    when(
+                        col("session_duration_seconds").isNull() | (col("session_duration_seconds") < 0),
+                        lit(REASON_INVALID_DURATION),
+                    ),
+                    when(col("_dup_rank") > 1, lit(_duplicate_reason("event_id"))),
                 ),
                 None,
             ),
@@ -227,8 +265,11 @@ def ops_events_flagged():
         "_reasons",
         array_remove(
             array(
-                when(col("latency_seconds").isNull() | (col("latency_seconds") < 0), lit("invalid_latency")),
-                when(col("_dup_rank") > 1, lit("duplicate_ops_event_id")),
+                when(
+                    col("latency_seconds").isNull() | (col("latency_seconds") < 0),
+                    lit(REASON_INVALID_LATENCY),
+                ),
+                when(col("_dup_rank") > 1, lit(_duplicate_reason("ops_event_id"))),
             ),
             None,
         ),
@@ -267,20 +308,43 @@ def ops_events_quarantine():
 # quality_metrics / gate_status: turn the three "_flagged" views into the
 # publication-gate decision gold.py reads. Pure DataFrame aggregation -- no
 # driver-side counting -- so it stays a normal declarative DLT flow.
+#
+# quality_metrics explodes _reasons for a per-reason breakdown, so a row with
+# two reasons contributes two rows there -- useful for diagnosing *why* a run
+# was quarantined, but not row-conserving. gate_status must NOT be derived
+# from quality_metrics's exploded counts for exactly that reason (a
+# multi-reason row would inflate both the numerator and the denominator of
+# the rate). gate_status instead counts rows once each, straight from the
+# "_flagged" views (quality.reconcile's conservation property, reapplied
+# here): total = count(*), quarantined = count(size(_reasons) > 0).
 # =============================================================================
 
 
 def _outcome_rows(source_name, view_name):
     df = dlt.read(view_name)
     accepted = df.withColumn("source", lit(source_name)).withColumn(
-        "reason", explode(when(size(col("_reasons")) == 0, array(lit("accepted"))).otherwise(col("_reasons")))
+        "reason", explode(when(size(col("_reasons")) == 0, array(lit(REASON_ACCEPTED))).otherwise(col("_reasons")))
     )
     return accepted.select("source", "reason")
 
 
+def _row_counts(source_name, view_name):
+    """One row per input row (not exploded): source + whether it was
+    quarantined. The row-conserving basis for gate_status's rate."""
+    df = dlt.read(view_name)
+    return df.withColumn("source", lit(source_name)).withColumn(
+        "_quarantined", (size(col("_reasons")) > 0).cast("int")
+    ).select("source", "_quarantined")
+
+
 @dlt.table(
     name="quality_metrics",
-    comment="Per-run row counts by source and outcome (accepted, or a specific quarantine reason). Backs the publication gate.",
+    comment=(
+        "Per-run row counts by source and outcome (accepted, or a specific "
+        "quarantine reason), exploded so a multi-reason row appears once per "
+        "reason. Diagnostic breakdown only -- gate_status does NOT read this "
+        "table, since a multi-reason row would inflate its rate."
+    ),
 )
 def quality_metrics():
     rows = (
@@ -300,22 +364,24 @@ def quality_metrics():
     comment=(
         "Publication gate decision per source: whether this run's quarantine "
         f"rate is at or below the {QUARANTINE_RATE_THRESHOLD:.0%} threshold. "
+        "Counted from the *_flagged views directly (one row in, one row "
+        "counted), not from quality_metrics' exploded per-reason breakdown. "
         "gold.py withholds a table's refresh (keeping previously published "
         "content) for any source whose gate_passed is false."
     ),
 )
 def gate_status():
-    metrics = dlt.read("quality_metrics")
-    totals = metrics.groupBy("source").agg(_sum("row_count").alias("total"))
-    quarantined = (
-        metrics.filter(col("reason") != "accepted")
-        .groupBy("source")
-        .agg(_sum("row_count").alias("quarantined"))
+    row_counts = (
+        _row_counts("leads", "leads_flagged")
+        .unionByName(_row_counts("web_events", "web_events_flagged"))
+        .unionByName(_row_counts("ops_events", "ops_events_flagged"))
+    )
+    counts = row_counts.groupBy("source").agg(
+        count("*").alias("total"),
+        _sum("_quarantined").alias("quarantined"),
     )
     return (
-        totals.join(quarantined, "source", "left")
-        .fillna({"quarantined": 0})
-        .withColumn(
+        counts.withColumn(
             "quarantine_rate",
             when(col("total") > 0, col("quarantined") / col("total")).otherwise(lit(0.0)),
         )

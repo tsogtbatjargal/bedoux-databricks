@@ -15,6 +15,13 @@ baseline -- past it, the deviation is more likely a systemic pipeline problem
 (a broken upstream mapping, a bad deploy) than expected background noise, and
 Genie/BI users are better served by stale-but-correct numbers than by a
 silently degraded refresh.
+
+A row's reasons are the union of every rule it fails, including
+`duplicate_<key>` -- a duplicate row that also has a null campaign_id carries
+both. This is a row-conservation model, not a reason-conservation one: the
+gate's quarantine rate must be computed from row counts (one row = one unit),
+never from a per-reason breakdown, or a multi-reason row inflates the rate.
+See reconcile() below and gate_status/_row_counts in silver.py.
 """
 
 QUARANTINE_RATE_THRESHOLD = 0.10
@@ -27,6 +34,10 @@ def dedup_by_key(rows: list[dict], key: str) -> tuple[list[dict], list[dict]]:
     occurrence in input order. Callers must supply rows in a deterministic
     order (e.g. Bronze's `_row_id`), not something tied like a shared
     per-run timestamp.
+
+    A standalone utility, not used by `reconcile` below (which needs
+    per-row reasons alongside dedup, not a plain kept/duplicate split) --
+    kept for callers that only need pure dedup.
     """
     seen = set()
     kept, dups = [], []
@@ -75,22 +86,38 @@ def classify_ops_event(event: dict) -> list[str]:
 
 
 def reconcile(rows: list[dict], key: str, classify_fn, *classify_args) -> tuple[list[dict], list[tuple[dict, list[str]]]]:
-    """Dedup then classify. Returns (accepted, quarantined) where quarantined
-    is a list of (row, reasons) pairs -- duplicates get reason
-    `duplicate_<key>`. Every input row appears in exactly one output list
-    (conservation), which is what "no double-counting" means at this layer.
+    """Classify every row against `classify_fn`, and separately mark it a
+    duplicate if its key already appeared earlier in `rows`. A row's reasons
+    are the union of both checks -- a row can be both e.g. `null_campaign_id`
+    *and* `duplicate_lead_id` at once. This is deliberately richer than
+    "duplicates only ever get `duplicate_<key>`": it mirrors silver.py's
+    Spark expressions, which evaluate every rule (classification and dedup)
+    independently over the same row in one pass rather than short-circuiting
+    once a row is known to be a duplicate, so the two must agree on what a
+    multi-reason row looks like. It also means a quarantine count broken down
+    by reason (see quality_metrics in silver.py) reflects every real problem
+    with a row, not just the first one found.
+
+    Returns (accepted, quarantined) where quarantined is a list of
+    (row, reasons) pairs. Every input row appears in exactly one output list
+    (conservation) -- that property, not exclusivity of reasons, is what "no
+    double-counting" means at this layer: a row with two reasons is still one
+    row, counted once, in `len(quarantined)`.
     """
-    kept, dups = dedup_by_key(rows, key)
+    seen: set = set()
     accepted: list[dict] = []
     quarantined: list[tuple[dict, list[str]]] = []
-    for row in kept:
-        reasons = classify_fn(row, *classify_args)
+    for row in rows:
+        reasons = list(classify_fn(row, *classify_args))
+        k = row[key]
+        if k in seen:
+            reasons.append(f"duplicate_{key}")
+        else:
+            seen.add(k)
         if reasons:
             quarantined.append((row, reasons))
         else:
             accepted.append(row)
-    for dup in dups:
-        quarantined.append((dup, [f"duplicate_{key}"]))
     assert len(accepted) + len(quarantined) == len(rows), "reconcile must conserve every input row"
     return accepted, quarantined
 

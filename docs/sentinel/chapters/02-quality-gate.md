@@ -106,15 +106,80 @@ native Spark expressions are written to mirror exactly.
   test stands in for; it has not been demonstrated against an actual second
   pipeline run.
 
+## Review fixes (post-implementation, before push)
+
+A review of the first implementation (commits `89c334c`/`95fceaa`) found one
+correctness bug and three spec divergences between `quality.py` and
+`silver.py`. All four are fixed in commit(s) on this branch after the review;
+recorded here rather than silently folded into history, since the bug was
+real and would have shipped a wrong gate decision.
+
+1. **Gate double-counting (the real bug).** `gate_status` computed `total`
+   and `quarantined` by summing `quality_metrics`' *exploded* per-reason
+   `row_count` — so a row with two reasons (e.g. a duplicate that's also
+   missing its `campaign_id`) counted twice in both numerator and
+   denominator. Worked example: 100 leads, 10 of them duplicates that are
+   also null-`campaign_id`, computed as `20/110 = 18.2%` instead of the true
+   `10/100 = 10%` — wrongly crossing the threshold and withholding a refresh
+   that should have published. Fixed by adding `_row_counts` (one row in,
+   one row counted, straight from the `_flagged` views) and rewriting
+   `gate_status` to use it instead of `quality_metrics`. `quality_metrics`
+   itself is unchanged — its exploded per-reason breakdown is still useful
+   for diagnosis, it's just no longer the gate's input. Regression test:
+   `test_gate_rate_counts_rows_not_reasons_for_multi_reason_batch`
+   (`tests/test_quality.py`), which reproduces the exact worked example and
+   asserts the rate is `10%`, not `18.2%`.
+2. **Duplicate reason codes diverged from the spec.** `quality.reconcile`
+   previously gave a duplicate row only `duplicate_<key>`, discarding any
+   classification reasons; `silver.py`'s Spark expressions evaluate
+   classification and dedup independently and can emit both. Resolved in
+   favor of `silver.py`'s richer behavior (a row's reasons are the union of
+   every rule it fails) because the double-counting bug above only exists
+   *because* a row can carry two reasons — collapsing to one would have hidden
+   the bug's premise, not just its arithmetic. `quality.reconcile` rewritten
+   to classify and dedup in one pass per row; `dedup_by_key` kept as a
+   standalone utility, no longer used internally by `reconcile`. Pinned by
+   `test_duplicate_row_that_also_fails_classification_gets_both_reasons`.
+3. **`web_events` null duration accepted instead of quarantined.** The Spark
+   expression was `col("session_duration_seconds") < 0`, which is `NULL`
+   (not `True`) for a `NULL` input, so a null-duration row silently passed.
+   Fixed to `.isNull() | (col(...) < 0)`, matching the pattern
+   `ops_events_flagged` already used correctly. Pinned by
+   `test_classify_web_event_quarantines_null_duration` (pins `quality.py`'s
+   already-correct behavior that `silver.py` now matches).
+4. **`leads` null stage accepted instead of quarantined — a regression.**
+   `~col("stage").isin(*VALID_STAGES)` is `NULL` for a `NULL` stage, so the
+   row passed through accepted, where the pre-chapter-02 `expect_or_drop`
+   had dropped it. Fixed to `col("stage").isNull() | (~col("stage").isin(...))`.
+   Pinned by `test_classify_lead_quarantines_null_stage`.
+
+**Closing the testing gap that let these through:** the original test suite
+only exercised `quality.py`, so a `quality.py`/`silver.py` divergence stayed
+green. Added `test_silver_reason_constants_match_quality_spec`, which greps
+`silver.py`'s source text for its (newly extracted) `REASON_*` constants and
+`_duplicate_reason(...)` calls and checks them against `quality.py`'s reason
+vocabulary — no Spark/`dlt` import needed, since `silver.py` can't be
+imported in this environment anyway. Reason-code string literals were also
+extracted out of the `lit(...)` call sites into named constants
+(`REASON_NULL_CAMPAIGN_ID` etc.) in `silver.py`, with a comment block mapping
+each to its `quality.py` counterpart, so a typo shows up once instead of at
+every duplicated call site. This narrows, but does not close, the gap: the
+Spark *logic* (joins, window functions, `when`/`array_remove` structure)
+still has no automated cross-check against `quality.py` and remains
+verified by code reading only, same as `gold.py` vs. `transforms.py` always
+has been.
+
 ## Verification and limits
 
 | Check | Status | Evidence |
 | --- | --- | --- |
-| `quality.py` classify/dedup/reconcile/gate logic | **Verified** | `uv run --locked python -m pytest -q` — 28 passed (17 prior + 11 new), this session. |
+| `quality.py` classify/dedup/reconcile/gate logic | **Verified** | `uv run --locked python -m pytest -q` — 33 passed (17 pre-chapter-02 + 16 in `test_quality.py`), this session. |
 | Scenario A/B/C + normal control + replay, at the pure-function level | **Verified** | Same test run, see scenarios above. |
-| `silver.py`/`gold.py` native Spark expressions matching `quality.py`'s logic | **Verified by code reading, untested against data** | Reviewed side by side; no automated sync check exists (same precedent as `gold.py` vs. `transforms.py` — no test enforces they match either). |
+| Gate rate arithmetic counts rows, not exploded reasons | **Verified (regression-tested)** | `test_gate_rate_counts_rows_not_reasons_for_multi_reason_batch`, added after the review found the original bug. |
+| `silver.py` reason-code literals match `quality.py`'s vocabulary | **Verified (source-grep, no Spark import)** | `test_silver_reason_constants_match_quality_spec`. |
+| `silver.py`/`gold.py` native Spark *logic* (joins, windows, control flow) matching `quality.py`'s semantics | **Verified by code reading, untested against data** | Reviewed side by side; no automated check of the Spark expression structure itself exists (same precedent as `gold.py` vs. `transforms.py` — no test enforces the formulas match either). |
 | `bronze.py`'s `_row_id` batch identity | **Verified by code reading, untested against data** | Reviewed; not exercised against a live Bronze run. |
-| Publication gate (`gate_status`, `_publish_or_withhold`, self-referencing read) | **Untested against a live pipeline** | Implemented and reasoned through in code and above; no `DATABRICKS_HOST`/`DATABRICKS_TOKEN`, no `~/.databrickscfg`, no `databricks` CLI in this environment — same limitation chapter 01 recorded, still true. |
+| Publication gate (`gate_status`, `_publish_or_withhold`, self-referencing read of a Gold table while defining it) | **Untested against a live pipeline** | Implemented and reasoned through in code and above; no local test can validate a `dlt`-managed self-read against real DLT. No `DATABRICKS_HOST`/`DATABRICKS_TOKEN`, no `~/.databrickscfg`, no `databricks` CLI in this environment — same limitation chapter 01 recorded, still true. |
 | `databricks bundle validate --target dev` | **Unavailable** | Same reason. |
 | A live rerun demonstrating "replay does not duplicate" | **Untested** | Would require a live pipeline run; not attempted. Argued architecturally above instead. |
 
