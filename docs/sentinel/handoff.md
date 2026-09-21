@@ -8,7 +8,7 @@ actions.
 
 - Branch: `series/00-introduction`, based on `main` at `4a04e77`.
 - Commits: `bfd6fdd` (chapter 00 preparation), `b9250aa` (first CI separation),
-  `a2231b7` (handoff), `CLEANUP_SHA` (environment/CI/branch-policy cleanup,
+  `a2231b7` (handoff), `04ded3a` (environment/CI/branch-policy cleanup,
   reviewed by a separate Claude Code session).
 - Working tree clean. Nothing pushed, merged, deployed, tagged, or posted. No
   branch deleted. `main` untouched at `4a04e77`.
