@@ -82,12 +82,12 @@ required credential can still prevent live validation. Local CI checks do not
 prove the workflow has run successfully on GitHub.
 
 Third-party actions are pinned by commit SHA with the intended version in a
-trailing comment. `databricks/setup-cli@main` is the exception: it still tracks a
-moving branch, which is inconsistent with the rest and worth pinning. Doing so
-needs a SHA looked up from the network, so it is left as a follow-up rather than
-guessed. Likewise, the pinned `dorny/paths-filter` and `astral-sh/setup-uv` SHAs
-were written offline and have not been resolved against GitHub; the first real
-workflow run will confirm them or fail fast on an unresolvable action.
+trailing comment. `databricks/setup-cli` is now pinned to `d76f84c...c963b7`
+(tag `v1.17.0`), confirmed against the GitHub API during the chapter 00
+integration session. The `dorny/paths-filter` (`ceb8a2b...c5cc9d`, `v4`) and
+`astral-sh/setup-uv` (`c771a70...ca235ff9`, `v9.0.0`) SHAs, written offline,
+were resolved the same session: each SHA matches its intended tag's commit
+exactly.
 
 ## Corrections and references
 
