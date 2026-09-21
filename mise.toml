@@ -1,3 +1,8 @@
 # Optional tool bootstrap; Python and project packages are managed by uv.
 [tools]
 uv = "0.12.17"
+# Explicit github backend (not aqua): the aqua registry entry for
+# databricks/cli was not verified for this project, and the github backend
+# downloads directly from GitHub's release assets, which ship a signed
+# SHA256SUMS file we can check against.
+"github:databricks/cli" = "1.17.0"
