@@ -87,14 +87,24 @@ Rules:
   incrementally — forcing the same pattern here would be cargo-culting it onto
   data it doesn't fit.
 - `leads`, `web_events`, `ops_events` are materialized tables (`@dlt.table`,
-  reading Bronze in batch via `spark.read.table`), with **data quality
-  expectations** on their key fields: not-null keys, valid funnel stage
-  values, non-negative amounts/latency. Rows that fail are dropped
-  (`expect_or_drop`) — dropped, not quarantined; no dead-letter table exists
-  yet. **Not streaming tables**: Track 1's equivalent tables are genuine DLT
-  streaming reads because Track 1's Bronze is append-only. Track 2's Bronze is
-  a full recompute each run (see above), so a streaming read over it isn't the
-  right tool — these tables read Bronze in batch instead.
+  reading Bronze in batch via `spark.read.table`), with **data quality rules**
+  on their key fields: not-null/known `campaign_id`, valid funnel stage
+  values, non-negative amounts/latency, and a dedup rule on each table's
+  natural key (`lead_id`/`event_id`/`ops_event_id`), keyed on Bronze's
+  `_row_id` batch-order identity rather than the tied `_ingest_ts`. Rows that
+  fail any rule are **quarantined, not dropped**: `<source>_quarantine` holds
+  the rejected row with its reason code(s) and a `_quarantined_ts` — nothing
+  vanishes without a record. `<source>_clean` holds the rest. **Not streaming
+  tables**: Track 1's equivalent tables are genuine DLT streaming reads
+  because Track 1's Bronze is append-only. Track 2's Bronze is a full
+  recompute each run (see above), so a streaming read over it isn't the right
+  tool — these tables read Bronze in batch instead.
+- `quality_metrics` aggregates every fact-table row by `(source, reason)`
+  across a run (`reason = "accepted"` for rows that passed). `gate_status`
+  turns that into a per-source `quarantine_rate` and `gate_passed` boolean:
+  `false` when the rate exceeds `0.10` (five times the generator's ~2%
+  baseline invalid rate). See `docs/sentinel/chapters/02-quality-gate.md` for
+  the reasoning.
 
 ---
 
@@ -122,6 +132,16 @@ Business logic:
   free acquisition rather than "no data."
 - Ops success rate: `count(ops_events where success = true) / count(ops_events)`
   per day.
+
+Publication gate: before publishing, each table checks `gate_status` for the
+Silver source(s) it depends on (`gold_campaign_performance`/
+`gold_client_funnel` on `leads`; `gold_ogi_ops_health` on `ops_events`). If a
+depended-on source failed its gate this run, the table keeps its own
+previously published content unchanged instead of the freshly computed
+result — this is a per-table self-referencing fallback, not a whole-platform
+transaction; see `docs/sentinel/chapters/02-quality-gate.md`. On a table's
+first-ever run there is nothing previous to fall back to, so it publishes the
+fresh result regardless of the gate.
 
 ---
 

@@ -21,6 +21,17 @@ N_WEB_EVENTS = 2000
 N_OPS_EVENTS = 365
 
 
+def _with_row_id(rows):
+    """Stamp each generated row with its position in this run's Python list,
+    before it becomes a Spark DataFrame. `current_timestamp()` (`_ingest_ts`)
+    is constant across every row of a single table computation, so it ties
+    and can't order duplicates deterministically. `_row_id` is the batch
+    identity chapter 02's dedup keys off of: Silver keeps the lowest `_row_id`
+    for a given natural key and quarantines the rest as
+    `duplicate_<key>` (see quality.py:dedup_by_key)."""
+    return [{**row, "_row_id": i} for i, row in enumerate(rows)]
+
+
 @dlt.table(
     name="clients_raw",
     comment="Raw synthetic client accounts from the Bedoux generator",
@@ -60,7 +71,7 @@ def leads_raw():
     ]
     rows = generator.generate_leads(campaign_ids, n=N_LEADS)
     return (
-        spark.createDataFrame(rows)
+        spark.createDataFrame(_with_row_id(rows))
         .withColumn("_ingest_ts", current_timestamp())
         .withColumn("_source_table", lit("bedoux_synthetic.leads"))
     )
@@ -78,7 +89,7 @@ def web_events_raw():
     ]
     rows = generator.generate_web_events(campaign_ids, n=N_WEB_EVENTS)
     return (
-        spark.createDataFrame(rows)
+        spark.createDataFrame(_with_row_id(rows))
         .withColumn("_ingest_ts", current_timestamp())
         .withColumn("_source_table", lit("bedoux_synthetic.web_events"))
     )
@@ -91,7 +102,7 @@ def web_events_raw():
 def ops_events_raw():
     rows = generator.generate_ops_events(n=N_OPS_EVENTS)
     return (
-        spark.createDataFrame(rows)
+        spark.createDataFrame(_with_row_id(rows))
         .withColumn("_ingest_ts", current_timestamp())
         .withColumn("_source_table", lit("bedoux_synthetic.ops_events"))
     )
