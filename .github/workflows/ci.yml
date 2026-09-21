@@ -1,36 +1,71 @@
 name: CI
 
 on:
+  # Always report local checks. Gate workspace jobs separately below.
   pull_request:
     branches: [main]
   push:
     branches: [main]
+  # Manual deployment is opt-in. Dispatching with deploy unchecked runs the
+  # checks only; it no longer touches the workspace as a side effect.
   workflow_dispatch:
     inputs:
+      deploy:
+        description: "Deploy the bundle to the dev target"
+        type: boolean
+        default: false
       run_job:
-        description: "Trigger bedoux_analytics_job after deploying"
+        description: "Also run bedoux_analytics_job after deploying (requires deploy)"
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
+  changes:
+    name: Detect bundle changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      bundle: ${{ steps.paths.outputs.bundle }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        id: paths
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          # On a main push, compare with the pre-push commit. PRs use the
+          # pull-request file API instead. The action handles fetching history.
+          base: ${{ github.ref }}
+          filters: |
+            bundle:
+              - 'src/**'
+              - 'resources/**'
+              - 'databricks.yml'
+
   test:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: "3.11"
-      - run: pip install -r requirements-dev.txt
-      - run: pytest tests/ -v
+          version: "0.12.17" # Keep aligned with mise.toml.
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --locked python -m pytest -q
 
   validate:
     name: Validate bundle
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, changes]
+    if: needs.changes.outputs.bundle == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - uses: databricks/setup-cli@main
+      - uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
       - run: databricks bundle validate --target dev
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -39,11 +74,13 @@ jobs:
   deploy:
     name: Deploy bundle
     runs-on: ubuntu-latest
-    needs: validate
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    needs: [validate, changes]
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.bundle == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy == true)
     steps:
       - uses: actions/checkout@v4
-      - uses: databricks/setup-cli@main
+      - uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
       - run: databricks bundle deploy --target dev
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}

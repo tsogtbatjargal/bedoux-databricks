@@ -1,0 +1,3 @@
+# Optional tool bootstrap; Python and project packages are managed by uv.
+[tools]
+uv = "0.12.17"

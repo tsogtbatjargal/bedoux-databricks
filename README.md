@@ -26,6 +26,22 @@ deliberate choice, not an oversight.
 Full architecture, diagram, and the Free-Edition trade-offs behind each design
 choice: [`docs/architecture.md`](docs/architecture.md).
 
+## The Art of Data Defense
+
+I'm extending Track 2 with **Bedoux Sentinel**, a portfolio series about data
+quality, sensitive-data handling, and agent-assisted incident investigation.
+The theme comes from applying ideas in *The Art of War* to a modern data platform.
+
+The [series plan](docs/sentinel/README.md) separates existing behavior from the
+capabilities still to build. Each chapter will have a retained remote branch and
+a stable post reference; merged local branches can be removed. `main` will
+accumulate the completed work. The finale will show
+one incident from detection through recovery.
+
+For development, start with [AGENTS.md](AGENTS.md) and the
+[session handoff](docs/sentinel/handoff.md). Codex and Claude Code share the same
+project guidance and chapter skills.
+
 ## What's demonstrated here
 
 - **Contracts-first modeling** — every layer's naming, grain, and business
@@ -41,9 +57,10 @@ choice: [`docs/architecture.md`](docs/architecture.md).
 - **Automated testing** — pure business logic (`src/bedoux/transforms.py`,
   `generator.py`) is unit tested with pytest, independent of any Spark
   cluster or live workspace (`tests/`).
-- **CI/CD** — GitHub Actions runs tests + `bundle validate` on every PR,
-  `bundle deploy` on merge to `main`, and a manual `workflow_dispatch` button
-  to trigger the pipeline job (`.github/workflows/ci.yml`).
+- **CI/CD** — GitHub Actions runs locked local tests on every PR and push to
+  `main`. Pipeline/bundle changes also validate, then deploy on `main`.
+  Documentation and tooling changes alone do not deploy. Manual dispatch has
+  separate deployment and pipeline-run options (`.github/workflows/ci.yml`).
 - **A BI layer, not just pipelines** — both tracks' Gold layers are queryable
   through Genie's natural-language interface ([`docs/genie.md`](docs/genie.md)).
 - **Honest engineering trade-offs under Free Edition** — see below. A senior
@@ -65,6 +82,10 @@ which is serverless-only, non-commercial, and quota-limited. Concretely, that sh
 ## Project layout
 
 ```
+AGENTS.md                       # shared agent instructions (Codex + Claude Code)
+CLAUDE.md                       # Claude Code entry point; imports AGENTS.md
+pyproject.toml, uv.lock         # declared and locked local Python dependencies
+.python-version, mise.toml      # Python selection and optional uv tool bootstrap
 databricks.yml                  # bundle definition (target: dev)
 resources/
   pipelines.yml, jobs.yml         # Track 1 (TPC-H)
@@ -79,20 +100,32 @@ tests/                            # pytest, no Spark/workspace dependency
 docs/
   contracts.md, contracts-bedoux.md   # locked layer/naming/business rules per track
   architecture.md, architecture.drawio  # diagram + design rationale
-  ai_rules.md                       # development guardrails (both tracks)
+  ai_rules.md                       # pointer to AGENTS.md (superseded)
   genie.md                          # Genie CLI usage + space setup
+  sentinel/                         # Art of Data Defense: roadmap, workflow, handoff
+.agents/skills/                    # shared chapter/story skill bodies
+.claude/skills/                    # Claude Code adapters onto those same bodies
+.codex/config.toml                 # Codex project settings (reasoning effort only)
 scripts/genie.sh                   # thin wrapper over `databricks genie ...`
-.github/workflows/ci.yml           # test -> validate -> deploy -> (manual) run
+.github/workflows/ci.yml           # local tests always; workspace jobs gated by changes
 ```
 
 ## Getting started
 
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run the
+local tests in the project's isolated environment. See
+[Local development](docs/development.md) for mise setup and dependency changes.
+
+```bash
+# Local checks (no live workspace needed)
+uv sync --locked
+uv run --locked python -m pytest -q
+```
+
+Workspace commands use a separately installed Databricks CLI and credentials:
+
 ```bash
 databricks auth login --host https://dbc-3f70aae3-11d5.cloud.databricks.com --profile bedoux-databricks
-
-# Local checks (no live workspace needed)
-pip install -r requirements-dev.txt
-pytest tests/ -v
 databricks bundle validate --profile bedoux-databricks
 
 # Deploy + run (touches the live workspace — see docs/architecture.md for the

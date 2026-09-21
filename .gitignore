@@ -5,3 +5,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+.env
+.env.*
+!.env.example
+CLAUDE.local.md
+# mise machine-local overrides; mise.toml itself is committed.
+mise.local.toml
+.mise.local.toml
