@@ -163,102 +163,69 @@ Full session-by-session detail lived here before and is still in Git history
 - No live Databricks validation, deployment, model calls, or Genie query has
   ever been run against this project. That remains true through chapter 01.
 
-## Chapter 02 — implemented, not yet pushed
+## Chapter 02 — gate redesigned after a second review
 
-`series/02-quality-gate` (branched from `main` at `3bdee7e`, commit `89c334c`)
-implements the roadmap's "02 — Defend before damage spreads" scope in full —
-see [`chapters/02-quality-gate.md`](chapters/02-quality-gate.md) for the
-complete design, scenario mapping, and verification table. Summary:
+PR #3 stays open. The first gate implementation put the decision inside Gold's
+DLT dataset functions; a second review found four defects with one root cause,
+and the gate was redesigned as an orchestration step.
 
-- **Batch identity**: Bronze stamps `leads_raw`/`web_events_raw`/
-  `ops_events_raw` with `_row_id` (deterministic Python-list order) because
-  `_ingest_ts` ties across every row of one table computation and can't order
-  duplicates.
-- **Persistent quarantine with reasons**: each fact table's Silver stage now
-  produces `<source>_clean` and `<source>_quarantine` from a shared
-  `_flagged` view — rejected rows carry reason codes and a
-  `_quarantined_ts`; nothing is dropped silently anymore.
-- **Quality metrics + publication gate**: `quality_metrics`/`gate_status`
-  turn quarantine rates into a per-source `gate_passed`. `gold.py` withholds
-  a table's refresh (keeps previously published content) when a source it
-  depends on exceeds a 10% quarantine rate (5x the generator's ~2% baseline)
-  — reject individual records by default, withhold only past that threshold.
-  Documented as **not** whole-platform transactional publication.
-- Covers chapter 01's Scenario A (malformed batch), B (duplicate leads), C
-  (missing campaign reference), the normal control, and an explicit replay/
-  idempotence test — all as pure-function unit tests in
-  `tests/test_quality.py` (`quality.py` is the tested spec; `silver.py`/
-  `gold.py` reimplement it as native Spark expressions, same pattern as
-  `transforms.py`/`gold.py`).
-- `uv sync --locked` + `uv run --locked python -m pytest -q`: **33 passed**
-  (17 pre-chapter-02 + 16 in `test_quality.py`), this session.
-- `docs/contracts-bedoux.md` updated to document the new Silver quarantine/
-  metrics/gate tables and Gold's gate, so contract and code stay in sync.
-- A related-but-unfixed finding recorded in the chapter doc: `clients_clean`/
-  `campaigns_clean`'s dedup window still orders on the tied `_ingest_ts`
-  (same class of bug `_row_id` fixes elsewhere) — left flagged, not fixed,
-  since it wasn't in this chapter's named scope and neither table has test
-  coverage to catch a regression.
-- **Not verified**: the publication gate's self-referencing read
-  (`spark.read.table` of a Gold table's own current state) and everything
-  else requiring a live pipeline run — no `DATABRICKS_HOST`/`DATABRICKS_TOKEN`,
-  no `~/.databrickscfg`, no `databricks` CLI in this environment. Same
-  limitation chapter 01 recorded.
-- **This chapter touches `src/` and `resources`-adjacent pipeline code for
-  the first time in the series.** Per `AGENTS.md`, merging it to `main` will
-  trigger `Validate bundle`/`Deploy bundle` on push (paths-filter matches
-  `src/**`) — integrating it is a real deployment decision, not a docs-only
-  push. Not pushed, no PR opened, nothing merged or deployed this session,
-  per explicit instruction.
-- Roadmap's chapter 02 row updated to "Implemented (local, unpushed)".
+**The four defects, all in the old `gold.py`:**
 
-### Review fixes (before push)
+1. `.count()` ran inside a dataset definition — a driver-side action Databricks
+   warns against in declarative dataset functions.
+2. `_publish_or_withhold` read the Gold table it was defining.
+3. A failing gate on a first-ever run published the fresh, rejected data,
+   because there was no previous version to fall back to.
+4. Fail-open evidence handling: a source with no `gate_status` row passed, and
+   a null `gate_passed` passed too (`~NULL` is `NULL`, so the filter dropped it).
 
-A review of the first implementation found one correctness bug and three
-spec divergences, all fixed on this branch before any push — see
-[`chapters/02-quality-gate.md`](chapters/02-quality-gate.md)'s "Review fixes"
-section for full detail. Summary:
+**The replacement.** `bedoux_gate_task`, a notebook task running
+`src/bedoux/gate_check.py`, sits between `bedoux_silver_task` and
+`bedoux_gold_task`. It collects `gate_status`, calls the new pure
+`quality.evaluate_gate`, and raises on failure — so the Gold task never starts.
+`gold.py` now has no gate logic and each table just returns its result.
+Because it is ordinary job code rather than a dataset definition, the
+imperative check is legal there.
 
-1. **Gate double-counting (real bug):** `gate_status` summed
-   `quality_metrics`' *exploded* per-reason counts, so a row with two reasons
-   (e.g. a duplicate that's also missing `campaign_id`) inflated both the
-   numerator and denominator of the quarantine rate — the reviewer's worked
-   example (100 leads, 10 duplicate+null rows) computed `18.2%` instead of
-   the true `10%`, which would have wrongly withheld a Gold refresh that
-   should have published. Fixed by adding `_row_counts` (one row in, one row
-   counted, sourced directly from the `_flagged` views) as `gate_status`'s
-   basis instead; `quality_metrics`' exploded breakdown is unchanged and
-   still useful, just no longer wired into the gate. Regression-tested:
-   `test_gate_rate_counts_rows_not_reasons_for_multi_reason_batch`.
-2. **Duplicate reason codes**: `quality.reconcile` previously gave duplicates
-   only `duplicate_<key>`, discarding classification reasons; `silver.py`
-   evaluates both independently and can emit both at once. Resolved in favor
-   of `silver.py`'s richer union-of-reasons behavior (the double-counting bug
-   above only exists because a row can carry two reasons, so collapsing to
-   one would hide the bug's premise) — `quality.reconcile` rewritten to
-   classify and dedup in one pass; `dedup_by_key` kept as a standalone,
-   no-longer-internally-used utility.
-3. **`web_events` null duration silently accepted**: `< 0` is `NULL` (not
-   `True`) for a `NULL` duration. Fixed to `.isNull() | (... < 0)`, matching
-   the `ops_events` pattern that already had this right.
-4. **`leads` null stage silently accepted — a regression** from the
-   pre-chapter-02 `expect_or_drop`, which did drop it: `~col(...).isin(...)`
-   is `NULL` for a `NULL` stage. Fixed with an explicit `isNull()` check.
+Each defect closes structurally, not by patching: there is no `.count()` in a
+dataset function because there is no gate code in `gold.py`; nothing reads a
+Gold table, because withholding means not running the task; a first-run failure
+creates no Gold table at all; and `evaluate_gate` is fail-closed — missing,
+duplicated, null, or stale evidence all withhold.
 
-**Closed testing gap**: the original suite only exercised `quality.py`, so a
-`quality.py`/`silver.py` divergence passed green. Reason-code string
-literals in `silver.py` are now extracted into named `REASON_*` constants
-(with a comment block mapping each to its `quality.py` counterpart), and
-`test_silver_reason_constants_match_quality_spec` greps `silver.py`'s source
-text (no Spark/`dlt` import needed) to check those constants against
-`quality.py`'s reason vocabulary. This narrows but doesn't close the gap —
-the Spark join/window/control-flow *logic* itself still has no automated
-cross-check, same as `gold.py` vs. `transforms.py` always has had.
+**Run binding.** `gate_status` now carries `_computed_ts`, and the task receives
+`{{job.start_time.iso_datetime}}`. Evidence computed before this run started is
+rejected, so a leftover row cannot authorize publishing a different batch.
 
-**Still not verified** (unchanged by the fixes): `_publish_or_withhold`
-reads a Gold table's own current state while that table is being defined —
-a self-referencing read pattern no local test can validate against real
-DLT. No workspace credentials are available in this environment.
+**Tradeoff, deliberate:** Gold is one pipeline, so one task, so the gate is now
+whole-Gold rather than per-table. A `leads` failure also withholds
+`gold_ogi_ops_health`, which does not depend on `leads`. Keeping per-table
+precision would mean either gate logic back inside dataset functions (the
+unsupported thing this removed) or splitting Gold into several pipelines
+(discouraged by Free Edition's one-active-pipeline-per-type limit, and a bigger
+change than this chapter warrants). Withholding too much is the safer error for
+a publication gate. Contract updated accordingly.
+
+**Known gap:** running `bedoux_gold_pipeline` directly bypasses the gate. It is
+an orchestration control, not an invariant inside Gold. Belongs with chapter
+06's permission work.
+
+### Checks — all policy-level, none runtime
+
+- `uv run --locked python -m pytest -q`: **53 passed** (was 33; 20 new in
+  `tests/test_gate_policy.py`).
+- New tests cover normal input, a failing gate, missing source rows, duplicate
+  rows, null `gate_passed`, stale and null `_computed_ts`, first-run failure,
+  non-mutation, and repeat evaluation.
+- `resources/bedoux_jobs.yml` parsed and asserted: `bedoux_gold_task` depends
+  on `bedoux_gate_task`, not on `bedoux_silver_task`.
+- `gate_check.py` parses as valid Python and carries the
+  `# Databricks notebook source` header.
+
+**These are policy tests. They prove what the gate decides given rows. They do
+not prove that Spark produces those rows, that the job graph stops Gold, that a
+withheld table keeps its data, or that a `notebook_task` with `base_parameters`
+runs on Free Edition serverless. Chapter 02 is implemented, not demonstrated.**
 
 ## PR #3 opened, CI observed — a real environment finding
 

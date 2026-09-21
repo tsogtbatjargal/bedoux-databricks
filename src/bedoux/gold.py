@@ -14,34 +14,19 @@ from pyspark.sql.functions import col, sum as _sum, count, when, date_trunc, to_
 # expressions are also the idiomatic, faster choice over Python UDFs for
 # arithmetic this simple.
 #
-# Chapter 02 publication gate: each table below computes its normal result,
-# then checks workspace.bedoux_silver.gate_status for the source(s) it
-# depends on. If any of those sources failed the quarantine-rate threshold
-# this run, the table returns its own previously published content unchanged
-# instead of the freshly computed one -- Genie/BI keeps serving the last
-# trustworthy refresh rather than a materially degraded one. On a table's
-# first-ever run there is nothing previous to fall back to, so a failing gate
-# publishes the fresh result anyway (there is nothing to withhold yet). This
-# design is implemented and unit-verified at the decision-logic level
-# (test_quality.py); it has not been exercised against a live DLT pipeline --
-# no workspace credentials are available in this environment (see
-# docs/sentinel/chapters/02-quality-gate.md).
-
-
-def _gate_passed(sources):
-    """True if every listed source's quarantine rate is within threshold."""
-    gate = spark.read.table("workspace.bedoux_silver.gate_status").filter(
-        col("source").isin(*sources)
-    )
-    return gate.filter(~col("gate_passed")).limit(1).count() == 0
-
-
-def _publish_or_withhold(full_table_name, sources, fresh):
-    if _gate_passed(sources):
-        return fresh
-    if spark.catalog.tableExists(full_table_name):
-        return spark.read.table(full_table_name)
-    return fresh  # first run: nothing previously published to withhold
+# Chapter 02 publication gate: this file contains NO gate logic. The decision
+# is made before Gold runs at all, by bedoux_gate_task (src/bedoux/gate_check.py)
+# sitting between the Silver and Gold pipeline tasks in bedoux_analytics_job.
+# If the gate fails, that task fails, the Gold task never starts, and these
+# tables keep whatever they last published -- or, on a first-ever run, are
+# never created, so rejected data is never published.
+#
+# An earlier revision checked the gate inside each dataset function below via
+# .count() and read each Gold table while defining it. Both are unsupported in
+# a declarative DLT dataset function, and the fallback published fresh rejected
+# data whenever no previous version existed. See
+# docs/sentinel/chapters/02-quality-gate.md for the redesign and its tradeoff
+# (whole-Gold withholding rather than per-table).
 
 
 @dlt.table(
@@ -74,7 +59,7 @@ def gold_campaign_performance():
         )
         .orderBy("campaign_id")
     )
-    return _publish_or_withhold("workspace.bedoux_gold.gold_campaign_performance", ["leads"], fresh)
+    return fresh
 
 
 @dlt.table(
@@ -102,7 +87,7 @@ def gold_client_funnel():
         )
         .orderBy("client_id", "month_date")
     )
-    return _publish_or_withhold("workspace.bedoux_gold.gold_client_funnel", ["leads"], fresh)
+    return fresh
 
 
 @dlt.table(
@@ -135,4 +120,4 @@ def gold_ogi_ops_health():
         )
         .orderBy("event_date")
     )
-    return _publish_or_withhold("workspace.bedoux_gold.gold_ogi_ops_health", ["ops_events"], fresh)
+    return fresh

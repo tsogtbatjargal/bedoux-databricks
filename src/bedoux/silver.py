@@ -386,4 +386,9 @@ def gate_status():
             when(col("total") > 0, col("quarantined") / col("total")).otherwise(lit(0.0)),
         )
         .withColumn("gate_passed", col("quarantine_rate") <= lit(QUARANTINE_RATE_THRESHOLD))
+        # Stamps which run produced this decision. bedoux_gate_task rejects a
+        # gate_status row computed before the current job run started, so a
+        # leftover row from an earlier run can never authorize this run's
+        # Gold refresh. See quality.evaluate_gate's min_computed_ts.
+        .withColumn("_computed_ts", current_timestamp())
     )

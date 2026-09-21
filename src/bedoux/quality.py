@@ -133,3 +133,74 @@ def gate_passed(total: int, quarantined: int, threshold: float = QUARANTINE_RATE
     i.e. the affected Gold tables should refresh normally. False means the
     caller should withhold that refresh and keep previously published data."""
     return quarantine_rate(total, quarantined) <= threshold
+
+
+# ---------------------------------------------------------------------------
+# Publication-gate policy (chapter 02, revised)
+#
+# The gate decision is made BEFORE the Gold refresh by an orchestration task
+# (src/bedoux/gate_check.py, run as bedoux_gate_task between the Silver and
+# Gold pipeline tasks), not inside a Gold dataset function. A DLT dataset
+# function is declarative: driver-side actions like .count()/.collect() and
+# reads of the table being defined are not supported there. Moving the
+# decision into a plain job task makes the imperative check legal, lets a
+# failure stop the Gold refresh entirely, and means a first-ever run with a
+# failing gate publishes nothing rather than publishing rejected data.
+#
+# The policy is fail-closed: anything other than explicit, fresh, unanimous
+# evidence of passing is a failure. Missing sources, duplicated sources, null
+# gate_passed values, and stale evidence all block publication.
+# ---------------------------------------------------------------------------
+
+REQUIRED_SOURCES = ("leads", "web_events", "ops_events")
+
+
+def evaluate_gate(rows, required_sources=REQUIRED_SOURCES, min_computed_ts=None):
+    """Decide whether the Gold refresh may proceed.
+
+    `rows` is the collected contents of workspace.bedoux_silver.gate_status as
+    a list of dicts with keys: source, gate_passed, quarantine_rate,
+    _computed_ts. `min_computed_ts`, when given, is the run boundary (the job
+    run's start time): any row computed before it is evidence from an earlier
+    run and does not describe the data about to be published.
+
+    Returns (passed, problems). `problems` is a list of human-readable strings,
+    empty exactly when `passed` is True. Every required source must appear
+    exactly once, with gate_passed strictly True, computed at or after
+    `min_computed_ts`. Sources outside `required_sources` are ignored: they
+    carry no Gold table in this design, so they cannot block publication.
+    """
+    problems = []
+    by_source = {}
+    for row in rows:
+        by_source.setdefault(row.get("source"), []).append(row)
+
+    for source in required_sources:
+        matches = by_source.get(source, [])
+        if not matches:
+            problems.append(f"{source}: no gate_status row (missing evidence, not a pass)")
+            continue
+        if len(matches) > 1:
+            problems.append(f"{source}: {len(matches)} gate_status rows, expected exactly 1 (ambiguous evidence)")
+            continue
+
+        row = matches[0]
+        passed = row.get("gate_passed")
+        if passed is None:
+            problems.append(f"{source}: gate_passed is null (undecided, not a pass)")
+        elif passed is not True:
+            rate = row.get("quarantine_rate")
+            rate_text = "unknown" if rate is None else f"{rate:.1%}"
+            problems.append(f"{source}: gate_passed is false (quarantine rate {rate_text})")
+
+        if min_computed_ts is not None:
+            computed = row.get("_computed_ts")
+            if computed is None:
+                problems.append(f"{source}: _computed_ts is null, cannot prove it describes this run")
+            elif computed < min_computed_ts:
+                problems.append(
+                    f"{source}: gate_status computed at {computed} predates this run "
+                    f"({min_computed_ts}); stale evidence from an earlier run"
+                )
+
+    return (not problems), problems

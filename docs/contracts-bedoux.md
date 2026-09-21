@@ -133,15 +133,33 @@ Business logic:
 - Ops success rate: `count(ops_events where success = true) / count(ops_events)`
   per day.
 
-Publication gate: before publishing, each table checks `gate_status` for the
-Silver source(s) it depends on (`gold_campaign_performance`/
-`gold_client_funnel` on `leads`; `gold_ogi_ops_health` on `ops_events`). If a
-depended-on source failed its gate this run, the table keeps its own
-previously published content unchanged instead of the freshly computed
-result — this is a per-table self-referencing fallback, not a whole-platform
-transaction; see `docs/sentinel/chapters/02-quality-gate.md`. On a table's
-first-ever run there is nothing previous to fall back to, so it publishes the
-fresh result regardless of the gate.
+Publication gate: Gold tables contain **no gate logic**. The decision is made
+before the Gold pipeline runs at all, by `bedoux_gate_task` between the Silver
+and Gold tasks (see "Pipelines and the job" below). Gold's dataset functions
+simply compute and return their result; if they run, the batch was already
+judged publishable.
+
+The gate is **fail-closed and whole-Gold**. It publishes only when every
+required source (`leads`, `web_events`, `ops_events`) has exactly one
+`gate_status` row, with `gate_passed` strictly true, computed at or after the
+current job run's start time. Missing rows, duplicate rows, null
+`gate_passed`, and evidence carried over from an earlier run all withhold
+publication. `campaigns` has no `gate_status` row — it is a dimension governed
+by `expect_or_drop` with no quarantine table — so it is not a gate input.
+
+When the gate fails, `bedoux_gate_task` fails, `bedoux_gold_task` never starts,
+and every Gold table keeps its last published content. On a first-ever run the
+Gold tables are simply never created, so rejected data is never published —
+there is no "publish anyway because there is nothing to fall back to" path.
+
+The tradeoff is deliberate: because Gold is one pipeline and therefore one
+task, a failure in any single source withholds **all** Gold tables, including
+ones that do not depend on the failing source. Per-table withholding would
+require either gate logic inside the dataset functions — unsupported, since
+that needs driver-side actions and self-referencing reads — or splitting Gold
+into several pipelines, which Free Edition's one-active-pipeline-per-type limit
+discourages. Withholding more than strictly necessary is the safer error for a
+publication gate. See `docs/sentinel/chapters/02-quality-gate.md`.
 
 ---
 
@@ -149,7 +167,16 @@ fresh result regardless of the gate.
 
 - One pipeline per layer: `bedoux_bronze_pipeline`, `bedoux_silver_pipeline`,
   `bedoux_gold_pipeline`. Serverless compute.
-- One job, `bedoux_analytics_job`, runs the three pipelines in order: Bronze, then
-  Silver, then Gold. No automatic schedule — triggered manually or via the
-  `workflow_dispatch` GitHub Action, to stay well inside Free Edition's compute
-  quota.
+- One job, `bedoux_analytics_job`, runs the three pipelines in order: Bronze,
+  then Silver, then **`bedoux_gate_task`**, then Gold. The gate task is a
+  notebook task (`src/bedoux/gate_check.py`), not a pipeline: it reads
+  `gate_status` and raises if the batch is not publishable, which stops the run
+  before Gold refreshes. It receives the run's start time so it can reject
+  gate evidence left over from an earlier run. No automatic schedule —
+  triggered manually or via the `workflow_dispatch` GitHub Action, to stay well
+  inside Free Edition's compute quota.
+- A gate failure makes the job run fail. That is the intended signal, not a
+  defect: Gold keeps its last published data and the reason is in the task log
+  and the `<source>_quarantine` tables.
+- Running `bedoux_gold_pipeline` directly, outside the job, bypasses the gate.
+  The gate is an orchestration control, not a constraint inside Gold itself.
