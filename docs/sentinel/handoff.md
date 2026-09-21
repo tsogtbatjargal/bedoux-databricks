@@ -83,6 +83,10 @@ for the full content. Summary:
   branch is confirmed present at the same tip.
 - Did not tag, did not draft or publish the LinkedIn post, made no paid model
   calls, did not start chapter 02.
+- Pushed the local-only handoff commit `b15ba0f` directly to `main` (docs-only,
+  no bundle path changed). Observed CI run `35651900611` on that push:
+  **`Unit tests` success, `Detect bundle changes` success, `Validate bundle`
+  skipped, `Deploy bundle` skipped** — matched the predicted no-deploy pattern.
 
 ## Decisions to preserve
 
