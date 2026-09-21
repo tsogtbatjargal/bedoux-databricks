@@ -152,6 +152,10 @@ updated workflow.
   with `git branch -d series/00-introduction` (not `-D`). The remote branch
   is confirmed present at the same tip.
 - Did not tag, did not publish the LinkedIn draft, made no paid model calls.
+- Committed this handoff update directly on `main` (`6be715b`, docs-only, user
+  confirmed) and pushed it. Run `35647816040` (event `push`) confirmed the
+  same no-deploy pattern: `Unit tests` success, `Validate bundle`/`Deploy
+  bundle` skipped.
 
 ## Next task
 
