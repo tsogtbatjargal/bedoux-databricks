@@ -46,8 +46,12 @@ Gold. A Gold table never lives in Bronze or Silver.
 
 ## Bronze — `workspace.bedoux_bronze`
 
-What it is: a raw, append-only landing zone from the synthetic generator. No
-interpretation, no filtering.
+What it is: a raw landing zone from the synthetic generator. No interpretation,
+no filtering. **Not append-only** — see the recompute rule below; this
+corrects an earlier draft of this section that called it "append-only" while
+the rules underneath already described a full recompute. Chapter 01 of
+Bedoux Sentinel (`docs/sentinel/chapters/01-know-your-platform.md`) found and
+fixed the self-contradiction; the recompute behavior itself was unchanged.
 
 Rules:
 - One Bronze table per source entity. 5 tables total: `clients_raw`, `campaigns_raw`,
@@ -84,9 +88,18 @@ Rules:
   place Auto CDC is demonstrated, against data that actually changes
   incrementally — forcing the same pattern here would be cargo-culting it onto
   data it doesn't fit.
-- `leads`, `web_events`, `ops_events` are streaming tables with **data quality
-  expectations** on their key fields: not-null keys, valid funnel stage values,
-  non-negative amounts/latency. Rows that fail are dropped (`expect_or_drop`).
+- `leads`, `web_events`, `ops_events` are materialized tables (`@dlt.table`,
+  reading Bronze in batch via `spark.read.table`), with **data quality
+  expectations** on their key fields: not-null keys, valid funnel stage
+  values, non-negative amounts/latency. Rows that fail are dropped
+  (`expect_or_drop`) — dropped, not quarantined; no dead-letter table exists
+  yet (planned in chapter 02). **Not streaming tables**: this section
+  previously called them that, copied from Track 1's contract
+  (`contracts.md`) where Bronze genuinely is append-only and DLT streaming
+  reads apply. Track 2's Bronze is a full recompute each run (see above), so
+  a genuine DLT streaming read over it isn't the right tool — `silver.py`
+  already reads it in batch and says so in its module comment. Chapter 01 of
+  Bedoux Sentinel corrected the contract to match; no code changed.
 
 ---
 
