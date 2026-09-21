@@ -8,14 +8,13 @@ change secrets, bind resources, or publish. Inspect Git before continuing.
 
 ## Current checkpoint
 
-- Branch: `series/02-quality-gate`; PR #3 is open and unmerged. GitHub state
-  was not queried or changed.
-- Local HEAD: `6ec7b37`. Ahead of the remote-tracking ref `47a9e11` by five
-  commits, so **PR #3's remote head is behind the checkout**:
-  `8e4cf6a` gate redesign, `46e8d1f` live-verification runbook,
-  `01e7972` run-boundary hardening + fault-injection knob,
-  `6ec7b37` Databricks CLI pin, and the status commit holding this file.
-  Nothing has been pushed. The working tree is clean.
+- Branch: `series/02-quality-gate`, **pushed and in sync with origin**.
+  PR #3 is open, unmerged, `MERGEABLE`, and now **green**.
+- Local HEAD: `b8d630f`, matching PR #3's head. The five chapter-02 commits
+  are `8e4cf6a` gate redesign, `46e8d1f` live-verification runbook,
+  `01e7972` run-boundary hardening + fault-injection knob, `6ec7b37`
+  Databricks CLI pin, `b8d630f` credential determination.
+- Working tree clean. No merge, deploy, or job run has occurred.
 - Track 1 source/resources and CI policy are unchanged.
 - No credential value was read, printed, or configured. Read-only workspace
   API calls were made (see "Credential capability" below). No deployment, job
@@ -55,12 +54,14 @@ change secrets, bind resources, or publish. Inspect Git before continuing.
 - Synthetic business rows are reproducible; audit timestamps are not.
   Quarantine tables are recomputed, not an append-only incident archive.
   Capture failed-stage evidence before restoring the normal fixture.
-- CI's PAT wiring is now known to be the right choice (see "Credential
-  capability" below), but the GitHub secrets are still unset, so PR #3's
-  `Validate bundle` still fails on missing credentials. That failure was never
-  proof of a bundle defect, and `bundle validate` passing locally now confirms
-  it was not one. Setting the secrets enables future eligible main pushes to
-  deploy after checks pass.
+- CI credentials are configured and **proven working**: the user set
+  `DATABRICKS_HOST` and `DATABRICKS_TOKEN` as repository secrets from a
+  90-day PAT created 2026-09-21 (comment `github-actions-ci`), and run
+  `35667369376` on `b8d630f` validated the bundle in CI. The original
+  `Validate bundle` failure was missing credentials, not a bundle defect.
+  **Consequence:** merging PR #3 to `main` would now deploy, because the
+  bundle-path condition and credentials are both satisfied. Treat merging as
+  a deployment decision.
 - Full `bundle deploy` includes both tracks. Do not confuse unchanged Track 1
   source with a Track-2-only deployment.
 - Databricks CLI is now installed locally and OAuth-authenticated (see
@@ -128,6 +129,24 @@ Determined 2026-09-21 by read-only API calls under profile
   Also means the first-ever-run case cannot be demonstrated here without
   destroying that baseline — leave it as a design argument.
 
+## CI verification (2026-09-21)
+
+Run `35667369376`, `pull_request` event on `b8d630f`:
+
+| Job | Result |
+|---|---|
+| Unit tests | success |
+| Detect bundle changes | success |
+| Validate bundle | success — `Validation OK!`, host masked as `***` |
+| Deploy bundle | **skipped** |
+
+`deploy` skipped because `push` is scoped to `branches: [main]`, so a chapter
+branch only fires `pull_request`. Confirmed by workspace inspection after the
+run: the deployed `[dev tsoglog_uli] bedoux_analytics_job` still has the
+ungated bronze → silver → gold graph, and
+`gold_campaign_performance.updated_at` is still 2026-07-30T20:41Z. CI reached
+the workspace to read, and changed nothing.
+
 ## Checks
 
 - `uv run --locked python -m pytest -q`: **92 passed** (CPython in project
@@ -148,11 +167,10 @@ Determined 2026-09-21 by read-only API calls under profile
 
 1. Done: the follow-up is reviewed and committed locally (see "Current
    checkpoint"). Nothing was pushed; PR #3 is untouched and still open.
-2. [live-verification.md](live-verification.md) section 1 is **closed**: local
-   OAuth works, the bundle validates, and the credential question is answered
-   (PAT, no workflow edit). The only remaining setup item is the user running
-   `gh secret set DATABRICKS_HOST` / `gh secret set DATABRICKS_TOKEN`
-   themselves, which is what would make PR #3's `Validate bundle` pass.
+2. Done: [live-verification.md](live-verification.md) section 1 is **closed**.
+   Local OAuth works, the credential question is answered (PAT, no workflow
+   edit), the secrets are set, and CI validates the current tree. Sections 3
+   and 4 remain entirely unexecuted.
 3. Before any deploy/run, obtain authorization covering the target,
    full-bundle deployment scope, and synthetic job runs. Preserve existing
    workspace ownership; no implicit binding, cleanup, or table deletion.
