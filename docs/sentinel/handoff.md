@@ -1,19 +1,27 @@
 # Session handoff
 
-Updated: 2026-09-21, after the cleanup was reviewed and committed. Verify the
+Updated: 2026-09-21, after chapter 00 was integrated into `main`. Verify the
 checkout before working; this page records context, not permission for external
 actions.
 
 ## Current state
 
-- Branch: `series/00-introduction`, based on `main` at `4a04e77`.
-- Commits: `bfd6fdd` (chapter 00 preparation), `b9250aa` (first CI separation),
-  `a2231b7` (handoff), `04ded3a` (environment/CI/branch-policy cleanup,
-  reviewed by a separate Claude Code session).
-- Working tree clean. Nothing pushed, merged, deployed, tagged, or posted. No
-  branch deleted. `main` untouched at `4a04e77`.
+- Chapter 00 is integrated. `main` is at `877e8d3` (merge commit for PR #1),
+  fast-forwarded from `4a04e77`.
+- Remote branch `series/00-introduction` is retained at `ea72679`
+  (`https://github.com/tsogtbatjargal/bedoux-databricks/tree/series/00-introduction`).
+  The local branch was deleted after passing every check in
+  [branch workflow](branch-workflow.md): clean tree, no other worktree, remote
+  tip matched local tip, and the chapter tip is an ancestor of both local and
+  `origin/main`.
+- Commits merged: `bfd6fdd` (chapter 00 preparation), `b9250aa` (first CI
+  separation), `a2231b7` (handoff), `04ded3a` (environment/CI/branch-policy
+  cleanup), `0988d88` (cleanup commit SHA recorded), `ea72679` (pinned
+  `databricks/setup-cli`, this session).
+- Working tree clean, on `main`. Nothing tagged or posted. Repo setting
+  `deleteBranchOnMerge` is `false`, confirmed via `gh repo view` before the
+  merge.
 - No Sentinel runtime exists yet. The launch post remains an unpublished draft.
-- Chapter 00 is ready for integration when the user requests it.
 
 ## Decisions to preserve
 
@@ -24,8 +32,9 @@ and a full demo. Use concrete, natural writing with measured evidence.
 The user's latest branch preference supersedes the old local-retention rule:
 **keep remote chapter branches and stable post tags; remove merged local chapter
 branches once their remote copy and integration are verified.** See
-[branch workflow](branch-workflow.md) for exact checks. Neither `main` nor the
-current unmerged chapter branch is eligible for deletion now.
+[branch workflow](branch-workflow.md) for exact checks. Chapter 00 followed this
+policy: its local branch was removed after verification, its remote branch and
+`main` remain.
 
 Codex or Claude Code can implement; a separate session can review. Jev remains
 optional and uninstalled. No runtime provider, API budget, AWS budget, or
@@ -107,34 +116,51 @@ Three concrete fixes applied in the cleanup commit:
   deploys that branch. Behavior is unchanged from the old workflow and was left
   alone; it is now documented as a decision rather than a surprise.
 
-Not fixed, deliberately: `databricks/setup-cli@main` still tracks a moving
-branch while the other third-party actions are SHA-pinned. Pinning it needs a
-SHA looked up from the network, and guessing one would risk breaking CI. The
-`dorny/paths-filter` and `astral-sh/setup-uv` SHAs were also written offline and
-have not been resolved against GitHub; the first real run confirms them or fails
-fast. Recorded in `branch-workflow.md`.
+Previously deliberately not fixed, now resolved in this session (commit
+`ea72679`, before the merge): `databricks/setup-cli` is pinned to
+`d76f84cea9893ce68311a1f33fb0c95af6c963b7` (tag `v1.17.0`), looked up via the
+GitHub API (`gh api repos/databricks/setup-cli/tags`). The `dorny/paths-filter`
+(`ceb8a2b...c5cc9d`) and `astral-sh/setup-uv` (`c771a70...ca235ff9`) SHAs,
+written offline in the earlier session, were confirmed this session to resolve
+exactly to their intended tags `v4` and `v9.0.0` respectively
+(`gh api repos/<owner>/<repo>/git/refs/tags/<tag>` matched
+`gh api repos/<owner>/<repo>/commits/<sha>`). `actionlint` passed on the
+updated workflow.
+
+### Integration session (this session)
+
+- Pushed `series/00-introduction` (`ea72679`) and opened PR #1 into `main`:
+  `https://github.com/tsogtbatjargal/bedoux-databricks/pull/1`.
+- Confirmed `deleteBranchOnMerge` is `false` on the repo before merging
+  (`gh repo view ... --json deleteBranchOnMerge`).
+- Observed CI on the PR (run `35647524911`, event `pull_request`): `Detect
+  bundle changes` success, `Unit tests` success, `Validate bundle` skipped,
+  `Deploy bundle` skipped — matches the predicted no-deploy path since no
+  `src/**`, `resources/**`, or `databricks.yml` path changed.
+- Merged PR #1 with a merge commit (`gh pr merge 1 --merge`, no branch
+  deletion). Merge commit `877e8d3`; `main` fast-forwarded from `4a04e77`.
+- Observed CI on the resulting push to `main` (run `35647610948`, event
+  `push`): `Unit tests` success, `Validate bundle` skipped, `Deploy bundle`
+  skipped. No workspace deployment occurred.
+- Ran the local-branch-cleanup checks from
+  [branch workflow](branch-workflow.md) and all passed: clean tree, single
+  worktree, `git fetch origin` then `git ls-remote --exit-code --heads origin
+  refs/heads/series/00-introduction` found the branch, local tip
+  `ea72679` equaled the fetched remote tip, and
+  `git merge-base --is-ancestor series/00-introduction main`/`origin/main`
+  both succeeded after fast-forwarding local `main`. Deleted the local branch
+  with `git branch -d series/00-introduction` (not `-D`). The remote branch
+  is confirmed present at the same tip.
+- Did not tag, did not publish the LinkedIn draft, made no paid model calls.
 
 ## Next task
 
-The cleanup has been reviewed and committed. Chapter 00 is complete locally and
-ready for integration; nothing further is pending on this branch. Checks above
-already passed — repeat them only for new changes. Use
-[Local development](../development.md) to resume.
+Chapter 00 is integrated. Start `series/01-know-your-platform` from updated
+`main` (already at `877e8d3` locally). Map the current platform, specify
+synthetic incidents, and reconcile Track 2's contract language with its
+batch/full-recompute implementation. Existing invalid rows are dropped, not
+quarantined; existing leads have email domains, not email/phone PII.
 
-Integration, when the user requests it:
-
-1. Push `series/00-introduction` and open a PR into `main`. Expect the
-   `Unit tests` check to run and the workspace jobs to skip — the branch changes
-   no bundle path. Verified locally; not yet observed on GitHub.
-2. Before the first merge, confirm GitHub's automatic head-branch deletion is
-   off, so the remote chapter branch is retained.
-3. After merging, optionally remove the merged *local* branch using the
-   preservation and ancestry checks in
-   [branch workflow](branch-workflow.md). Never `-D`, never delete the remote.
-4. Optionally pin `databricks/setup-cli` to a SHA while network access is
-   available, and confirm the two offline-written action pins resolve.
-
-Then start `series/01-know-your-platform` from updated `main`. Map the current
-platform, specify synthetic incidents, and reconcile Track 2's contract language
-with its batch/full-recompute implementation. Existing invalid rows are dropped,
-not quarantined; existing leads have email domains, not email/phone PII.
+Read [branch workflow](branch-workflow.md) before starting: create the new
+chapter branch from `main` at `877e8d3`, not from the deleted local
+`series/00-introduction` ref.
