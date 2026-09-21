@@ -16,13 +16,13 @@ chapter -- see docs/sentinel/chapters/02-quality-gate.md. Nothing in this file
 is runtime evidence.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from src.bedoux import quality
 
-RUN_START = datetime(2026, 9, 21, 12, 0, 0)
+RUN_START = datetime(2026, 9, 21, 12, 0, 0, tzinfo=timezone.utc)
 DURING_RUN = RUN_START + timedelta(seconds=30)
 BEFORE_RUN = RUN_START - timedelta(hours=6)
 
@@ -152,13 +152,44 @@ def test_null_computed_ts_cannot_prove_freshness():
     assert all("_computed_ts is null" in p for p in problems)
 
 
-def test_without_a_run_boundary_freshness_is_not_enforced():
-    # Outside the job there is no run to bind to; the policy then only judges
-    # presence and pass/fail. Documented, deliberate, and why the job always
-    # passes run_start_iso.
+def test_without_a_run_boundary_publication_is_blocked():
     rows = [_row(s, computed=BEFORE_RUN) for s in quality.REQUIRED_SOURCES]
-    passed, _ = quality.evaluate_gate(rows, min_computed_ts=None)
-    assert passed is True
+    passed, problems = quality.evaluate_gate(rows, min_computed_ts=None)
+    assert passed is False
+    assert "run boundary" in problems[0]
+
+
+@pytest.mark.parametrize("boundary", ["2026-09-21", RUN_START.replace(tzinfo=None)])
+def test_invalid_or_naive_run_boundary_withholds(boundary):
+    assert quality.evaluate_gate(_all_good(), min_computed_ts=boundary)[0] is False
+
+
+@pytest.mark.parametrize("computed", ["2026-09-21", DURING_RUN.replace(tzinfo=None)])
+def test_invalid_or_naive_evidence_timestamp_withholds(computed):
+    rows = [_row(s, computed=computed) for s in quality.REQUIRED_SOURCES]
+    assert quality.evaluate_gate(rows, min_computed_ts=RUN_START)[0] is False
+
+
+def test_timezone_offsets_compare_the_same_instant():
+    local = DURING_RUN.astimezone(timezone(timedelta(hours=-6)))
+    rows = [_row(s, computed=local) for s in quality.REQUIRED_SOURCES]
+    assert quality.evaluate_gate(rows, min_computed_ts=RUN_START)[0] is True
+
+
+def test_empty_required_sources_cannot_authorize_publication():
+    assert quality.evaluate_gate([], required_sources=(), min_computed_ts=RUN_START)[0] is False
+
+
+@pytest.mark.parametrize("value", [None, "", "{{job.start_time.timestamp_ms}}", "NaN", "1.5", -1, 0, True, "9" * 40])
+def test_invalid_epoch_milliseconds_are_rejected(value):
+    with pytest.raises(ValueError):
+        quality.utc_from_epoch_ms(value)
+
+
+def test_epoch_milliseconds_produce_explicit_utc():
+    milliseconds = int(RUN_START.timestamp() * 1000)
+    assert quality.utc_from_epoch_ms(str(milliseconds)) == RUN_START
+    assert quality.utc_from_epoch_ms(milliseconds).tzinfo is timezone.utc
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +252,7 @@ def test_gate_check_task_fails_closed_and_binds_the_run():
     assert "min_computed_ts=min_computed_ts" in src
     # A failing gate must raise; returning quietly would let Gold refresh.
     assert "raise RuntimeError" in src
-    assert "run_start_iso" in src
+    assert "run_start_ms" in src
 
 
 def test_required_sources_cover_every_gold_source():

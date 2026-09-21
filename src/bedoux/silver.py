@@ -366,8 +366,8 @@ def quality_metrics():
         f"rate is at or below the {QUARANTINE_RATE_THRESHOLD:.0%} threshold. "
         "Counted from the *_flagged views directly (one row in, one row "
         "counted), not from quality_metrics' exploded per-reason breakdown. "
-        "gold.py withholds a table's refresh (keeping previously published "
-        "content) for any source whose gate_passed is false."
+        "bedoux_gate_task withholds the entire Gold pipeline when any "
+        "required source lacks fresh passing evidence."
     ),
 )
 def gate_status():
@@ -386,9 +386,7 @@ def gate_status():
             when(col("total") > 0, col("quarantined") / col("total")).otherwise(lit(0.0)),
         )
         .withColumn("gate_passed", col("quarantine_rate") <= lit(QUARANTINE_RATE_THRESHOLD))
-        # Stamps which run produced this decision. bedoux_gate_task rejects a
-        # gate_status row computed before the current job run started, so a
-        # leftover row from an earlier run can never authorize this run's
-        # Gold refresh. See quality.evaluate_gate's min_computed_ts.
+        # Freshness only, not a run ID. The gate rejects evidence older than
+        # the job start; this assumes a serialized job with no other writers.
         .withColumn("_computed_ts", current_timestamp())
     )

@@ -1,14 +1,14 @@
 # Part 02 — Defend before damage spreads
 
-Status: implemented on `series/02-quality-gate`, local only, not pushed or
-merged. No post draft yet. Chapter 01 mapped the platform and found the gap
+Status: PR #3 open on `series/02-quality-gate`; follow-up fixes are local and
+not merged. No live demonstration or post draft yet. Chapter 01 mapped the platform and found the gap
 this chapter closes: `expect_or_drop` silently drops rows with no record of
 what was dropped or why, no dedup exists on the fact tables, and an orphaned
 `campaign_id` vanishes from Gold with no error. This chapter changes pipeline
 code (`src/bedoux/bronze.py`, `silver.py`, `gold.py`) for the first time in
 the series — see [branch workflow](../branch-workflow.md) and `AGENTS.md`:
-merging this to `main` deploys, and is a decision for the user, not this
-session.
+merging this to `main` attempts validation and deploys only if checks succeed.
+Integration remains a deployment decision for the user.
 
 ## Scope
 
@@ -52,17 +52,14 @@ times the generator's ~2% baseline invalid rate — past that point, the
 deviation reads as a systemic pipeline problem (a broken mapping, a bad
 deploy, a corrupted batch) rather than expected background noise, and
 Genie/BI users are better served by stale-but-correct numbers than a
-silently degraded refresh. The threshold is per-source and per-table:
-`gold_campaign_performance`/`gold_client_funnel` gate on `leads`;
-`gold_ogi_ops_health` gates on `ops_events`. No Gold table currently reads
-`web_events_clean`, so `web_events`'s gate exists (for symmetry and future
-use) but nothing depends on it yet.
+silently degraded refresh. Thresholds are per source, but publication is
+whole-Gold: all three required sources must pass, including `web_events`,
+which no current Gold table reads. The job skips the entire Gold pipeline
+on failure. This conservative coupling is deliberate for this chapter.
 
-This is not whole-platform transactional publication — each Gold table
-gates independently on the sources it actually reads, not on every source at
-once, and the "previous content" fallback is a self-referencing read
-(`spark.read.table` of the table's own current state), not a database
-transaction. Do not describe this as ACID publication.
+This is not transactional publication: once Gold starts, a runtime failure
+could still leave its outputs at different refresh states. There is no
+self-referencing read or atomic multi-table swap.
 
 ## Scenario coverage
 
@@ -207,11 +204,20 @@ belongs. Each original defect closes as a consequence:
 | First-run failure published | Gold task never starts, so the table is never created |
 | Missing/null evidence passed | `evaluate_gate` is fail-closed: absent, duplicated, null, or stale evidence all withhold |
 
-**Run binding.** `gate_status` now carries `_computed_ts`, and the task
-receives `{{job.start_time.iso_datetime}}`. Evidence computed before this run
-started is rejected as stale, so a leftover row cannot authorize publishing a
-different batch. Outside the job there is no run boundary and freshness is not
-enforced — deliberate, and why the job always passes `run_start_iso`.
+**Freshness, not exact run binding.** `gate_status` carries `_computed_ts`.
+The task requires `{{job.start_time.timestamp_ms}}` and converts Spark timestamps
+to epoch milliseconds before collection, then explicit UTC datetimes. Missing
+or malformed run context now fails closed rather than disabling freshness.
+Evidence older than the job start is rejected. This does not distinguish a
+different writer's newer evidence: use a serialized full job with no concurrent
+writers, deployments, or repair-only runs. Exact batch identity/version-pinned
+reads are not implemented.
+
+**Repeatable fault injection.** Bundle variable `bedoux_lead_invalid_rate`
+sets Bronze's `bedoux.lead_invalid_rate`. The default is `0.02`; `0.30`
+produces an above-threshold lead fixture with the fixed seed. Nonfinite and
+out-of-range values fail. Leads have an explicit schema so the `1.0` case
+does not rely on inferring a type from an entirely null `campaign_id` column.
 
 ### The tradeoff: whole-Gold, not per-table
 
@@ -220,11 +226,9 @@ The old design gated per table: a `leads` failure withheld
 `gold_ogi_ops_health` still refreshed from `ops_events`. Gold is one pipeline
 and therefore one task, so failing the gate now withholds **all three**.
 
-Keeping per-table precision would mean either gate logic back inside the
-dataset functions — the unsupported thing this redesign removed — or splitting
-Gold into several pipelines, which Free Edition's one-active-pipeline-per-type
-limit discourages and which is a larger architecture change than this chapter
-should make. For a publication gate, withholding more than strictly necessary
+Per-table precision needs a different design, such as separately orchestrated
+Gold outputs, outside this chapter's small scope. The previous imperative
+in-dataset gate is not an option to restore. For this publication gate, withholding more than strictly necessary
 is the safer direction to err. Recorded as a known limitation rather than
 presented as ideal; splitting Gold stays available if per-source precision
 later justifies it.
@@ -245,9 +249,9 @@ restored corrected batch) are specified in
 
 | Check | Status | Evidence |
 | --- | --- | --- |
-| `quality.py` classify/dedup/reconcile logic | **Verified (policy only)** | `uv run --locked python -m pytest -q` — 53 passed, this session. |
-| `quality.evaluate_gate` decision policy: normal input, failing gate, missing source, duplicate rows, null `gate_passed`, stale/null `_computed_ts`, first-run failure, repeat evaluation | **Verified (policy only)** | `tests/test_gate_policy.py`, 20 tests. These prove what the policy *decides*; they do not prove Spark produces the rows, that the job graph stops Gold, or that a withheld table retains its data. |
-| `gate_check.py` wiring: notebook header, fail-closed raise, run binding passed through | **Verified (source-grep, no Spark/dlt import)** | `test_gate_check_task_fails_closed_and_binds_the_run`. |
+| Local suite: policy, generator, notebook/Bronze wiring | **Verified locally** | `uv run --locked python -m pytest -q` — 92 passed during this follow-up; no Spark runtime. |
+| `quality.evaluate_gate`: normal, failed, missing, duplicate, null, stale, missing run context, timezone handling | **Verified (policy only)** | `tests/test_gate_policy.py`; does not prove that Spark produces those rows or that the scheduler stops Gold. |
+| `gate_check.py` wiring and exception propagation | **Verified with API stubs** | `tests/test_gate_notebook.py` executes the actual notebook with synthetic Spark/dbutils substitutes; not serverless execution. |
 | Job graph: `gold` depends on `gate`, not directly on `silver` | **Verified (YAML parse)** | `resources/bedoux_jobs.yml` parsed and asserted this session. |
 | Scenario A/B/C + normal control + replay, at the pure-function level | **Verified** | Same test run, see scenarios above. |
 | Gate rate arithmetic counts rows, not exploded reasons | **Verified (regression-tested)** | `test_gate_rate_counts_rows_not_reasons_for_multi_reason_batch`, added after the review found the original bug. |
@@ -256,8 +260,8 @@ restored corrected batch) are specified in
 | `bronze.py`'s `_row_id` batch identity | **Verified by code reading, untested against data** | Reviewed; not exercised against a live Bronze run. |
 | **A gate failure actually withholds the Gold refresh** | **Untested against a live pipeline** | The whole point of the chapter, and the thing no local test reaches. Requires a run where `bedoux_gate_task` fails and Gold is observed to keep its previous content. |
 | `notebook_task` with `base_parameters` runs on Free Edition serverless | **Untested** | The gate task type has never executed here. If Free Edition rejects it, the task type changes — the policy in `quality.py` would not. |
-| `{{job.start_time.iso_datetime}}` resolves and parses as ISO 8601 | **Untested** | Dynamic value reference assumed from documentation, not observed. A malformed value makes `datetime.fromisoformat` raise, which fails closed. |
-| `_computed_ts` from Spark compares correctly against the parsed run start | **Untested** | Timezone handling in particular: a naive/aware mismatch would raise, which fails closed, but this has not been observed. |
+| `{{job.start_time.timestamp_ms}}` resolves in the workspace | **Untested live** | Documented reference; missing or malformed values are rejected in local tests. |
+| Spark `unix_millis(_computed_ts)` feeds UTC comparison | **Untested live** | Python epoch conversion and comparison tested; actual Spark conversion still needs the demonstration. |
 | Whether Gold tables genuinely retain prior content when their pipeline does not run | **Untested** | Expected DLT behavior; unverified here. |
 | `databricks bundle validate --target dev` | **Unavailable** | Same reason. |
 | A live rerun demonstrating "replay does not duplicate" | **Untested** | Would require a live pipeline run; not attempted. Argued architecturally above instead. |
@@ -282,7 +286,7 @@ finding for a future chapter or a dedicated fix.
   double-counting" — `reconcile()`'s conservation assertion,
   `test_reconcile_conserves_every_row`.
 - "A failed gate preserves the previously published data" —
-  `_publish_or_withhold` in `gold.py`; untested against a live workspace.
+  `bedoux_gate_task` must fail before Gold starts; untested against a live workspace.
 - "Normal input passes" — `test_normal_control_passes_the_gate`.
 - "Test repeated processing" — `test_replay_is_idempotent`, with the
   architectural argument above for why it generalizes to the live pipeline.

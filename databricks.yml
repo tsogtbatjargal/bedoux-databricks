@@ -5,6 +5,9 @@ include:
   - resources/*.yml
 
 variables:
+  bedoux_lead_invalid_rate:
+    description: "Synthetic Track 2 lead invalid rate (0..1); deploy-time demo setting, restore to 0.02"
+    default: "0.02"
   catalog:
     description: Unity Catalog catalog used by all three layers
     default: workspace

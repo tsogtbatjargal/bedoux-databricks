@@ -37,9 +37,9 @@ resources:
             notebook_path: ../src/bedoux/gate_check.py
             base_parameters:
               source_path: ${workspace.file_path}/src
-              # Binds the decision to this run: gate_status rows computed
-              # before the run started are rejected as stale evidence.
-              run_start_iso: "{{job.start_time.iso_datetime}}"
+              # Freshness boundary, not an immutable batch/run identity.
+              # Epoch milliseconds avoid Python/Spark timezone ambiguity.
+              run_start_ms: "{{job.start_time.timestamp_ms}}"
 
         - task_key: bedoux_gold_task
           depends_on:

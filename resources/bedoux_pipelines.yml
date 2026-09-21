@@ -9,6 +9,7 @@ resources:
       continuous: false
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src
+        bedoux.lead_invalid_rate: ${var.bedoux_lead_invalid_rate}
       libraries:
         - file:
             path: ../src/bedoux/bronze.py

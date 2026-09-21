@@ -1,13 +1,13 @@
 """Pure quality-gate logic for Track 2's Silver quarantine and Gold publication
 gate -- spark/dlt-free, so it's unit testable in plain pytest. Same pattern as
-transforms.py: silver.py/gold.py reimplement this logic as native Spark column
-expressions; this module is the tested spec they must match.
+transforms.py: silver.py mirrors the classification rules as Spark expressions;
+the ordinary gate notebook calls evaluate_gate directly before Gold runs.
 
 Business decision (chapter 02): reject individual records by default -- a
 malformed value, a duplicate lead_id, or an orphaned campaign_id only removes
 that one row from `<source>_clean` and routes it to `<source>_quarantine` with
 a reason code. Only when a run's quarantine rate for a source crosses
-QUARANTINE_RATE_THRESHOLD does the gate withhold that source's Gold tables,
+QUARANTINE_RATE_THRESHOLD does the gate withhold the whole Gold pipeline,
 leaving their previously published content unchanged, instead of publishing an
 aggregate built from a materially degraded sample. The generator's baseline
 invalid rate is ~2% (INVALID_RATE in generator.py); 10% is five times that
@@ -23,6 +23,8 @@ gate's quarantine rate must be computed from row counts (one row = one unit),
 never from a per-reason breakdown, or a multi-reason row inflates the rate.
 See reconcile() below and gate_status/_row_counts in silver.py.
 """
+
+from datetime import datetime, timezone
 
 QUARANTINE_RATE_THRESHOLD = 0.10
 
@@ -155,14 +157,34 @@ def gate_passed(total: int, quarantined: int, threshold: float = QUARANTINE_RATE
 REQUIRED_SOURCES = ("leads", "web_events", "ops_events")
 
 
+def utc_from_epoch_ms(value):
+    """Parse job/Spark epoch milliseconds without relying on the driver's timezone."""
+    if not (
+        type(value) is int
+        or (isinstance(value, str) and value.isascii() and value.isdigit())
+    ):
+        raise ValueError("Expected positive epoch milliseconds; missing or unresolved run context")
+    try:
+        milliseconds = int(value)
+        if milliseconds <= 0:
+            raise ValueError
+        return datetime.fromtimestamp(milliseconds / 1000, tz=timezone.utc)
+    except (ValueError, OverflowError, OSError):
+        raise ValueError("Expected representable positive epoch milliseconds") from None
+
+
+def _aware_datetime(value):
+    return isinstance(value, datetime) and value.utcoffset() is not None
+
+
 def evaluate_gate(rows, required_sources=REQUIRED_SOURCES, min_computed_ts=None):
     """Decide whether the Gold refresh may proceed.
 
     `rows` is the collected contents of workspace.bedoux_silver.gate_status as
     a list of dicts with keys: source, gate_passed, quarantine_rate,
-    _computed_ts. `min_computed_ts`, when given, is the run boundary (the job
-    run's start time): any row computed before it is evidence from an earlier
-    run and does not describe the data about to be published.
+    _computed_ts. `min_computed_ts` must be a timezone-aware job start time.
+    Older evidence is rejected. Freshness alone does not establish batch
+    identity: the demo requires a serialized job and no other writers.
 
     Returns (passed, problems). `problems` is a list of human-readable strings,
     empty exactly when `passed` is True. Every required source must appear
@@ -170,6 +192,10 @@ def evaluate_gate(rows, required_sources=REQUIRED_SOURCES, min_computed_ts=None)
     `min_computed_ts`. Sources outside `required_sources` are ignored: they
     carry no Gold table in this design, so they cannot block publication.
     """
+    if not _aware_datetime(min_computed_ts):
+        return False, ["Missing or invalid timezone-aware run boundary; withholding Gold"]
+    if not required_sources:
+        return False, ["No required sources configured; withholding Gold"]
     problems = []
     by_source = {}
     for row in rows:
@@ -193,14 +219,15 @@ def evaluate_gate(rows, required_sources=REQUIRED_SOURCES, min_computed_ts=None)
             rate_text = "unknown" if rate is None else f"{rate:.1%}"
             problems.append(f"{source}: gate_passed is false (quarantine rate {rate_text})")
 
-        if min_computed_ts is not None:
-            computed = row.get("_computed_ts")
-            if computed is None:
-                problems.append(f"{source}: _computed_ts is null, cannot prove it describes this run")
-            elif computed < min_computed_ts:
-                problems.append(
-                    f"{source}: gate_status computed at {computed} predates this run "
-                    f"({min_computed_ts}); stale evidence from an earlier run"
-                )
+        computed = row.get("_computed_ts")
+        if computed is None:
+            problems.append(f"{source}: _computed_ts is null, cannot prove freshness")
+        elif not _aware_datetime(computed):
+            problems.append(f"{source}: _computed_ts must be a timezone-aware datetime")
+        elif computed < min_computed_ts:
+            problems.append(
+                f"{source}: gate_status computed at {computed} predates this run "
+                f"({min_computed_ts}); stale evidence from an earlier run"
+            )
 
     return (not problems), problems

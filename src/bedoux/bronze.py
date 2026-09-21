@@ -69,9 +69,17 @@ def leads_raw():
         c["campaign_id"]
         for c in generator.generate_campaigns(client_ids, n_per_client=N_CAMPAIGNS_PER_CLIENT)
     ]
-    rows = generator.generate_leads(campaign_ids, n=N_LEADS)
+    invalid_rate = generator.parse_invalid_rate(
+        spark.conf.get("bedoux.lead_invalid_rate", str(generator.INVALID_RATE))
+    )
+    rows = generator.generate_leads(campaign_ids, n=N_LEADS, invalid_rate=invalid_rate)
     return (
-        spark.createDataFrame(_with_row_id(rows))
+        # Explicit types also support the 100%-invalid fixture, where every
+        # campaign_id is null and Spark cannot infer that column's type.
+        spark.createDataFrame(
+            _with_row_id(rows),
+            schema="lead_id LONG, campaign_id LONG, stage STRING, created_ts STRING, email_domain STRING, _row_id LONG",
+        )
         .withColumn("_ingest_ts", current_timestamp())
         .withColumn("_source_table", lit("bedoux_synthetic.leads"))
     )

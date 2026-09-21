@@ -21,10 +21,10 @@
 import sys
 
 dbutils.widgets.text("source_path", "")  # noqa: F821
-dbutils.widgets.text("run_start_iso", "")  # noqa: F821
+dbutils.widgets.text("run_start_ms", "")  # noqa: F821
 
 source_path = dbutils.widgets.get("source_path")  # noqa: F821
-run_start_iso = dbutils.widgets.get("run_start_iso")  # noqa: F821
+run_start_ms = dbutils.widgets.get("run_start_ms")  # noqa: F821
 
 if not source_path:
     raise ValueError(
@@ -39,16 +39,24 @@ from bedoux import quality  # noqa: E402
 
 GATE_TABLE = "workspace.bedoux_silver.gate_status"
 
-# Any gate_status row computed before this run started describes an earlier
-# batch and cannot authorize publishing this one. Empty means no run binding
-# is enforced, which should only happen outside the job.
-min_computed_ts = None
-if run_start_iso:
-    from datetime import datetime
+# Missing, malformed, or unresolved parameters must stop before reading evidence.
+min_computed_ts = quality.utc_from_epoch_ms(run_start_ms)
 
-    min_computed_ts = datetime.fromisoformat(run_start_iso)
-
-rows = [row.asDict() for row in spark.read.table(GATE_TABLE).collect()]  # noqa: F821
+# Convert timestamps to epoch milliseconds IN Spark, before Python collection.
+# Collecting TimestampType directly can yield naive driver-local datetimes.
+# This is a freshness check, not a batch ID or protection against other writers.
+evidence = spark.read.table(GATE_TABLE).selectExpr(  # noqa: F821
+    "source", "gate_passed", "quarantine_rate", "total", "quarantined",
+    "unix_millis(_computed_ts) AS _computed_ms",
+)
+rows = []
+for record in evidence.collect():
+    row = record.asDict()
+    computed_ms = row.pop("_computed_ms")
+    row["_computed_ts"] = (
+        None if computed_ms is None else quality.utc_from_epoch_ms(computed_ms)
+    )
+    rows.append(row)
 
 print(f"Read {len(rows)} row(s) from {GATE_TABLE}")
 for row in sorted(rows, key=lambda r: str(r.get("source"))):
