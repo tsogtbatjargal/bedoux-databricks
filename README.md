@@ -103,7 +103,8 @@ docs/
 .claude/skills/                    # Claude Code adapters onto those same bodies
 .codex/config.toml                 # Codex project settings (reasoning effort only)
 scripts/genie.sh                   # thin wrapper over `databricks genie ...`
-.github/workflows/ci.yml           # test -> validate -> deploy -> (manual) run
+.github/workflows/ci.yml           # test -> validate -> deploy (docs pushes skip;
+                                   #   dispatch deploys only when opted in)
 ```
 
 ## Getting started

@@ -31,13 +31,34 @@ and publication status separate. Verify GitHub's automatic head-branch deletion
 setting before the first merge and disable it when repository settings changes
 are authorized. Never assume a retained local branch means a remote one exists.
 
-## Current deployment coupling
+## Deployment coupling
 
-`.github/workflows/ci.yml` deploys the bundle on pushes to `main`, including merges
-and documentation-only changes. `workflow_dispatch` also deploys, even when its
-optional job-run checkbox is off. Before integrating this preparation branch,
-decide whether that deployment is intended or whether CI should first separate
-documentation checks from live deployment. This setup does not change CI.
+Originally `.github/workflows/ci.yml` deployed the bundle on every push to `main`,
+including documentation-only merges, and on every `workflow_dispatch` even with
+its job-run checkbox off. Chapter 00 separated documentation from deployment:
+
+- Pull requests are unfiltered. Every proposed change still runs tests and
+  `databricks bundle validate`, documentation included.
+- Pushes to `main` skip the workflow when *every* changed file is documentation
+  or agent configuration (`**.md`, `docs/**`, `.agents/**`, `.claude/**`,
+  `.codex/**`, `.gitignore`, `LICENSE`). A merge touching pipeline code,
+  `databricks.yml`, `resources/**`, `tests/**`, or the workflow itself still runs
+  the full test → validate → deploy chain. A commit mixing documentation with
+  pipeline code deploys, because `paths-ignore` skips only when nothing else
+  changed.
+- `workflow_dispatch` now takes an explicit `deploy` checkbox, default off.
+  Dispatching without it runs the checks and touches no workspace. `run_job`
+  still requires the deploy job, so it cannot run a job without a deployment.
+
+So merging a documentation-only chapter into `main` no longer deploys, but
+merging a chapter that changes the pipeline does. Treat that second case as a
+deployment decision and confirm it before pushing.
+
+These conditions were verified by evaluating the filter patterns and the deploy
+job's `if` expression against real commits in this repository; they have not been
+observed in a live GitHub Actions run. Note that a documentation-only push to
+`main` produces no CI run at all, so it reports no checks — intended here, but it
+means a required status check on `push` would never be satisfied by such a merge.
 
 ## Corrections and references
 
