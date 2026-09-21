@@ -1,177 +1,195 @@
 # Live verification runbook
 
-Chapter 02 built a publication gate that has never run. Every check so far is a
-policy test over in-memory rows: they prove what the gate *decides*, not that
-Spark produces the evidence, that the job graph stops Gold, or that a withheld
-table keeps its data. This runbook covers what has to happen before chapter 02
-can honestly be called demonstrated.
+Chapter 02 is implemented and locally tested, **not demonstrated**. Section 1
+is now satisfied: local CLI access exists and read-only checks have run against
+the live workspace. Nothing in sections 3 and 4 has been executed — no deploy,
+no job run, no runtime evidence.
+Read [handoff.md](handoff.md) for current checkpoints and authorization limits.
 
-Nothing here has been executed. No credentials exist in this environment and
-none were created. The steps requiring workspace access are the user's to run.
+## 1. Access without widening deployment authority
 
-## 1. Determine which authentication this workspace actually supports
+A live demo does not require storing credentials in GitHub first. With the
+user's approval, interactive local OAuth can validate and operate the same
+bundle; GitHub CI authentication is a separate setup task.
 
-**Do not assume.** The repository's README currently says Free Edition has "no
-account console / service principals" and that CI uses a personal access token.
-That predates this chapter and has not been re-checked. Meanwhile:
+**Local access is established.** The official CLI is pinned in `mise.toml`
+under the explicit `github:databricks/cli` backend — not the unrelated legacy
+Python package, and not inside the uv environment — and the user completed
+[OAuth user login](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-u2m)
+under the named profile `bedoux-databricks`. See
+[development.md](../development.md) for the exact install, login, and verify
+commands. Do not share tokens or authentication caches. A browser login is not
+unattended CI authentication.
 
-- The [Free Edition limitations page](https://docs.databricks.com/aws/en/getting-started/free-edition-limitations)
-  says nothing about PATs, service principals, or API access. Its only
-  authentication statement concerns *user sign-in*: "Authentication is limited
-  to email OTP, Sign in with Google, and Sign in with Microsoft. No SSO or SCIM
-  support."
-- The current [authentication docs](https://docs.databricks.com/aws/en/dev-tools/auth/)
-  lead with OAuth and present **OAuth M2M with a service principal** as the
-  method for "fully automated and CI/CD workflows". They do not describe PATs
-  as removed, but PATs are no longer the documented default.
+**Credential capability, determined 2026-09-21** by read-only API calls under
+that profile. The [Free Edition limitations](https://docs.databricks.com/aws/en/getting-started/free-edition-limitations)
+page does not answer this; the workspace itself does.
 
-So there are two plausible paths and the docs do not tell us which one this
-workspace allows. Check it directly, in the workspace UI:
+| Method | What was observed | Consequence |
+|---|---|---|
+| PAT | `tokens list` and the admin `token-management list` both succeeded, returning two existing tokens | PATs work here. The workflow's existing `DATABRICKS_HOST` + `DATABRICKS_TOKEN` wiring needs no change |
+| Service principal / OAuth M2M | `service-principals list` returned an empty list (exit 0) | The SCIM endpoint answers, but no service principal exists. Creating one is a write action and was not attempted, so M2M remains unproven |
+| Admin rights | `current-user me` shows group `admins` | The user can create and revoke tokens themselves; no account console is needed for this |
 
-1. **PAT available?** Settings → Developer → Access tokens. If token generation
-   is present and not disabled by an admin setting, a PAT works with the
-   workflow exactly as written today (`DATABRICKS_HOST` + `DATABRICKS_TOKEN`).
-2. **Service principal available?** Settings → Identity and access → Service
-   principals. Free Edition has no account console, so this may be absent
-   entirely. If a service principal *can* be created with an OAuth secret, that
-   is the better CI credential — it is not tied to a person and can be scoped.
+**CI therefore stays on a PAT.** No workflow edit is required, and
+`run_as.user_name` stays the person who owns the token. Swapping to M2M later
+would mean reviewing the workflow and the bundle `run_as` identity together,
+not just renaming secrets.
 
-Report only **which option exists**. Never paste a token, secret, client ID, or
-workspace URL with embedded credentials into a chat, an issue, a commit, or a
-model request.
+Two tokens already exist: `bedoux-databricks-project` (created 2026-07-30,
+expires 2027-07-30) and `CLI Access Token` (created 2026-09-21, expires
+2027-09-21). Confirm you recognize both before reusing either, and revoke any
+you do not — a year-long token you cannot account for is itself a finding.
+Report only the capability found, never the credential.
 
-**If only OAuth M2M is available, the workflow needs a change before it can
-authenticate.** It currently passes `DATABRICKS_TOKEN` only:
-
-```yaml
-env:
-  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-```
-
-OAuth M2M instead needs `DATABRICKS_CLIENT_ID` and `DATABRICKS_CLIENT_SECRET`
-(with `DATABRICKS_HOST` unchanged). That edit is *not* made yet, deliberately —
-it should be made once, against whichever method the workspace actually
-supports, rather than speculatively supporting both.
-
-## 2. Set the secrets without exposing them
-
-Whoever holds the credential sets it. An assistant must not create, request,
-read, echo, or commit one.
+The user sets approved secrets through GitHub's UI or the interactive
+[GitHub CLI prompt](https://cli.github.com/manual/gh_secret_set):
 
 ```bash
-# Prompts for the value; nothing lands in shell history or the terminal scrollback.
 gh secret set DATABRICKS_HOST
-gh secret set DATABRICKS_TOKEN          # PAT path
-# or, for the OAuth M2M path:
-gh secret set DATABRICKS_CLIENT_ID
-gh secret set DATABRICKS_CLIENT_SECRET
-
-gh secret list                          # confirms names and dates only, never values
+gh secret set DATABRICKS_TOKEN
+gh secret list
 ```
 
-Notes:
+Do not put literal secrets in shell commands, files in the repo, chat, or logs.
+Use a bounded token lifetime and revoke it when no longer needed. Compromised
+credentials must be rotated; deleting a message is not sufficient.
 
-- `DATABRICKS_HOST` is not itself a secret (it is already in `databricks.yml`),
-  but the workflow reads it from secrets, so it must be set there too.
-- Never use `echo "$TOKEN" | gh secret set ...` in an interactive shell — that
-  puts the value in history. Use the prompt, or `--body-file` with a file you
-  delete afterwards.
-- If a token is ever pasted somewhere it should not be, rotate it rather than
-  deleting the message. Assume anything pasted is compromised.
-- Local workspace access, if wanted, belongs in `~/.databrickscfg` or
-  `databricks auth login` — never in the repository, `.env`, or a committed file.
+## 2. What credentials enable
 
-## 3. Know what happens automatically once secrets exist
+The existing workflow policy is unchanged:
 
-Right now, with no secrets, the chain is inert: `Validate bundle` fails on
-authentication, and because `Deploy bundle` has `needs: [validate, changes]`, a
-failed validate **skips** deploy. Nothing reaches the workspace. This has been
-true for the repository's whole history — the pre-series run `30594756421` from
-July failed with the identical auth error.
+- Every PR/main push/manual dispatch runs local tests.
+- Bundle-path PRs also validate; PRs never deploy.
+- Bundle-path pushes to main validate, then deploy **only if checks succeed**.
+- Docs/tooling-only pushes run local tests and skip workspace jobs.
+- Manual dispatch validates; `deploy` opts into deployment and `run_job`
+  additionally opts into execution. The selected branch supplies the code.
 
-Adding secrets changes that, immediately and without further prompting:
+Adding credentials does not trigger deployment by itself. It enables later
+eligible runs or reruns to reach the workspace. Authentication can expose
+further configuration errors; it does not guarantee validation succeeds.
 
-| Event | Before secrets | After secrets |
-| --- | --- | --- |
-| PR touching `src/**`, `resources/**`, `databricks.yml` | validate fails (red), no deploy | validate runs for real; still **never** deploys |
-| Push/merge to `main` touching those paths | validate fails, deploy skipped | validate passes, then **`databricks bundle deploy --target dev` runs automatically** |
-| Push to `main` touching only docs/tooling | workflow skipped | workflow skipped (unchanged) |
-| Manual dispatch with `deploy` unchecked | validate fails | validate only |
-| Manual dispatch with `deploy` checked | validate fails, deploy skipped | deploys |
+Before enabling this, the user chooses whether to retain automatic deployment
+on bundle-path main merges or request a separate deployment-policy change.
+Do not bypass validation failures or convert them to green to unblock the PR.
 
-So **merging PR #3 after secrets are configured deploys the bundle to the dev
-target automatically.** That is a real deployment decision and needs explicit
-authorization at that moment; it is not implied by having set up credentials.
+`bundle deploy` updates definitions; `bundle run` executes the job. The bundle
+includes **both tracks**, so a full deployment can create/update Track 1
+resources even though this change edits only Track 2. Review the bundle scope
+and existing resource ownership before deployment; do not bind or delete
+existing workspace resources implicitly.
 
-One nuance that matters for the demonstration: `bundle deploy` creates and
-updates the pipelines and job definitions. It does **not** run them. The
-workflow only runs `bedoux_analytics_job` on a manual dispatch with `run_job`
-checked. So deploying does not by itself execute the gate or touch table data.
+## 3. Preconditions for this small demonstration
 
-## 4. The demonstration: baseline, withheld, restored
+### Observed starting state (read-only, 2026-09-21)
 
-The goal is a run where the gate actually withholds, observed rather than
-argued. Three stages, all synthetic, all in Track 2's `dev` target.
+The `dev` target is not empty, and that changes what this demo can show:
 
-**Isolation.** Track 1 is untouched — different pipelines, different schemas.
-All Track 2 data is generated by `src/bedoux/generator.py`, so no real data is
-involved at any stage. Recovery is structural rather than procedural: Bronze is
-a full deterministic recompute from a fixed seed, so re-running with normal
-parameters reproduces the baseline exactly. There is no cleanup step to forget.
+- `[dev tsoglog_uli] bedoux_analytics_job` exists with `max_concurrent_runs: 1`,
+  but its **deployed task graph is the pre-chapter-02 one**: bronze → silver →
+  gold, with no `bedoux_gate_task`. The gate exists only in this checkout. The
+  first deploy is therefore what introduces it.
+- All three `workspace.bedoux_gold.*` tables already exist, last written
+  2026-07-30. That is a real published baseline, which makes stage 2's
+  retention claim checkable rather than vacuous: if the gate withholds, their
+  content and `updated_at` must be unchanged afterwards.
+- Because a baseline exists, the **first-ever-run** case cannot be shown in
+  `dev` without destroying it. Leave that as a design argument, not a stage.
 
-**Stage 1 — healthy baseline.** Run `bedoux_analytics_job` unmodified.
+- User authorizes the actual target, full-bundle deployment scope, and synthetic
+  Track 2 runs. No merge is needed to test the chapter branch.
+- Use the same profile, target, and bundle identity throughout; alternate
+  deployments must not write the same hard-coded Track 2 schemas.
+- Confirm `max_concurrent_runs: 1` on the deployed job. No direct pipeline
+  runs, other writers, deployments mid-run, or repair-only runs during the demo.
+- The gate checks timestamp freshness, **not immutable run/batch identity**.
+  Another writer's newer data could pass. This demo is not a concurrency or
+  permissions guarantee. Direct Gold runs bypass the gate.
+- The documented [serverless notebook configuration](https://docs.databricks.com/aws/en/dev-tools/bundles/examples)
+  allows omission of cluster settings. Notebook `base_parameters` and
+  [`job.start_time.timestamp_ms`](https://docs.databricks.com/aws/en/jobs/dynamic-value-references)
+  are documented. Keep the notebook task unless an actual error says otherwise.
+- The gate converts `_computed_ts` with SQL
+  [`unix_millis`](https://docs.databricks.com/aws/en/sql/language-manual/functions/unix_millis)
+  before collecting it, then compares timezone-aware UTC datetimes. Missing
+  or unresolved run context must fail, not disable checking.
 
-- Expect: all four tasks succeed, `gate_status` shows `gate_passed = true` for
-  all three sources at roughly the generator's ~2% quarantine rate, and the
-  three Gold tables populate.
-- Record: each `gate_status` row, row counts for `<source>_clean` and
-  `<source>_quarantine`, and the Gold row counts. This is the baseline that
-  stage 2 must prove was preserved.
+## 4. Baseline → withheld → restored → replay
 
-**Stage 2 — bad batch, withheld.** Re-run with the lead invalid rate raised
-past the 10% threshold (say 30%).
+The override is implemented: bundle variable `bedoux_lead_invalid_rate`
+sets Bronze configuration `bedoux.lead_invalid_rate`. Default `0.02`;
+demonstration fault `0.30`. Only leads change. Values outside 0..1, NaN,
+infinity, and malformed strings are rejected.
 
-- This needs a knob that does not exist yet: `bronze.py` hardcodes
-  `generator.INVALID_RATE`. Add a pipeline `configuration` value (the same
-  mechanism `bundle.sourcePath` already uses) read via `spark.conf.get` with
-  the normal rate as default, so the demo changes a parameter rather than code.
-  Specify it as part of the demo, not as a permanent behavior change.
-- Expect: Bronze and Silver succeed; `leads_quarantine` fills; `gate_status`
-  shows `gate_passed = false` for `leads`; **`bedoux_gate_task` fails**;
-  `bedoux_gold_task` is skipped; the job run goes red.
-- Record: the gate task's log showing which sources failed and why, and — the
-  actual point of the chapter — **that the three Gold tables still hold stage
-  1's row counts, unchanged**. A withheld refresh that silently emptied Gold
-  would be a failure, not a success.
-- Also worth recording: the whole-Gold tradeoff made visible.
-  `gold_ogi_ops_health` does not depend on `leads`, and it is withheld anyway.
+This is a **deployment-time** setting, not a run-time job parameter. Changing
+`--var` only on `bundle run` does not update the deployed pipeline.
+For each stage, validate and deploy the selected value, then run the full job.
+Example for the healthy stage, only after authorization:
 
-**Stage 3 — corrected batch, published.** Re-run with the parameter back to
-normal.
+```bash
+databricks bundle validate -t dev --profile bedoux-databricks --var bedoux_lead_invalid_rate=0.02
+databricks bundle deploy -t dev --profile bedoux-databricks --var bedoux_lead_invalid_rate=0.02
+databricks bundle run bedoux_analytics_job -t dev --profile bedoux-databricks --var bedoux_lead_invalid_rate=0.02
+```
 
-- Expect: the gate passes, `bedoux_gold_task` runs, Gold refreshes, and the
-  numbers match stage 1 exactly — same seed, same recompute.
-- Record: Gold row counts equal to stage 1, and a green job run.
+1. **Baseline (0.02):** all four tasks should succeed. Save the three
+   `gate_status` rows, clean/quarantine counts, and full Gold content evidence.
+2. **Fault (0.30):** repeat validate/deploy/run with 0.30. Bronze/Silver should
+   succeed, leads should exceed 10%, gate should fail, and Gold should not run.
+   Check all three Gold tables against the baseline, not just their row counts.
+   A failure before the gate is not a successful defense demonstration.
+3. **Restore (0.02):** explicitly redeploy 0.02 and run the full job. Confirm
+   the deployed setting was restored and all tasks succeed. A fixed seed
+   restores business rows, not audit timestamps.
+4. **Replay:** run the full healthy job again without changing configuration.
+   Compare business content and multiplicities, excluding documented audit
+   fields such as `_ingest_ts`, `_quarantined_ts`, and `_computed_ts`.
 
-**Replay check.** Run stage 3 twice. Row counts must be identical across both,
-demonstrating that reprocessing the same batch neither duplicates accepted rows
-nor re-quarantines them differently. This is the only way to actually test the
-idempotence the chapter currently only argues for.
+**Restoration is required.** The bad-rate deployment persists if the session
+stops after stage 2. Record that fact immediately in the handoff. Do not call
+this a demo with no cleanup. Capture quarantine and failed-run evidence before
+restoring: these recomputed tables are not an append-only incident archive.
 
-**Evidence to capture,** sanitized: job run IDs and task outcomes, the gate
-task log, `gate_status` contents per stage, and a row-count table across the
-three stages. No credentials, no workspace URLs with tokens, no raw
-screenshots containing account identifiers.
+For the small synthetic Gold tables, capture counts, schema, and an
+order-independent content digest in a separate read-only notebook. Save the
+baseline output before injecting faults and compare all three outputs:
 
-## 5. What this would and would not prove
+```python
+import hashlib
+import json
 
-Proves: the gate withholds on real data, Gold retains prior content, a
-`notebook_task` with `base_parameters` runs on Free Edition serverless,
-`{{job.start_time.iso_datetime}}` resolves and parses, `_computed_ts` compares
-correctly across the timezone boundary, and replay is idempotent.
+for name in ("gold_campaign_performance", "gold_client_funnel", "gold_ogi_ops_health"):
+    frame = spark.table(f"workspace.bedoux_gold.{name}")
+    rows = sorted(
+        json.dumps(row.asDict(recursive=True), sort_keys=True, default=str)
+        for row in frame.collect()
+    )
+    payload = json.dumps({"schema": frame.schema.json(), "rows": rows}, sort_keys=True)
+    print(name, len(rows), hashlib.sha256(payload.encode()).hexdigest())
+```
 
-Does not prove: anything about security. A withheld refresh demonstrates a data
-reliability control. It is not evidence that an attacker was stopped, that
-sensitive data was protected, or that the platform is hardened. Those are
-chapters 03 and 06, and they need their own runtime evidence.
+Counts alone can hide changed values. An unchanged digest plus skipped Gold
+task supports retention for these fixtures. For restored/replayed floating
+aggregates, investigate any digest difference and compare values with an
+explicit tolerance if numerical aggregation order differs; never silently
+replace content checks with count checks.
+
+Record job/run IDs, resolved gate parameters, per-task results, gate evidence,
+and content comparisons in the chapter evidence. Local tests/stubs do not
+substitute for any of these observations. If a refresh reuses old gate evidence,
+the freshness check must stop Gold; investigate pipeline refresh semantics
+rather than weakening the check.
+
+## 5. What remains unproved
+
+Workspace authentication and `bundle validate --target dev` have now both
+succeeded locally. Everything downstream of them is still unverified: notebook
+import paths, serverless execution of a notebook task, SQL timestamp
+conversion, orchestration withholding, and Gold retention/replay. Validation
+checks definitions, not behavior.
+
+Even a successful demonstration does not establish immutable batch binding,
+atomic multi-table publication, or an authorization boundary. A first-run
+failure should also be tested in a separately authorized empty destination;
+do not drop baseline tables to manufacture that scenario.

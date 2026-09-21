@@ -1,311 +1,170 @@
 # Session handoff
 
-Updated: 2026-09-21. Chapter 01 is integrated into `main`; chapter 02 is on
-`series/02-quality-gate`, pushed, with [PR #3](https://github.com/tsogtbatjargal/bedoux-databricks/pull/3)
-open and **not merged** — its `Validate bundle` check is failing for a
-missing-CI-credentials reason, not a code defect (see "PR #3 opened" below).
-Verify the checkout before working; this page records context, not
-permission for external actions.
+Updated: 2026-09-21. Chapter 02 is implemented locally, **not demonstrated**.
+Local Databricks CLI access is now set up and read-only-verified against the
+live workspace (see below); no deploy or job run has occurred.
+This file records context, not permission to push, merge, deploy, run jobs,
+change secrets, bind resources, or publish. Inspect Git before continuing.
 
-## Current state
+## Current checkpoint
 
-- Chapter 01 is integrated via merge commit `442c7a8` (PR #2), which
-  fast-forwarded `main` from `66454c2`. `main` has since taken three more
-  docs-only commits (handoff/roadmap updates). Treat `git rev-parse main` as
-  the authoritative current tip rather than any SHA recorded in this file —
-  this page is a point-in-time record, not a live pointer (chapter 00's
-  history below shows why that matters: this file was already wrong twice
-  from hardcoded SHAs).
-- Remote branch `series/01-know-your-platform` is retained at `4b23521`
-  (`https://github.com/tsogtbatjargal/bedoux-databricks/tree/series/01-know-your-platform`).
-  The local branch was deleted after passing every check in
-  [branch workflow](branch-workflow.md): clean tree, no other worktree, remote
-  tip matched local tip, and the chapter tip is an ancestor of both local and
-  `origin/main`.
-- `series/02-quality-gate` (branched from `main` at `3bdee7e`) is pushed and
-  open as PR #3 at head `29adace`, three commits ahead of `main`. **Not
-  merged** — `Validate bundle` fails in CI for a missing-credentials reason;
-  see "PR #3 opened" below. This is the first chapter that changes
-  `src/bedoux/*.py`.
-- Nothing tagged or posted. `deleteBranchOnMerge` was `false` as of chapter
-  01's merge.
-- Chapter 00/01's LinkedIn posts remain undrafted (drafting them is a
-  separate `sentinel-story` task).
+- Branch: `series/02-quality-gate`; PR #3 is open and unmerged. GitHub state
+  was not queried or changed.
+- Local HEAD: `6ec7b37`. Ahead of the remote-tracking ref `47a9e11` by five
+  commits, so **PR #3's remote head is behind the checkout**:
+  `8e4cf6a` gate redesign, `46e8d1f` live-verification runbook,
+  `01e7972` run-boundary hardening + fault-injection knob,
+  `6ec7b37` Databricks CLI pin, and the status commit holding this file.
+  Nothing has been pushed. The working tree is clean.
+- Track 1 source/resources and CI policy are unchanged.
+- No credential value was read, printed, or configured. Read-only workspace
+  API calls were made (see "Credential capability" below). No deployment, job
+  run, merge, tag, push, paid model call, or publication occurred.
+- Chapters 00/01 are integrated into main; remote chapter branches retained.
+  Their local branches were previously removed after preservation/ancestry
+  checks. Detailed history remains in Git and chapter documents.
 
-## Chapter 01 — what shipped
+## Implementation now in the checkout
 
-See [`chapters/01-know-your-platform.md`](chapters/01-know-your-platform.md)
-for the full content. Summary:
+- Bronze/Silver generate fictional data, quarantine rejected facts with reasons,
+  and count rows without double-counting multi-reason records.
+- The ordinary `bedoux_gate_task` notebook runs after Silver and before Gold.
+  Gold has no imperative gate or self-referencing fallback. Failed gate means
+  the whole Gold pipeline should not run, including a first-ever run.
+- `quality.evaluate_gate` rejects absent/duplicate sources, false/null pass
+  values, stale/null/invalid timestamps, empty required-source configuration,
+  and missing or timezone-naive run boundaries.
+- The task now requires `{{job.start_time.timestamp_ms}}`. It converts Spark
+  timestamps with `unix_millis` before Python collection and uses explicit
+  UTC datetimes. Missing/unresolved widgets cannot disable freshness.
+- Bundle variable `bedoux_lead_invalid_rate` feeds pipeline configuration
+  `bedoux.lead_invalid_rate`; default 0.02, demo fault 0.30, valid range 0..1.
+  Malformed/nonfinite values fail. Explicit lead schema handles the all-null
+  campaign column at rate 1. Other source rates/seeds remain unchanged.
+- This is a deploy-time override, not a job-run parameter. Restoration requires
+  redeploying 0.02. No live rate setting was changed in this session.
 
-- A platform map (source data, trust boundaries, dataset dependencies, owners,
-  business impact) distinguishing what Track 2 already implements from what
-  later Sentinel chapters will add. Every claim cites the source file it was
-  verified against (`src/bedoux/*.py`, `resources/bedoux_*.yml`,
-  `databricks.yml`).
-- Three synthetic incident scenarios (malformed lead batch, duplicate leads,
-  missing campaign reference) plus a normal control, each with explicit
-  inputs and expected behavior, chosen to match chapter 02's stated scope so
-  chapter 02 can build directly against them.
-- A capability-check table: local unit tests and code-read claims are
-  **verified**; anything needing a live workspace (`bundle validate`, a live
-  pipeline run, Genie queries) is **unavailable** in this environment (no
-  `DATABRICKS_HOST`/`DATABRICKS_TOKEN`, no `~/.databrickscfg`, no `databricks`
-  CLI installed) — an environment limit, not a choice.
-- Two real discrepancies found and fixed in `docs/contracts-bedoux.md`:
-  Bronze's opening line called itself "append-only" while its own rules three
-  lines down said "full recompute... not append-only"; Silver called
-  `leads`/`web_events`/`ops_events` "streaming tables" though `silver.py`
-  implements them as batch-reading `@dlt.table`s (inherited verbatim from
-  Track 1's contract, where Bronze genuinely is append-only). No pipeline code
-  changed — only the contract text. A follow-up commit tightened both fixed
-  sections to state current behavior plainly rather than narrate their own
-  revision history (the correction itself lives in git history and in the
-  chapter doc, not in the contract's prose).
-- Roadmap build-status column updated: chapter 00 "Integrated into main",
-  chapter 01 now integrated too — update its row before starting chapter 02.
+## Important limits
 
-## Integration session (this session)
+- Timestamp freshness is **not exact run/batch binding**. The supported demo
+  assumes one full serialized job and no other writers, direct pipeline runs,
+  repair-only runs, or deployments mid-run. Exact batch/version binding is
+  not implemented. Direct Gold execution bypasses the gate.
+- Gold withholding is whole-pipeline, not per-table. Successful gate approval
+  does not make subsequent multi-table Gold publication atomic.
+- Synthetic business rows are reproducible; audit timestamps are not.
+  Quarantine tables are recomputed, not an append-only incident archive.
+  Capture failed-stage evidence before restoring the normal fixture.
+- CI's PAT wiring is now known to be the right choice (see "Credential
+  capability" below), but the GitHub secrets are still unset, so PR #3's
+  `Validate bundle` still fails on missing credentials. That failure was never
+  proof of a bundle defect, and `bundle validate` passing locally now confirms
+  it was not one. Setting the secrets enables future eligible main pushes to
+  deploy after checks pass.
+- Full `bundle deploy` includes both tracks. Do not confuse unchanged Track 1
+  source with a Track-2-only deployment.
+- Databricks CLI is now installed locally and OAuth-authenticated (see
+  "Databricks CLI access" below); `bundle validate` has succeeded once
+  against `dev`. Notebook runtime, scheduler withholding, and retained Gold
+  content still require live verification via an actual job run, which has
+  not happened. Serverless notebook configuration is documented; there is no
+  evidence yet requiring a different task type.
 
-- Pushed `series/01-know-your-platform` (user confirmed) and opened PR #2:
-  `https://github.com/tsogtbatjargal/bedoux-databricks/pull/2`.
-- Confirmed `deleteBranchOnMerge` was `false` before merging.
-- Observed CI on the PR twice (once per push — the second push added a
-  handoff-only commit): both runs were `Unit tests` success, `Detect bundle
-  changes` success, `Validate bundle` skipped, `Deploy bundle` skipped. PR was
-  `CLEAN`/`MERGEABLE`.
-- Merged PR #2 with a merge commit (`gh pr merge 2 --merge`, no branch-deletion
-  option passed). Merge commit `442c7a8`; `main` fast-forwarded from `66454c2`.
-- Observed CI on the resulting push to `main` (run `35651242985`, event
-  `push`): **`Unit tests` success, `Detect bundle changes` success, `Validate
-  bundle` skipped, `Deploy bundle` skipped.** Matched the predicted no-deploy
-  pattern; reported here as observed, not assumed.
-- Ran the local-branch-cleanup checks from
-  [branch workflow](branch-workflow.md) and all passed: clean tree, single
-  worktree, `git fetch origin` then `git ls-remote --exit-code --heads origin
-  refs/heads/series/01-know-your-platform` found the branch, local tip
-  `4b23521` equaled the fetched remote tip, and
-  `git merge-base --is-ancestor series/01-know-your-platform main`/`origin/main`
-  both succeeded after fast-forwarding local `main`. Deleted the local branch
-  with `git branch -d series/01-know-your-platform` (not `-D`). The remote
-  branch is confirmed present at the same tip.
-- Did not tag, did not draft or publish the LinkedIn post, made no paid model
-  calls, did not start chapter 02.
-- Pushed the local-only handoff commit `b15ba0f` directly to `main` (docs-only,
-  no bundle path changed). Observed CI run `35651900611` on that push:
-  **`Unit tests` success, `Detect bundle changes` success, `Validate bundle`
-  skipped, `Deploy bundle` skipped** — matched the predicted no-deploy pattern.
+## Databricks CLI access
 
-## Decisions to preserve
+- Installed the official Databricks CLI `v1.17.0` (matched GitHub's `latest`
+  release at install time) via mise's explicit `github:databricks/cli`
+  backend, pinned in `mise.toml` — not `aqua:databricks/cli`, not the legacy
+  `databricks-cli`/`databricks-sdk` PyPI packages, not a global mise
+  selection, no sudo, no shell profile change. `mise install` verified GitHub
+  artifact attestation for the downloaded release asset.
+- User completed `databricks auth login` (OAuth, browser) against
+  `https://dbc-3f70aae3-11d5.cloud.databricks.com` under profile
+  `bedoux-databricks`. Token is stored in the OS keyring via
+  `~/.databrickscfg` (outside the repo); no credential was requested, read,
+  or printed by the agent.
+- Bounded read-only checks, all against the live workspace:
+  - `databricks auth describe --profile bedoux-databricks` (no `--sensitive`):
+    succeeded, host/account/workspace IDs resolved, `auth_type: databricks-cli`,
+    secure OS-keyring token storage confirmed.
+  - `databricks catalogs list` and `databricks jobs list --limit 5`: both
+    succeeded. The workspace already has deployed dev jobs from a prior
+    session/CI attempt, including `[dev tsoglog_uli] bedoux_analytics_job`
+    with `max_concurrent_runs: 1` as the runbook expects.
+  - `databricks bundle validate --target dev --profile bedoux-databricks`:
+    **Validation OK.** This validated the checkout's current working tree
+    (including this session's uncommitted follow-up changes), not just the
+    last commit.
+- Remaining blockers: none for read-only access. Deploying, running the job,
+  and the healthy → fault → restored → replay demonstration in
+  [live-verification.md](live-verification.md) all still need separate,
+  explicit authorization per step — this task only covered CLI setup and
+  validation. `docs/development.md` now documents the install/profile/verify
+  commands for future sessions.
 
-Build **Bedoux Sentinel** inside this repo, extending Track 2 with fictional data.
-The series is **The Art of Data Defense**: introduction, six working chapters,
-and a full demo. Use concrete, natural writing with measured evidence.
+## Credential capability and workspace starting state
 
-**Keep remote chapter branches and stable post tags; remove merged local
-chapter branches once their remote copy and integration are verified.** See
-[branch workflow](branch-workflow.md) for exact checks. Chapters 00 and 01 both
-followed this policy: local branches removed after verification, remote
-branches and `main` remain.
+Determined 2026-09-21 by read-only API calls under profile
+`bedoux-databricks`. Detail and the exact consequences are in
+[live-verification.md](live-verification.md) section 1.
 
-Codex or Claude Code can implement; a separate session can review. Jev remains
-optional and uninstalled. No runtime provider, API budget, AWS budget, or
-publication date has been chosen.
+- **PATs work.** `tokens list` and the admin `token-management list` both
+  succeeded. Two tokens exist: `bedoux-databricks-project` (expires
+  2027-07-30) and `CLI Access Token` (created 2026-09-21, expires
+  2027-09-21). The user should confirm they recognize both and revoke any
+  they do not. No token value was requested, read, or printed.
+- **No service principal exists.** `service-principals list` returns an empty
+  list; the endpoint answers, but creating one is a write action and was not
+  attempted. OAuth M2M is therefore still unproven, and **CI stays on a PAT**
+  with no workflow edit needed.
+- The user's identity is in the workspace `admins` group, so token creation
+  and revocation need no account console.
+- **`dev` is not empty.** `[dev tsoglog_uli] bedoux_analytics_job` is deployed
+  with `max_concurrent_runs: 1`, but its live task graph is the
+  pre-chapter-02 bronze → silver → gold, **without** `bedoux_gate_task`.
+  Deploying is what introduces the gate.
+- All three `workspace.bedoux_gold.*` tables already exist, last written
+  2026-07-30. Good: it makes the withheld stage's retention claim checkable.
+  Also means the first-ever-run case cannot be demonstrated here without
+  destroying that baseline — leave it as a design argument.
 
-### AWS extension chapter — context for later, not now
+## Checks
 
-The user pointed at a separate private repo,
-`/var/home/tsogtb/src/github.com/bedoux-tech/bedoux-commerce-cloud`, as a
-source of reusable Terraform for the AWS extension chapter described in the
-roadmap's "Shared scenario and deferred work" section:
-`infra/terraform/modules/{s3-images,github-actions-oidc,iam-workload,
-iam-cluster}`. That repo has **no CloudTrail module** — object-event logging
-for the decoy-bucket scenario is new work, not reuse. Adapt patterns only;
-copy no credentials or real data from that repo. AWS remains fully deferred:
-no spend authorized, no Terraform written yet, this is a pointer for whichever
-session eventually scopes that chapter.
+- `uv run --locked python -m pytest -q`: **92 passed** (CPython in project
+  `.venv`). Includes actual notebook/Bronze source execution with API stubs,
+  generator baseline/fault/restoration, and policy edge cases. **No Spark/DLT
+  runtime** is exercised.
+- `uv lock --check`: passed.
+- YAML parse plus graph/config assertions: passed. Verified serial job,
+  Silver → gate → Gold, default all-success conditions, dynamic timestamp
+  parameter, and default/routed demo variable. Not CLI bundle validation.
+- All Track 2 Python sources parsed; `git diff --check` passed.
+- Relative Markdown links in changed documents: **17 checked, none broken**.
+- Re-run at commit time: `uv sync --locked` then
+  `uv run --locked python -m pytest -q` — **92 passed**; `git diff --check`
+  clean; `databricks auth describe` and `bundle validate -t dev` re-confirmed.
 
-## Chapter 00 — integration history (compressed)
+## Exact next task
 
-Full session-by-session detail lived here before and is still in Git history
-(`git log -- docs/sentinel/handoff.md`) if needed.
+1. Done: the follow-up is reviewed and committed locally (see "Current
+   checkpoint"). Nothing was pushed; PR #3 is untouched and still open.
+2. [live-verification.md](live-verification.md) section 1 is **closed**: local
+   OAuth works, the bundle validates, and the credential question is answered
+   (PAT, no workflow edit). The only remaining setup item is the user running
+   `gh secret set DATABRICKS_HOST` / `gh secret set DATABRICKS_TOKEN`
+   themselves, which is what would make PR #3's `Validate bundle` pass.
+3. Before any deploy/run, obtain authorization covering the target,
+   full-bundle deployment scope, and synthetic job runs. Preserve existing
+   workspace ownership; no implicit binding, cleanup, or table deletion.
+   Note that the first deploy replaces the live job graph with the gated one,
+   and that a 2026-07-30 Gold baseline exists to preserve.
+4. Run healthy → fault withheld → restored → replay. Record resolved gate
+   parameters, task outcomes, counts and content comparisons. If interrupted
+   at the bad-rate stage, prominently record the deployed 0.30 setting.
+5. Only mark demonstrated after real evidence. Push/integration and remote
+   retention/local-branch cleanup follow [branch-workflow.md](branch-workflow.md)
+   within user authorization. Then chapter 03 starts from integrated main.
 
-- Prepared on `series/00-introduction` across commits `bfd6fdd`, `b9250aa`,
-  `a2231b7`, `04ded3a`, `0988d88`, `ea72679` (the last pinned
-  `databricks/setup-cli` to a commit SHA and confirmed the `dorny/paths-filter`
-  and `astral-sh/setup-uv` pins resolve to their intended tags via the GitHub
-  API).
-- Pushed, opened PR #1, confirmed `deleteBranchOnMerge` was already `false`,
-  observed CI on the PR (`Unit tests` success, workspace jobs skipped — no
-  bundle path changed), merged with a merge commit (`877e8d3`, no branch
-  deletion), observed CI on the resulting `main` push (same no-deploy
-  pattern), then ran every check in
-  [branch workflow](branch-workflow.md)'s local-cleanup section before
-  deleting the local branch. The remote branch (`series/00-introduction`) is
-  retained at `ea72679`.
-- Two further docs-only commits landed directly on `main` after the merge
-  (`6be715b`, `66454c2`), each confirmed to run tests and skip workspace jobs.
-  This is why "current state" sections in this file defer to
-  `git rev-parse main` instead of hardcoding a SHA.
-
-## Verification and limits (chapter 00 preparation)
-
-- `mise exec -- uv run --locked python -m pytest -q`: 17 passed, confirmed
-  independently by two separate sessions (interpreter CPython 3.11.16,
-  `.venv` in this checkout both times).
-- `uv lock --check`, `actionlint .github/workflows/ci.yml`, and a documentation
-  check (Markdown files + relative links, TOML parse, `git diff --check`) all
-  passed, also confirmed independently by two sessions.
-- Local CI policy evaluation (path-filter conditions, dispatch flag
-  combinations, deployment gating) was evaluated from the YAML and with Node
-  before any real GitHub Actions run existed; the chapter 00 and chapter 01
-  integration sessions both confirmed the actual runs matched every local
-  prediction.
-- No live Databricks validation, deployment, model calls, or Genie query has
-  ever been run against this project. That remains true through chapter 01.
-
-## Chapter 02 — gate redesigned after a second review
-
-PR #3 stays open. The first gate implementation put the decision inside Gold's
-DLT dataset functions; a second review found four defects with one root cause,
-and the gate was redesigned as an orchestration step.
-
-**The four defects, all in the old `gold.py`:**
-
-1. `.count()` ran inside a dataset definition — a driver-side action Databricks
-   warns against in declarative dataset functions.
-2. `_publish_or_withhold` read the Gold table it was defining.
-3. A failing gate on a first-ever run published the fresh, rejected data,
-   because there was no previous version to fall back to.
-4. Fail-open evidence handling: a source with no `gate_status` row passed, and
-   a null `gate_passed` passed too (`~NULL` is `NULL`, so the filter dropped it).
-
-**The replacement.** `bedoux_gate_task`, a notebook task running
-`src/bedoux/gate_check.py`, sits between `bedoux_silver_task` and
-`bedoux_gold_task`. It collects `gate_status`, calls the new pure
-`quality.evaluate_gate`, and raises on failure — so the Gold task never starts.
-`gold.py` now has no gate logic and each table just returns its result.
-Because it is ordinary job code rather than a dataset definition, the
-imperative check is legal there.
-
-Each defect closes structurally, not by patching: there is no `.count()` in a
-dataset function because there is no gate code in `gold.py`; nothing reads a
-Gold table, because withholding means not running the task; a first-run failure
-creates no Gold table at all; and `evaluate_gate` is fail-closed — missing,
-duplicated, null, or stale evidence all withhold.
-
-**Run binding.** `gate_status` now carries `_computed_ts`, and the task receives
-`{{job.start_time.iso_datetime}}`. Evidence computed before this run started is
-rejected, so a leftover row cannot authorize publishing a different batch.
-
-**Tradeoff, deliberate:** Gold is one pipeline, so one task, so the gate is now
-whole-Gold rather than per-table. A `leads` failure also withholds
-`gold_ogi_ops_health`, which does not depend on `leads`. Keeping per-table
-precision would mean either gate logic back inside dataset functions (the
-unsupported thing this removed) or splitting Gold into several pipelines
-(discouraged by Free Edition's one-active-pipeline-per-type limit, and a bigger
-change than this chapter warrants). Withholding too much is the safer error for
-a publication gate. Contract updated accordingly.
-
-**Known gap:** running `bedoux_gold_pipeline` directly bypasses the gate. It is
-an orchestration control, not an invariant inside Gold. Belongs with chapter
-06's permission work.
-
-### Checks — all policy-level, none runtime
-
-- `uv run --locked python -m pytest -q`: **53 passed** (was 33; 20 new in
-  `tests/test_gate_policy.py`).
-- New tests cover normal input, a failing gate, missing source rows, duplicate
-  rows, null `gate_passed`, stale and null `_computed_ts`, first-run failure,
-  non-mutation, and repeat evaluation.
-- `resources/bedoux_jobs.yml` parsed and asserted: `bedoux_gold_task` depends
-  on `bedoux_gate_task`, not on `bedoux_silver_task`.
-- `gate_check.py` parses as valid Python and carries the
-  `# Databricks notebook source` header.
-
-**These are policy tests. They prove what the gate decides given rows. They do
-not prove that Spark produces those rows, that the job graph stops Gold, that a
-withheld table keeps its data, or that a `notebook_task` with `base_parameters`
-runs on Free Edition serverless. Chapter 02 is implemented, not demonstrated.**
-
-## PR #3 opened, CI observed — a real environment finding
-
-Pushed `series/02-quality-gate` (user confirmed) and opened
-[PR #3](https://github.com/tsogtbatjargal/bedoux-databricks/pull/3) into
-`main` at head `29adace`. This is the first chapter branch to change
-`src/bedoux/*.py`, so unlike chapters 00/01, `paths-filter` matched and
-`Validate bundle` actually ran on the PR (not just `Unit tests`).
-
-Observed CI run [`35653758420`](https://github.com/tsogtbatjargal/bedoux-databricks/actions/runs/35653758420)
-(event `pull_request`, head `29adace`):
-
-- **`Detect bundle changes`: success.**
-- **`Unit tests`: success** (33 passed, same as local).
-- **`Validate bundle`: failure.** `databricks bundle validate --target dev`
-  exited 1 with `Error: failed during request visitor: default auth: cannot
-  configure default credentials...`. The job's own log shows
-  `DATABRICKS_HOST:` and `DATABRICKS_TOKEN:` both **empty** in the step's
-  env. Confirmed the root cause directly: `gh secret list` on this repo
-  returns **zero configured secrets** — `DATABRICKS_HOST`/`DATABRICKS_TOKEN`
-  were never set up as GitHub Actions secrets on this repository at all, not
-  a permissions or expiry problem. This is the same "no live Databricks
-  access" limitation every chapter so far has recorded locally
-  (`which databricks`, no `~/.databrickscfg`) — it turns out to also be true
-  in CI, not just this local dev environment. **Not a code defect and not
-  worked around**; reporting it honestly per instruction.
-- **`Deploy bundle`: skipped** — correctly: PRs never deploy regardless of
-  `Validate bundle`'s outcome, and it would have been blocked by the failed
-  dependency anyway.
-- `gh pr view 3`: `mergeable: MERGEABLE`, `mergeStateStatus: UNSTABLE` (the
-  failing `Validate bundle` check).
-
-**Not merged.** Merging this branch would deploy the bundle to the `dev`
-target on the resulting `main` push — but `Validate bundle` has never
-succeeded, and would fail on `main` too for the same credential reason.
-Stopped here per instruction to report the PR's `Validate bundle` result
-before any merge decision.
-
-## Next task
-
-Chapter 02 is implemented and locally tested. It is **not demonstrated** — the
-gate has never run. Do not describe it as working until a live run exists.
-
-PR #3 is open at head `29adace` plus the two commits from this session. It has
-not been updated on the remote; the branch is ahead of its PR head locally.
-
-Two things gate progress, in order:
-
-1. **Decide the credential path.** See
-   [live verification](live-verification.md) §1. The Free Edition docs do not
-   say whether PATs or service principals are available, and the README's claim
-   predates this chapter, so it must be checked in the workspace UI rather than
-   assumed. If only OAuth M2M exists, `.github/workflows/ci.yml` needs
-   `DATABRICKS_CLIENT_ID`/`DATABRICKS_CLIENT_SECRET` instead of
-   `DATABRICKS_TOKEN` — that edit is deliberately not made yet.
-2. **Understand what secrets switch on before setting them.** With secrets
-   configured, merging PR #3 runs `databricks bundle deploy --target dev`
-   automatically, because it touches `src/**` and `resources/**`. Deploy
-   creates/updates the pipelines and job; it does not run them. See §3 of the
-   runbook for the full before/after table.
-
-Then run the three-stage demonstration in §4: healthy baseline, bad batch
-withheld with the baseline proven intact, corrected batch restored, plus a
-replay check. Record job run IDs, the gate task log, `gate_status` per stage,
-and row counts per stage. Only after that can the roadmap's chapter 02
-acceptance criteria be marked demonstrated rather than implemented.
-
-Known gaps to carry forward, not to fix by guessing:
-
-- `notebook_task` with `base_parameters` has never run on Free Edition
-  serverless. If the task type is rejected, the task type changes;
-  `quality.evaluate_gate` would not.
-- `{{job.start_time.iso_datetime}}` resolution and timezone comparison against
-  Spark's `_computed_ts` are assumed from documentation, not observed. Both
-  fail closed if wrong.
-- Stage 2 needs an invalid-rate knob that does not exist yet: `bronze.py`
-  hardcodes `generator.INVALID_RATE`. Add it as a pipeline `configuration`
-  value read with `spark.conf.get`, defaulting to the normal rate.
-- Running `bedoux_gold_pipeline` directly bypasses the gate entirely. That
-  belongs to chapter 06's permission work, not here.
-
-After chapter 02 is genuinely demonstrated and integrated, chapter 03
-(`series/03-protect-evidence`) starts from `main`.
+Use `sentinel-story` only when asked to draft posts. Jev remains optional;
+AWS is deferred with no budget or deployment authorization. Earlier AWS reuse
+context and preparation history remain available in Git.
