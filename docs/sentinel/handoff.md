@@ -19,8 +19,16 @@ working; this page records context, not permission for external actions.
     batch `@dlt.table` implementation); marked chapter 00 "Integrated into
     main" and chapter 01 "In progress" in `docs/sentinel/roadmap.md`'s build
     status column.
+  - `6a0c475` — recorded chapter 01's local progress in this file.
+  - `26aa021` — tightened the two `contracts-bedoux.md` corrections to state
+    current behavior plainly (Bronze full recompute, not append-only; Silver's
+    `leads`/`web_events`/`ops_events` are batch `@dlt.table` reads with
+    `expect_or_drop`, dropped rows not quarantined) instead of narrating their
+    own revision history. The correction itself is recorded in git history and
+    in `chapters/01-know-your-platform.md`, not in the contract's prose.
 - Working tree clean. Not pushed, no PR, nothing merged, deployed, tagged, or
-  posted this session.
+  posted this session. Pushing/PR/merge for this chapter is pending the user's
+  confirmation in-session.
 - `uv sync --locked` and `uv run --locked python -m pytest -q` both pass (17
   passed) — no Python/pipeline code changed this session, docs only.
 
