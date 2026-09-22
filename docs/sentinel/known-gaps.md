@@ -102,19 +102,25 @@ for in this project's records). Whether to revoke either of the unused ones
 is the user's decision; this file only records that they exist and when
 they expire.
 
-## No caller of `evaluate_evidence_gate` exists anywhere
+## No caller of `evaluate_evidence_gate` prevents an external call
 
-`src/bedoux/evidence.py`'s `evaluate_evidence_gate` is implemented and unit
-tested, but nothing in this project calls it — no job task, no notebook, no
-model-call site. The roadmap's chapter 03 acceptance criterion "a failed
-check prevents the external call" cannot be demonstrated as a result, and
-this is **structurally blocked, not merely undemonstrated**: "prevents the
-call" is a claim about a caller's control flow, and there is no caller to
-have that control flow. A gate that exists but is never called protects
-nothing.
+Updated: `evaluate_evidence_gate` now has a real caller —
+`src/bedoux/evidence_log.gate_and_redact`, wired into `bedoux_gate_task`'s
+append-only evidence-log write (see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)).
+That closes "nothing calls it," but **not** the roadmap's chapter 03
+acceptance criterion, and this line is kept, not removed, to say precisely
+why: "a failed check prevents the external call" names an *external* call
+— a model API request — and a Delta table append is not that. This gap
+remains **structurally blocked, not merely undemonstrated**: no job task,
+notebook, or model-call site exists anywhere in this project. "Prevents
+the call" is a claim about a caller's control flow at that specific
+boundary, and there is still no caller with that control flow. A gate
+protecting a durable write is real, but it does not stand in for a gate
+protecting a network egress.
 
-Building the call site is chapter 04's job runtime, not more chapter-03
-pure-Python work. See
+Building the external-call site is chapter 04's job runtime, not more
+chapter-03 pure-Python work. See
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping)
 for the full per-criterion mapping this gap is one line of.
 
@@ -173,3 +179,23 @@ was out of that chapter's stated scope (only "malformed values, duplicate
 leads, and missing campaign references" were named), and neither table has
 test coverage today to catch a regression if this silently misbehaves.
 Flagged, not fixed; a candidate for a future chapter or a dedicated fix.
+
+## Chapter 04's runtime model provider is deliberately not built
+
+This is a portfolio demonstration, not a production incident-response
+system, and a live model provider would incur real API spend for no
+additional demonstrated capability beyond what a fake provider already
+proves. The boundary the provider would sit behind is designed and
+unit-tested — `evidence.py`'s redaction/canary gate, and this session's
+append-only evidence log (`evidence_log.py`) that gives it its first real
+caller — but the provider itself is intentionally absent. That is a scope
+decision, made once, in writing, not an oversight discovered later: the
+same distinction `claude-implementation.md`'s "First increment" already
+draws between building the guarded call path (inject a fake provider, no
+network dependency, no waiting on credentials) and the separate, later
+increment of wiring in an actual model/provider with real spend.
+
+Covering this gap in the post or video version, rather than building it,
+is the plan — spend the demonstration budget on showing the boundary
+holds under a fake provider's timeouts and malformed responses, not on
+proving a real vendor's API works.
