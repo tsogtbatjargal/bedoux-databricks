@@ -1,7 +1,14 @@
 # Claude implementation brief
 
-Prepared 2026-09-22 from local `main` at `25e1784`. This is a work plan, not
-implemented runtime behavior. Start with [handoff.md](handoff.md) and inspect Git.
+**Dated, expiring working brief — not reference documentation.** Prepared
+2026-09-22 from local `main` at `25e1784`, before chapters 00–03 were fully
+integrated and before this repo's own file layout or `evidence.py` were in
+their current state. Treat every path, commit SHA, and assessment below as a
+snapshot of that moment, not a live description of the repo. Once chapter 04
+actually starts, re-derive its first increment from the current codebase and
+`roadmap.md`'s acceptance criteria rather than trusting this file's specifics
+— then delete or archive this file; it will have served its purpose. Start
+with [handoff.md](handoff.md) and inspect Git for what's actually current.
 
 ## Assessment
 

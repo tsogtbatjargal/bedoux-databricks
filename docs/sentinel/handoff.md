@@ -24,7 +24,18 @@ deployment (verified against the workspace — see
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md)'s "Review
 findings, round 3"). [known-gaps.md](known-gaps.md) is current, including
 chapter 03's three entries. [The implementation brief](claude-implementation.md)
-is a prepared plan for chapter 04, not authorization to start it.
+is a prepared plan for chapter 04, not authorization to start it — and is
+itself marked as a dated, expiring artifact (see [README.md](README.md)'s
+"Docs lifecycle").
+
+Pre-chapter-04 cleanup (PR pending): `architecture.drawio` and
+`architecture-context.svg` are confirmed independently maintained (not one
+exported from the other) and documented as such in README.md, each keeping
+its own scope; [branch-workflow.md](branch-workflow.md) now distinguishes
+archival chapter branches from ordinary working branches, with a
+delete-candidate list awaiting the user's approval (9 remote `series/*`
+branches, 4 chapter/archival, 5 working/mergeable-to-delete); the one-off
+handoff archive is dropped now that overwrite-in-place is the stated policy.
 
 ## Exact next useful task
 
