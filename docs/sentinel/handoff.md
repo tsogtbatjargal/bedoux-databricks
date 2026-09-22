@@ -1,40 +1,46 @@
 # Session handoff
 
-Updated: 2026-09-21. **The blocking defect from the live baseline run
-(below) is root-caused, fixed, and unit-tested locally; a re-run is the next
-step.** Root cause: `silver.py` built `_reasons` with
-`array_remove(array(...), None)`, and Spark's `array_remove` is
-null-intolerant on its *element* argument — a NULL element makes the whole
-array result NULL, not stripped of NULLs — so `_reasons` was NULL on every
-row, silently emptying `leads_clean`/`leads_quarantine` (and the same pair
-for web_events/ops_events) and `quality_metrics`, while `gate_status`
-computed a self-consistent but wrong "pass" from that same NULL. Fixed with
+Updated: 2026-09-22. **The blocking defect from the live baseline run
+(below) is root-caused, fixed, unit-tested, confirmed live, and pushed —
+PR #3 now reflects it and CI is green on the fixed code.** Root cause:
+`silver.py` built `_reasons` with `array_remove(array(...), None)`, and
+Spark's `array_remove` is null-intolerant on its *element* argument — a NULL
+element makes the whole array result NULL, not stripped of NULLs — so
+`_reasons` was NULL on every row, silently emptying
+`leads_clean`/`leads_quarantine` (and the same pair for web_events/
+ops_events) and `quality_metrics`, while `gate_status` computed a
+self-consistent but wrong "pass" from that same NULL. Fixed with
 `array_compact` plus `expect_or_fail` guards (Milestone 1), and — more
 importantly — `gate_status` now independently checks row conservation
 against the *persisted* clean/quarantine tables, which is what would have
 actually caught this (Milestone 2). See "Incident" in
 [chapters/02-quality-gate.md](chapters/02-quality-gate.md) for the full
 writeup. **Correction to this file's own prior claim:** the destroyed Gold
-baseline is not unrecoverable — every business row is deterministic from
+baseline was not unrecoverable — every business row is deterministic from
 `SEED=42` in `generator.py`; only audit timestamps (`_ingest_ts`,
 `_quarantined_ts`, `_computed_ts`, table `updated_at`) were ever
-irreproducible. A correct re-run reproduces the same business content, just
-with new audit timestamps.
-This file records context, not permission to push, merge, deploy, run jobs,
+irreproducible. The live re-run reproduced the 2026-07-30 baseline's Gold
+content byte-for-byte, confirming this.
+This file records context, not permission to merge, deploy, run jobs,
 change secrets, bind resources, or publish. Inspect Git before continuing.
 
 ## Current checkpoint
 
-- Branch: `series/02-quality-gate`. Local HEAD `9d3ca54`, **two commits ahead
-  of `origin/series/02-quality-gate`** (`26b9d99` incident record, `9d3ca54`
-  the fix). **Not pushed — flagging per instruction, not pushing
-  unilaterally.** PR #3 (currently showing green CI from before the incident
-  was found) does not yet reflect either commit.
-- Working tree clean. No merge, push, or deploy has occurred this session.
-  Two authorized job runs occurred (see below): the first found the incident,
-  the second confirmed the fix.
+- Branch: `series/02-quality-gate`, **pushed and in sync with origin** as of
+  this session (head `8331824`). PR #3 is open, `mergeable: MERGEABLE`,
+  `mergeStateStatus: CLEAN`, CI green on the fixed code — see "Push and
+  re-validation" under "CI verification" below.
+- Four commits landed this session: `26b9d99` (incident record), `9d3ca54`
+  (the fix), `a80c914` (live re-run confirmation), `8331824` (a
+  reviewer-caught correction to this file's own commit count). Pushing was
+  explicitly authorized by the user; not done unilaterally.
+- Working tree clean. No merge or deploy has occurred. Two authorized job
+  runs occurred this session (see below): the first found the incident, the
+  second confirmed the fix.
 - Track 1 source/resources and CI policy are unchanged.
 - Chapters 00/01 are integrated into main; remote chapter branches retained.
+- **Not merged.** Merging PR #3 is still a separate deployment decision —
+  a green PR is not authorization to merge.
 
 ## Implementation now in the checkout
 
@@ -76,9 +82,9 @@ change secrets, bind resources, or publish. Inspect Git before continuing.
   scope of what this closes.
 - CI credentials are configured and **proven working** (PAT, repo secrets;
   see "CI verification" below). Merging PR #3 would deploy, since bundle-path
-  changes + working credentials both apply on a `main` push. **Neither
-  unpushed commit is reflected in PR #3 yet** — its current green CI predates
-  both the incident and the fix.
+  changes + working credentials both apply on a `main` push. PR #3 now
+  reflects the incident and the fix (pushed this session) and CI is green on
+  the fixed code — but a green PR is still not a merge decision.
 - Full `bundle deploy` includes both tracks. Do not confuse unchanged Track 1
   source with a Track-2-only deployment.
 - Databricks CLI is installed locally and OAuth-authenticated (see
@@ -358,6 +364,29 @@ ungated bronze → silver → gold graph, and
 `gold_campaign_performance.updated_at` is still 2026-07-30T20:41Z. CI reached
 the workspace to read, and changed nothing.
 
+### Push and re-validation (2026-09-22)
+
+Pushed the four local commits (`26b9d99`, `9d3ca54`, `a80c914`, `8331824`) to
+`origin/series/02-quality-gate`. Before this, `origin` and PR #3 still had
+the buggy `array_remove(..., None)` code with a stale green CI run from
+before the incident was found — reviewed independently and flagged as the
+more misleading state to leave live. Pushing was authorized explicitly by
+the user this turn; not done unilaterally.
+
+Run `35672003481`, `pull_request` event on `8331824` (head after push):
+
+| Job | Result |
+|---|---|
+| Detect bundle changes | success |
+| Unit tests | success — 98 passed, matching local |
+| Validate bundle | success — `databricks bundle validate --target dev` |
+| Deploy bundle | **skipped** (PRs never deploy) |
+
+`gh pr view 3`: `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN` (was
+`UNSTABLE` before this push). PR #3 now reflects the incident, the fix, and
+the live re-run confirmation — it is no longer validating the buggy code.
+**Still not merged** — merging remains a separate deployment decision.
+
 ## Checks
 
 - `uv run --locked python -m pytest -q`: **98 passed** after the fix (was
@@ -389,14 +418,13 @@ the workspace to read, and changed nothing.
    above. `gate_status`'s `conserved` field now matches the persisted tables
    exactly for all three sources; Gold's content digests matched the
    pre-incident baseline byte-for-byte.
-5. **Not pushed. Three local commits ahead of `origin/series/02-quality-gate`
-   (`26b9d99`, `9d3ca54`, `a80c914`) — flagging per instruction, not pushing
-   unilaterally.** PR #3's current green CI predates all three; it would need a
-   push to reflect the incident/fix history and re-run `Unit tests`/
-   `Validate bundle` against the fixed code.
+5. Done: pushed (`26b9d99`, `9d3ca54`, `a80c914`, `8331824`) after explicit
+   authorization. PR #3 re-ran CI on `8331824`: `Unit tests` (98 passed),
+   `Validate bundle` both green; `Deploy bundle` skipped (PRs never deploy).
+   `mergeStateStatus` is now `CLEAN`. Still **not merged**.
 
 **Proposed authorization block for the fault → restoration → replay
-milestone**, once you've decided on the push:
+milestone:**
 
 - **Fault (0.30):** deploy `bedoux_lead_invalid_rate=0.30`, run the job once,
   and this time actually exercise the withhold path — confirm Bronze/Silver
