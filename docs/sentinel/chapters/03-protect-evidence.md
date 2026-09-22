@@ -12,9 +12,12 @@ introduced; round 3 (post-merge) found and fixed the module's own
 rejection messages leaking the secret they were reporting on. See "Review
 findings, round 1/2/3" below, and "Roadmap acceptance mapping" for exactly
 which acceptance criteria this leaves met, documented, or structurally
-blocked. Nothing here is wired into the job, `resources/`, or
-`databricks.yml`; no outbound model call exists anywhere in this project
-yet — merging shipped an inert module, not a new capability. Distinguish,
+blocked. As of this session (PR #6/#8), nothing here is wired into the
+job, `resources/`, or `databricks.yml`; no outbound model call exists
+anywhere in this project — merging shipped an inert module, not a new
+capability. **A later session wires `evidence.py` into `bedoux_gate_task`**
+for the append-only evidence log — see "Append-only evidence log," below —
+which is still not an outbound model call. Distinguish,
 throughout this doc: **planned** (design decisions not yet built),
 **implemented** (`evidence.py`'s functions, backed by passing unit tests),
 and **demonstrated** (none of this — nothing has run against a real model
@@ -299,14 +302,17 @@ structure only, four tests pin the absence of both the secret and the
 canary in every problem string, and the underlying check is unchanged.
 Nothing about it belongs in `known-gaps.md` as a new entry — what remains
 open is the pre-existing fact this doc's "Roadmap acceptance mapping"
-section already records: no caller of `evaluate_evidence_gate` exists yet,
-so this fix is proven against the function in isolation, not against a real
-log/error/report surface.
+section already records: at the time this round was written, no caller of
+`evaluate_evidence_gate` existed, so this fix was proven against the
+function in isolation, not against a real log/error/report surface. **A
+caller exists as of "Append-only evidence log," below** — a durable Delta
+write, not the external model call this criterion still requires; the
+distinction is stated precisely there, not upgraded here.
 
 ## What "blocked or redacted" is proven by, and what remains merely asserted
 
-**Proven, this session:** `tests/test_evidence.py` (125 tests total, across
-three review rounds) exercises the functions above directly against
+**Proven, this session:** `tests/test_evidence.py` (24 tests, across three
+review rounds, part of the repo's 125-test total) exercises the functions above directly against
 `FICTIONAL_SENSITIVE_LEAD` and clean/edge-case fixtures — `mise exec -- uv
 run --locked python -m pytest -q`. This proves the functions behave as
 described, in isolation, in plain Python — including, after round 2, that
@@ -314,9 +320,12 @@ they behave correctly on both genuine leaks and the null/short/coincidental
 fields a real quarantined-row packet actually contains.
 
 **Merely asserted, not proven:** everything about what happens once a
-payload would actually leave this process. No caller of
-`evaluate_evidence_gate` exists. No model API has ever been called with any
-payload built by this code, real or redacted. Whether a real call site
+payload would actually leave this process *to a model*. As of "Append-only
+evidence log," below, `evaluate_evidence_gate` does have a caller
+(`evidence_log.gate_and_redact`) — but it guards a Delta table append, not
+a model call, so this paragraph's claim stands for the external-call
+boundary specifically: no model API has ever been called with any payload
+built by this code, real or redacted. Whether a real *model*-call site
 correctly calls the gate *before* sending (rather than after, or not at all)
 is a future implementation detail with its own failure mode — a gate that
 exists but isn't called protects nothing, the same lesson chapter 02 learned
@@ -331,13 +340,21 @@ tables are recomputed each run, not archived, and the only durable record of
 chapter 02's fault stage is a hand-assembled file
 (`chapter-02-evidence.md`), not something the pipeline writes itself.
 
-**This session closes only the redaction half, not that gap.** No
+**This session closed only the redaction half, not that gap.** No
 append-only log, no automatic capture mechanism, and no change to how
 quarantine tables or `gate_status` persist were built or even designed here.
-That gap is still open. It's a plausible next increment of this same chapter
-(an evidence packet has to come from *somewhere* durable to be worth
-redacting), but scoping and building it is explicitly deferred, not done —
-`known-gaps.md`'s entry stays as-is until it is.
+That gap was still open at the end of this session. It's a plausible next
+increment of this same chapter (an evidence packet has to come from
+*somewhere* durable to be worth redacting), but scoping and building it was
+explicitly deferred, not done, at this point in the chapter's history.
+
+**Built in a later session — see "Append-only evidence log," below.** The
+mechanism this section describes as missing now exists: `evidence_log.py`
+plus a thin writer in `gate_check.py` append one row per job run to
+`workspace.bedoux_silver.gate_evidence_log`, pass or fail. It is not yet
+deployed or demonstrated live, so `known-gaps.md`'s entry is updated to say
+exactly that rather than closed outright — see that section for the full
+design and what remains unverified.
 
 ## Deliberately left unbuilt this session
 
@@ -382,12 +399,14 @@ honestly rather than marking the chapter complete:
 - **"A failed check prevents the external call" — not met, structurally
   blocked, not merely undemonstrated.** This requires an external call
   *site* that calls `evaluate_evidence_gate` and branches on its result —
-  no such call site exists anywhere in this project.
-  `evaluate_evidence_gate` correctly computes `allowed=False` on a bad
-  packet, which is a necessary precondition, but "prevents the call" is a
-  claim about a caller's control flow, and there is no caller. This is
-  chapter 04's job runtime to build, not something addable within chapter
-  03's own pure-Python scope. Durable register entry:
+  no such *external-call* site exists anywhere in this project, even
+  though a durable-write caller now does (see "Append-only evidence log,"
+  below). `evaluate_evidence_gate` correctly computes `allowed=False` on a
+  bad packet, which is a necessary precondition, but "prevents the call"
+  is a claim about a caller's control flow at *that* boundary, and there
+  is still no caller with that specific control flow. This is chapter 04's
+  job runtime to build, not something addable within chapter 03's own
+  pure-Python scope. Durable register entry:
   [known-gaps.md](../known-gaps.md#no-caller-of-evaluate_evidence_gate-prevents-an-external-call).
 - **"Document the inspected boundary" — met.** See "What this chapter is
   protecting, and from what," above: one function's input, explicitly not
@@ -395,21 +414,23 @@ honestly rather than marking the chapter complete:
 - **"This is not an S3 unauthorized-read detector" — honored.** Nothing
   built here touches S3, IAM, or network-layer access at all.
 
-**Deferred by choice, not blocked by a missing dependency:** the
-append-only durable-evidence-log mechanism `known-gaps.md` names chapter 03
-as owning (see above) is not part of `roadmap.md`'s stated acceptance
-criteria for this chapter at all — it's a cross-reference this project
-chose to make, associating chapter 02's evidence-capture gap with chapter
-03 because both are about protecting/preserving evidence. Unlike the
-external-call criterion, nothing prevents building it within chapter 03's
-own scope today; it was simply not this session's focus. Whether it
-belongs here or as its own future chapter is worth a deliberate decision
-before more chapter-03 work happens, not an assumption either way.
+**Was deferred by choice at this point in the chapter's history, since
+built — see "Append-only evidence log," below.** The append-only
+durable-evidence-log mechanism `known-gaps.md` names chapter 03 as owning
+is not part of `roadmap.md`'s stated acceptance criteria for this chapter
+at all — it's a cross-reference this project chose to make, associating
+chapter 02's evidence-capture gap with chapter 03 because both are about
+protecting/preserving evidence. Unlike the external-call criterion,
+nothing prevented building it within chapter 03's own scope, and a later
+session did; that does not change any bullet above, since none of them
+were about this mechanism.
 
 **Chapter 03 is not complete.** Two of four roadmap criteria are met and
 proven by tests; one criterion is documented; one criterion cannot be met
-until chapter 04 exists. Calling this chapter "done" would overstate what a
-pure-Python spec with no caller can prove.
+until chapter 04 exists. Calling this chapter "done" would overstate what
+a pure-Python spec with no *external-call* caller can prove — a durable-write
+caller existing since does not change that; see "Append-only evidence log,"
+below.
 
 ## Append-only evidence log (design, this session)
 

@@ -26,17 +26,41 @@ deliberate choice, not an oversight.
 Full architecture, diagram, and the Free-Edition trade-offs behind each design
 choice: [`docs/architecture.md`](docs/architecture.md).
 
+**Track 1 stays, considered and decided.** Removing it was considered and
+rejected: Track 1 is where Auto CDC is actually demonstrated against
+genuinely incremental data (`customer`/`orders`), and Track 2's own contract
+(`docs/contracts-bedoux.md`) explicitly cites it as "the correct place Auto
+CDC is demonstrated" when explaining why Track 2's dimensions deliberately
+use plain materialized tables instead. Without Track 1 present, that
+comparison — CDC used where it fits, skipped where it doesn't — has nothing
+to point at. Details on what keeping it means going forward:
+[`docs/contracts.md`](docs/contracts.md#track-1-stays).
+
 ## The Art of Data Defense
 
-I'm extending Track 2 with **Bedoux Sentinel**, a portfolio series about data
-quality, sensitive-data handling, and agent-assisted incident investigation.
-The theme comes from applying ideas in *The Art of War* to a modern data platform.
+Track 2 is being extended with **Bedoux Sentinel**, a portfolio series about
+data quality, sensitive-data handling, and agent-assisted incident
+investigation. The theme comes from applying ideas in *The Art of War* to a
+modern data platform.
 
-The [series plan](docs/sentinel/README.md) separates existing behavior from the
-capabilities still to build. Each chapter will have a retained remote branch and
-a stable post reference; merged local branches can be removed. `main` will
-accumulate the completed work. The finale will show
-one incident from detection through recovery.
+**Chapters 00–03 are integrated into `main`.** Chapter 02 ("Defend before
+damage spreads," the publication gate) is deployed and demonstrated live —
+a full fault → restore → replay sequence against the real workspace, review-
+closed against two follow-on findings. Chapter 03 ("Protect what matters")
+is integrated but not acceptance-complete: its redaction/canary logic is
+implemented and unit-tested, and now guards a real caller — an append-only
+evidence log written by the publication gate task — but that's a durable
+Delta write, not the network egress the roadmap criterion means. "A failed
+check prevents the external call" still can't be demonstrated until
+chapter 04 builds an actual model-call site. Chapters 04–07 are planned,
+not started. Build status is tracked
+separately from publication status: **no chapter's post has been published
+yet**, including chapter 02's, even though it's fully demonstrated. Each
+chapter keeps its own retained remote branch as a stable reference; working/
+fix branches are removed after merging, chapter branches are not. The full,
+current per-chapter status lives in the [series plan](docs/sentinel/README.md)
+and [roadmap](docs/sentinel/roadmap.md) — this paragraph is a summary, not
+the source of truth.
 
 For development, start with [AGENTS.md](AGENTS.md) and the
 [session handoff](docs/sentinel/handoff.md). Codex and Claude Code share the same

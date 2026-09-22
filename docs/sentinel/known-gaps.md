@@ -50,11 +50,17 @@ chapter 03 ("Protect what matters"), not this chapter. Chapter 02's gate
 decides whether to publish; it was never scoped to also preserve evidence
 of what it rejected beyond one run's `_quarantine` tables.
 
-**Still open.** Chapter 03's first session built the redaction/canary half
-of its scope (`src/bedoux/evidence.py`) but explicitly did not build this
-mechanism — see
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#does-this-close-the-durable-evidence-gap-from-chapter-02)
-for what was and wasn't done and why.
+**Built, not yet verified live.** Chapter 03's first session built the
+redaction/canary half of its scope (`src/bedoux/evidence.py`) but
+explicitly did not build this mechanism. A later session built it:
+`src/bedoux/evidence_log.py` plus a thin writer in `gate_check.py` append
+one row per job run to `workspace.bedoux_silver.gate_evidence_log`, pass
+or fail, created with a real `delta.appendOnly = true` table property. It
+has not been deployed or run, so the property's actual enforcement and the
+row content have not been observed against a live table — see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
+for the full design and [live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-not-yet-run)
+for the exact commands the live demonstration still needs.
 
 ## Two conservation-check paths have never fired live
 

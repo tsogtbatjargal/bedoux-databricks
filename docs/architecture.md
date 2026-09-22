@@ -26,6 +26,13 @@ GitHub Actions CI/CD
  workspace.silver                   workspace.bedoux_silver
  Auto CDC + DQ expectations         DQ expectations (drops ~2% invalid rows)
         |                                   |
+        |                                   v
+        |                          bedoux_gate_task (notebook, not a pipeline)
+        |                          reads gate_status, fails the run before
+        |                          Gold if any required source is missing,
+        |                          null, stale, or over the quarantine-rate
+        |                          threshold -- see "The publication gate"
+        |                                   |
         v                                   v
  gold_pipeline                      bedoux_gold_pipeline
  workspace.gold (3 tables)          workspace.bedoux_gold (3 tables)
@@ -41,6 +48,39 @@ GitHub Actions CI/CD
    shared 2X-Small SQL warehouse (Free Edition limit)
 ```
 
+## The publication gate (Track 2 only)
+
+Track 1's job is a plain three-task chain: `bronze_task` → `silver_task` →
+`gold_task`, each a pipeline task. Track 2's `bedoux_analytics_job` has a
+fourth task in between: `bedoux_gate_task`, a **notebook task**
+(`src/bedoux/gate_check.py`), not a pipeline. It runs after
+`bedoux_silver_task` and before `bedoux_gold_task`, reads the
+`gate_status` table Silver just wrote, and raises if any required source
+(`leads`, `web_events`, `ops_events`) is missing, has a null/duplicate
+`gate_status` row, is stale relative to the run's start time, or has
+`gate_passed`/`conserved` not strictly true. Raising fails the task, which
+stops `bedoux_gold_task` from ever starting — Gold keeps its last published
+content instead of refreshing from a bad batch.
+
+This is deliberately **not** logic inside a Gold dataset function: DLT
+dataset functions are declarative, and the gate needs driver-side actions
+(`.collect()`, reading a table outside the pipeline currently being
+defined) that aren't legal there. Putting the check in an ordinary
+imperative notebook task, ahead of the Gold pipeline, is what makes
+"withhold this refresh" actually enforceable. See
+[`contracts-bedoux.md`](contracts-bedoux.md) and
+[`sentinel/chapters/02-quality-gate.md`](sentinel/chapters/02-quality-gate.md)
+for the full design and its live demonstration.
+
+**Not shown here on purpose:** `src/bedoux/evidence.py` (sensitive-field
+redaction and canary detection, chapter 03) has no pipeline or job call
+site yet — nothing in `bedoux_analytics_job` invokes it. It is real,
+unit-tested code, but it isn't part of the deployed architecture until
+something calls it, so it's omitted from the diagram above rather than
+drawn as a box with no edges into anything. See
+[`sentinel/chapters/03-protect-evidence.md`](sentinel/chapters/03-protect-evidence.md)
+for what it does and doesn't close.
+
 ## Why it's shaped this way
 
 **Two tracks, one bundle.** Track 1 (TPC-H) is the classic data-engineering
@@ -49,7 +89,8 @@ incremental dimensions, DLT expectations). Track 2 (Bedoux) applies the same
 contracts-first medallion discipline to an original, brand-tied domain, and
 deliberately *skips* CDC where it wouldn't fit (see
 [`contracts-bedoux.md`](contracts-bedoux.md)) rather than cargo-culting the
-Track 1 pattern everywhere.
+Track 1 pattern everywhere. Track 1 also stays for that comparison point
+itself — see README.md's "Why two tracks" for the decision to keep it.
 
 **Both tracks feed one Genie space set-up**, so the portfolio has a natural
 BI/self-serve-analytics story on top of the pipeline engineering, not just
