@@ -133,6 +133,23 @@ Rules:
   **and** `conserved` are both strictly true and `total` is a positive
   number; missing or null `conserved`/`total` fail closed like every other
   gate field.
+- `gate_evidence_log` (chapter 03) is a durable, **append-only** record of
+  every gate decision — unlike `gate_status`, it is not recomputed each
+  run. Grain: **one row per job run** (not per source), written by
+  `bedoux_gate_task` immediately after it evaluates the gate, whether the
+  run passes or fails. Columns: `run_start_ms`/`run_start_ts` (the run's
+  declared start — run identity, the same freshness boundary the gate
+  already uses), `written_ts` (wall-clock append time), `passed` (the
+  gate's overall verdict), `problems` (`quality.evaluate_gate`'s own
+  problem strings), and `sources` (an array of that run's per-source
+  `gate_status` fields, kept with the verdict so a reader isn't
+  cross-referencing a table that will itself be recomputed by the next
+  run). Created with `TBLPROPERTIES ('delta.appendOnly' = 'true')`, a real
+  Delta storage-engine property rejecting `UPDATE`/`DELETE`/`MERGE`, not a
+  convention — see
+  [chapters/03-protect-evidence.md](sentinel/chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
+  for the full design, what "append-only" does and doesn't mean here, and
+  why this has not yet been verified against a live table.
 
 ---
 

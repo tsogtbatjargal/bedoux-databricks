@@ -40,29 +40,42 @@ now shows exactly `origin/main` plus the four retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`).
 
-A docs-currency pass is on `chore/docs-currency` (PR #12, open, not merged,
-docs only — no bundle path touched, CI skips Validate/Deploy): records the
-Track 1 keep decision (README.md, `contracts.md#track-1-stays` — kept for
-its Auto CDC comparison point, flagged as an extraction candidate later,
-with the `databricks.yml`-includes-`resources/*.yml` constraint that makes
-removing its resource files a workspace-destroying operation, not a code
-move); brings `architecture.md` current (adds `bedoux_gate_task` to the
-diagram, states `evidence.py`'s missing call site is a deliberate omission
-from it); rewrites README's Sentinel section to present tense; fixes
-`roadmap.md`'s stale "121 tests" and missing PR #8 reference, and a
-mislabeled test count in `chapters/03-protect-evidence.md` (24 tests in
-`test_evidence.py`, not 125 — that was the repo-wide total); and re-checks
-`ai_rules.md` (current, unchanged) and `genie.md` (flagged the CLI version
-its subcommands were last verified against is behind `mise.toml`'s current
+**Docs-currency pass merged** (PR #12, merge commit `e5545ce`, docs only,
+confirmed no deploy): records the Track 1 keep decision (README.md,
+`contracts.md#track-1-stays` — kept for its Auto CDC comparison point,
+flagged as an extraction candidate later, with the
+`databricks.yml`-includes-`resources/*.yml` constraint that makes removing
+its resource files a workspace-destroying operation, not a code move);
+brings `architecture.md` current (adds `bedoux_gate_task` to the diagram);
+rewrites README's Sentinel section to present tense; fixes `roadmap.md`'s
+stale "121 tests" and missing PR #8 reference; and re-checks `ai_rules.md`
+(current, unchanged) and `genie.md` (flagged the CLI version its
+subcommands were last verified against is behind `mise.toml`'s current
 pin, not re-verified since).
 
-**Separately, chapter 03's append-only evidence log is on
-`series/03-evidence-log` (PR #11, open, not merged, touches `src/**` — merging
-deploys).** See that PR/branch for details; not repeated here.
+Chapter 03's append-only evidence log is built on `series/03-evidence-log`
+(PR #11, merging next — **touches `src/**`, so merging deploys**):
+`src/bedoux/evidence_log.py` (pure, no Spark) plus a thin writer in
+`gate_check.py` append one row to `workspace.bedoux_silver.gate_evidence_log`
+every run, pass or fail, before the gate's own raise, so a logging bug can
+never withhold a healthy Gold refresh or swallow a real failure. Table
+created with `delta.appendOnly = true` — a real Delta property, implemented
+but **not yet verified live**. The record is routed through
+`evidence.redact_evidence_packet`/`evaluate_evidence_gate` first — that
+function's first real caller — which closes "nothing calls it" but **not**
+the roadmap's "a failed check prevents the external call" criterion (a
+Delta append isn't an external call); `known-gaps.md` and the chapter
+doc's acceptance mapping both say so precisely, not upgraded. 149 tests
+pass (up from 125, after merging PR #12's docs and this branch's code).
+Design, schema, and exact live-demonstration commands are in
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
+and [live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-not-yet-run).
+`known-gaps.md` also now records that chapter 04's runtime model provider is
+a deliberate scope decision, not an oversight — deferred to the post/video.
 
 ## Exact next useful task
 
-**Merge PR #12 (docs, no deploy) and PR #11 (deploys) when authorized, run
-PR #11's live demonstration per `live-verification.md` section 6, then
-chapter 04 is the next substantive work and needs its own explicit
-authorization before any of it starts.**
+**Merge PR #11 (deploys), watch the deploy to completion, then run its live
+demonstration per `live-verification.md` section 6.** After that, chapter 04
+is the next substantive work and needs its own explicit authorization before
+any of it starts.

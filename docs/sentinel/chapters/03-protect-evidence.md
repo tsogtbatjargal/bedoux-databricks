@@ -12,9 +12,12 @@ introduced; round 3 (post-merge) found and fixed the module's own
 rejection messages leaking the secret they were reporting on. See "Review
 findings, round 1/2/3" below, and "Roadmap acceptance mapping" for exactly
 which acceptance criteria this leaves met, documented, or structurally
-blocked. Nothing here is wired into the job, `resources/`, or
-`databricks.yml`; no outbound model call exists anywhere in this project
-yet — merging shipped an inert module, not a new capability. Distinguish,
+blocked. As of this session (PR #6/#8), nothing here is wired into the
+job, `resources/`, or `databricks.yml`; no outbound model call exists
+anywhere in this project — merging shipped an inert module, not a new
+capability. **A later session wires `evidence.py` into `bedoux_gate_task`**
+for the append-only evidence log — see "Append-only evidence log," below —
+which is still not an outbound model call. Distinguish,
 throughout this doc: **planned** (design decisions not yet built),
 **implemented** (`evidence.py`'s functions, backed by passing unit tests),
 and **demonstrated** (none of this — nothing has run against a real model
@@ -299,9 +302,12 @@ structure only, four tests pin the absence of both the secret and the
 canary in every problem string, and the underlying check is unchanged.
 Nothing about it belongs in `known-gaps.md` as a new entry — what remains
 open is the pre-existing fact this doc's "Roadmap acceptance mapping"
-section already records: no caller of `evaluate_evidence_gate` exists yet,
-so this fix is proven against the function in isolation, not against a real
-log/error/report surface.
+section already records: at the time this round was written, no caller of
+`evaluate_evidence_gate` existed, so this fix was proven against the
+function in isolation, not against a real log/error/report surface. **A
+caller exists as of "Append-only evidence log," below** — a durable Delta
+write, not the external model call this criterion still requires; the
+distinction is stated precisely there, not upgraded here.
 
 ## What "blocked or redacted" is proven by, and what remains merely asserted
 
@@ -314,9 +320,12 @@ they behave correctly on both genuine leaks and the null/short/coincidental
 fields a real quarantined-row packet actually contains.
 
 **Merely asserted, not proven:** everything about what happens once a
-payload would actually leave this process. No caller of
-`evaluate_evidence_gate` exists. No model API has ever been called with any
-payload built by this code, real or redacted. Whether a real call site
+payload would actually leave this process *to a model*. As of "Append-only
+evidence log," below, `evaluate_evidence_gate` does have a caller
+(`evidence_log.gate_and_redact`) — but it guards a Delta table append, not
+a model call, so this paragraph's claim stands for the external-call
+boundary specifically: no model API has ever been called with any payload
+built by this code, real or redacted. Whether a real *model*-call site
 correctly calls the gate *before* sending (rather than after, or not at all)
 is a future implementation detail with its own failure mode — a gate that
 exists but isn't called protects nothing, the same lesson chapter 02 learned
@@ -331,13 +340,21 @@ tables are recomputed each run, not archived, and the only durable record of
 chapter 02's fault stage is a hand-assembled file
 (`chapter-02-evidence.md`), not something the pipeline writes itself.
 
-**This session closes only the redaction half, not that gap.** No
+**This session closed only the redaction half, not that gap.** No
 append-only log, no automatic capture mechanism, and no change to how
 quarantine tables or `gate_status` persist were built or even designed here.
-That gap is still open. It's a plausible next increment of this same chapter
-(an evidence packet has to come from *somewhere* durable to be worth
-redacting), but scoping and building it is explicitly deferred, not done —
-`known-gaps.md`'s entry stays as-is until it is.
+That gap was still open at the end of this session. It's a plausible next
+increment of this same chapter (an evidence packet has to come from
+*somewhere* durable to be worth redacting), but scoping and building it was
+explicitly deferred, not done, at this point in the chapter's history.
+
+**Built in a later session — see "Append-only evidence log," below.** The
+mechanism this section describes as missing now exists: `evidence_log.py`
+plus a thin writer in `gate_check.py` append one row per job run to
+`workspace.bedoux_silver.gate_evidence_log`, pass or fail. It is not yet
+deployed or demonstrated live, so `known-gaps.md`'s entry is updated to say
+exactly that rather than closed outright — see that section for the full
+design and what remains unverified.
 
 ## Deliberately left unbuilt this session
 
@@ -382,34 +399,186 @@ honestly rather than marking the chapter complete:
 - **"A failed check prevents the external call" — not met, structurally
   blocked, not merely undemonstrated.** This requires an external call
   *site* that calls `evaluate_evidence_gate` and branches on its result —
-  no such call site exists anywhere in this project.
-  `evaluate_evidence_gate` correctly computes `allowed=False` on a bad
-  packet, which is a necessary precondition, but "prevents the call" is a
-  claim about a caller's control flow, and there is no caller. This is
-  chapter 04's job runtime to build, not something addable within chapter
-  03's own pure-Python scope. Durable register entry:
-  [known-gaps.md](../known-gaps.md#no-caller-of-evaluate_evidence_gate-exists-anywhere).
+  no such *external-call* site exists anywhere in this project, even
+  though a durable-write caller now does (see "Append-only evidence log,"
+  below). `evaluate_evidence_gate` correctly computes `allowed=False` on a
+  bad packet, which is a necessary precondition, but "prevents the call"
+  is a claim about a caller's control flow at *that* boundary, and there
+  is still no caller with that specific control flow. This is chapter 04's
+  job runtime to build, not something addable within chapter 03's own
+  pure-Python scope. Durable register entry:
+  [known-gaps.md](../known-gaps.md#no-caller-of-evaluate_evidence_gate-prevents-an-external-call).
 - **"Document the inspected boundary" — met.** See "What this chapter is
   protecting, and from what," above: one function's input, explicitly not
   network/IAM/S3-layer enforcement.
 - **"This is not an S3 unauthorized-read detector" — honored.** Nothing
   built here touches S3, IAM, or network-layer access at all.
 
-**Deferred by choice, not blocked by a missing dependency:** the
-append-only durable-evidence-log mechanism `known-gaps.md` names chapter 03
-as owning (see above) is not part of `roadmap.md`'s stated acceptance
-criteria for this chapter at all — it's a cross-reference this project
-chose to make, associating chapter 02's evidence-capture gap with chapter
-03 because both are about protecting/preserving evidence. Unlike the
-external-call criterion, nothing prevents building it within chapter 03's
-own scope today; it was simply not this session's focus. Whether it
-belongs here or as its own future chapter is worth a deliberate decision
-before more chapter-03 work happens, not an assumption either way.
+**Was deferred by choice at this point in the chapter's history, since
+built — see "Append-only evidence log," below.** The append-only
+durable-evidence-log mechanism `known-gaps.md` names chapter 03 as owning
+is not part of `roadmap.md`'s stated acceptance criteria for this chapter
+at all — it's a cross-reference this project chose to make, associating
+chapter 02's evidence-capture gap with chapter 03 because both are about
+protecting/preserving evidence. Unlike the external-call criterion,
+nothing prevented building it within chapter 03's own scope, and a later
+session did; that does not change any bullet above, since none of them
+were about this mechanism.
 
 **Chapter 03 is not complete.** Two of four roadmap criteria are met and
 proven by tests; one criterion is documented; one criterion cannot be met
-until chapter 04 exists. Calling this chapter "done" would overstate what a
-pure-Python spec with no caller can prove.
+until chapter 04 exists. Calling this chapter "done" would overstate what
+a pure-Python spec with no *external-call* caller can prove — a durable-write
+caller existing since does not change that; see "Append-only evidence log,"
+below.
+
+## Append-only evidence log (design, this session)
+
+`known-gaps.md`'s "Durable incident evidence is manual" names the gap this
+closes: `gate_status` is current-state only and `<source>_quarantine` is
+recomputed every run, so a rejected batch's evidence is gone by the next
+run — chapter 02's fault-stage record only survives because it was
+hand-assembled from a session transcript afterward. This section is the
+design; the implementation follows it below.
+
+**Where the write happens.** `src/bedoux/gate_check.py`, immediately after
+it calls `quality.evaluate_gate`. Three reasons, not just the obvious one:
+it runs exactly once per job run (not per Silver table, not per Gold
+table); it already receives `{{job.start_time.timestamp_ms}}` as
+`run_start_ms`, making it the only component in this project with real run
+identity — Silver's DLT tables full-recompute with no equivalent boundary,
+and Gold's dataset functions have no run context at all; and it sits
+outside DLT entirely, which is what makes append-only possible in the
+first place. Track 2's DLT tables (`gate_status` included) are declarative
+full recomputes by design — see `docs/contracts-bedoux.md`'s Silver
+section — so an append-only table cannot live there without fighting that
+model. `gate_check.py` is already ordinary imperative job code (the same
+reason it, not a Gold dataset function, holds the publication check — see
+its own module docstring), so an explicit `.write.mode("append")` is a
+natural fit, not a workaround.
+
+**Schema.** One row per job run, at `workspace.bedoux_silver.gate_evidence_log`:
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `run_start_ms` | `BIGINT` | The run's declared start (`{{job.start_time.timestamp_ms}}`) — run identity, same freshness boundary `evaluate_gate` already uses. Not a guaranteed-unique batch ID under concurrent execution; same caveat `contracts-bedoux.md` states for `min_computed_ts` elsewhere. |
+| `run_start_ts` | `TIMESTAMP` | `run_start_ms` converted to UTC, for human readability only — derived, not independent information. |
+| `written_ts` | `TIMESTAMP` | Wall-clock time this row was actually appended (`current_timestamp()` at write time). Distinct from `run_start_ts` on purpose: comparing the two shows how long Bronze+Silver took before the gate ran, and a row whose `written_ts` looks wrong under a healthy `run_start_ts` is itself a signal. |
+| `passed` | `BOOLEAN` | The overall verdict from `quality.evaluate_gate` — whether Gold was allowed to proceed. Never recomputed here; copied from the gate's own decision. |
+| `problems` | `ARRAY<STRING>` | `quality.evaluate_gate`'s own problem strings verbatim (source-name/count/threshold language only — see `evaluate_gate`'s docstring; it never touches row content). Empty exactly when `passed` is true. |
+| `sources` | `ARRAY<STRUCT<source, gate_passed, conserved, total, quarantined, accepted_rows, quarantined_rows, quarantine_rate, computed_ts>>` | The exact `gate_status` rows the gate read this run, kept with the verdict so a reader isn't cross-referencing a table that will itself be recomputed by the next run. |
+
+One row captures the whole run's decision and its inputs together, so
+reconstructing "why did run X do what it did" never requires joining
+against `gate_status` as it existed at that moment — which, being
+current-state, won't exist anymore.
+
+**Enforcement: real, not conventional, but unverified live.** The writer
+creates the table with `TBLPROPERTIES ('delta.appendOnly' = 'true')` if it
+doesn't already exist, before the first append. That is a genuine Delta
+Lake storage-engine property — it rejects `UPDATE`/`DELETE`/`MERGE INTO`
+against the table outright, not just a convention this code happens to
+follow. That said: **this session has read-only workspace access and did
+not deploy or run the job**, so the property has never actually been set
+against a live table or tested against a real `UPDATE`/`DELETE` attempt.
+"Implemented" here means the `CREATE TABLE ... TBLPROPERTIES` statement is
+written and will run the first time this task executes; it does not yet
+mean "observed to reject a mutation in this workspace." That gap is closed
+by the live demonstration in `live-verification.md`, not by this session.
+Until that table property is confirmed live, treat "append-only" as
+implemented-but-unverified, not proven.
+
+**Every run, not only failures.** The row is written whether `passed` is
+true or false. A log that only captures failures cannot show that the
+healthy case was actually healthy — which was chapter 02's whole lesson:
+a run can look clean (`gate_passed=true`, low quarantine rate) while the
+persisted tables tell a different story, and the only way to catch that
+after the fact is to have recorded the healthy-looking run's own evidence,
+not just the runs that already raised an alarm.
+
+**What this does and does not close against `evaluate_evidence_gate`.**
+The record is run through `evidence.redact_evidence_packet` /
+`evidence.evaluate_evidence_gate` before it is written (see "Milestone 2"
+in the implementation below) — this is that function's first real caller
+anywhere in the project. It is deliberately **not** the roadmap's "a failed
+check prevents the external call" criterion: a Delta table append is not
+an external call, and chapter 04 still owns building an actual model-call
+site. What this session's caller demonstrates is the same control shape —
+gate before write, never trust the write path to redact itself — applied
+to a durable boundary instead of a network one. `roadmap.md`'s acceptance
+mapping above is unchanged by this; it is recorded as its own bullet in
+the implementation section below, not folded into that mapping.
+
+## Append-only evidence log (implementation)
+
+Built per the design above. Two layers, same split as `quality.py`/
+`evidence.py`: a pure Python half (`src/bedoux/evidence_log.py`, no Spark,
+no dlt, no network, fully unit-testable) and a thin Spark writer wired into
+`gate_check.py`.
+
+**`evidence_log.build_evidence_record(rows, passed, problems, run_start_ms,
+written_ts)`** — pure. Takes exactly what `gate_check.py` already has in
+hand right after calling `quality.evaluate_gate`: the collected
+`gate_status` rows, the verdict, the problem strings, and the run's
+declared start. Fails closed on malformed input: a non-positive or
+non-integer `run_start_ms`, or a `written_ts` that is not an aware
+`datetime`, raises `ValueError` rather than silently building a row with a
+fabricated timestamp — an evidence row with a wrong or missing run
+identity is worse than no row, because it would misattribute a decision to
+the wrong run. Malformed per-source rows (not a dict, or missing fields)
+are not fatal, though: they are still recorded as an entry in `sources`
+with whatever fields are present and the rest `None`, since dropping a
+malformed row silently would itself lose evidence — the same asymmetry as
+`evaluate_evidence_gate` failing closed by blocking rather than guessing.
+`passed`/`problems` are always `quality.evaluate_gate`'s own values, copied
+verbatim — this function makes no gate decisions of its own.
+
+**`evidence_log.gate_and_redact(record)`** — pure. Runs `record` through
+`evaluate_evidence_gate`, then always returns `redact_evidence_packet`'s
+output. If the evidence gate itself finds a problem (in practice it should
+not: `gate_status`-derived fields carry no `SENSITIVE_FIELDS` names or
+canary-shaped text), the returned packet still gets written — with its
+`passed` forced to `False` and the evidence gate's own problems appended to
+`problems` — rather than the row being silently dropped. Blocking never
+means losing the row; it means the row records that the evidence gate
+itself objected.
+
+**The Spark writer**, in `gate_check.py`, right after
+`quality.evaluate_gate` runs and before the existing pass/fail print+raise
+block: builds the record, gates it, `CREATE TABLE IF NOT EXISTS
+workspace.bedoux_silver.gate_evidence_log ... TBLPROPERTIES
+('delta.appendOnly' = 'true')`, then `spark.createDataFrame([packet],
+schema=...).write.mode("append").saveAsTable(...)`. The entire block is
+wrapped in one `try`/`except Exception`, printing a warning and continuing
+on any failure — this was the deliberate priority decision Milestone 3
+asked for: **verdict propagation over the write.** If appending the
+evidence row throws, the gate's own `passed`/`raise RuntimeError(...)`
+logic immediately below is untouched and still runs exactly as before.
+The alternative (letting a logging failure fail the whole task) was
+rejected because it would mean an evidence-log bug could withhold a
+healthy Gold refresh — turning a logging concern into a publication
+outage, which is a worse failure mode than one missing log row that
+monitoring can catch separately. The cost of this choice: a broken writer
+can run silently for a while with no automatic alarm beyond the printed
+warning in the task log. That is accepted, not unnoticed.
+
+Added to `docs/contracts-bedoux.md`: `gate_evidence_log`'s table, grain
+(one row per job run), and append-only property, alongside the existing
+Silver table descriptions.
+
+**Known limitation, not solved this session:** a task retry within the
+same job run (Databricks task retries, not a fresh job run) would call
+`gate_check.py` again with the same `run_start_ms` and append a second row
+for that run. `run_start_ms` is a freshness boundary, not a dedup key —
+the same caveat `evaluate_gate`'s docstring already states about
+`min_computed_ts`. This log does not deduplicate by run; it is append-only
+in the sense of "never mutates a written row," not "at most one row per
+run enforced." Recorded here rather than silently assumed away.
+
+**Live demonstration is separate and not run this session.** See
+`live-verification.md` for the exact commands a future authorized session
+would run to deploy this, trigger the job, and confirm both the row
+content and the `delta.appendOnly` rejection live.
 
 ## Post draft — deliberately not written yet
 

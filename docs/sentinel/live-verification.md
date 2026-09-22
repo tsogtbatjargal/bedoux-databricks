@@ -236,3 +236,64 @@ What genuinely remains unproved:
 - **The first-run-failure case.** Cannot be shown in `dev` without
   destroying the existing baseline (section 3). Would need a separately
   authorized empty destination; not attempted.
+- **The chapter 03 append-only evidence log**, built this session
+  (`src/bedoux/evidence_log.py`, wired into `bedoux_gate_task`). Deploying
+  and running the job would touch `src/**`, so it deploys — this was not
+  authorized or done this session. See section 6 for the exact commands a
+  future authorized session should run.
+
+## 6. Chapter 03 evidence-log demonstration (not yet run)
+
+Not run this session: this session's authorization was local edits, a
+branch, and a PR only — no deploy, no job run. `resources/bedoux_jobs.yml`
+was not changed (the evidence log is written by `gate_check.py` itself,
+not a new task), so deploying the merged branch deploys the updated task
+code inside the existing `bedoux_gate_task`, the same as any other
+`src/**` change. The exact commands a future authorized session should
+run, in order:
+
+```bash
+databricks bundle validate -t dev --profile bedoux-databricks
+databricks bundle deploy -t dev --profile bedoux-databricks
+databricks bundle run bedoux_analytics_job -t dev --profile bedoux-databricks
+```
+
+Then, read-only, confirm the row and its content:
+
+```bash
+databricks api post /api/2.0/sql/statements --profile bedoux-databricks --json '{
+  "warehouse_id": "<warehouse_id>",
+  "statement": "SELECT run_start_ms, run_start_ts, written_ts, passed, problems, sources FROM workspace.bedoux_silver.gate_evidence_log ORDER BY written_ts DESC LIMIT 5"
+}'
+```
+
+Confirm the table property is actually set:
+
+```bash
+databricks api post /api/2.0/sql/statements --profile bedoux-databricks --json '{
+  "warehouse_id": "<warehouse_id>",
+  "statement": "SHOW TBLPROPERTIES workspace.bedoux_silver.gate_evidence_log"
+}'
+```
+
+Then prove `delta.appendOnly` actually rejects a mutation — this is the
+part of "enforced, not conventional" that has never been observed live
+(see [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)):
+
+```bash
+databricks api post /api/2.0/sql/statements --profile bedoux-databricks --json '{
+  "warehouse_id": "<warehouse_id>",
+  "statement": "DELETE FROM workspace.bedoux_silver.gate_evidence_log WHERE run_start_ms = 0"
+}'
+```
+
+Expect this to fail with a Delta error naming the `appendOnly` table
+property, even though the `WHERE` clause matches zero rows — the property
+blocks the operation outright, not just rows it would touch. Record the
+exact error text as evidence. Then repeat the fault/restore sequence from
+section 4 once, confirming a `gate_evidence_log` row is written on both
+the failing and the restored run (two rows, not one, with `passed=false`
+then `passed=true`), and that the failing run's row still lists the same
+problem strings the task log and `problems` field. Record run IDs,
+timestamps, and the row content in the chapter evidence file, the same way
+section 4 records `gate_status` rows.
