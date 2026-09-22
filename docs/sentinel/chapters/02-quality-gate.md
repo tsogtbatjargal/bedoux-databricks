@@ -546,17 +546,13 @@ end to end. Only a live pipeline run does that.
 
 ## Related finding, not fixed this chapter
 
-`clients_clean`/`campaigns_clean` dedup by a window ordered on `_ingest_ts`
-(`silver.py`, unchanged this chapter). Since `_ingest_ts` is
-`current_timestamp()`, it's constant across every row of a single table
-computation and ties whenever the same `client_id`/`campaign_id` appears more
-than once in one run — `row_number()` over a tied window is not guaranteed
-deterministic. This is the same class of bug `_row_id` was added to fix for
-leads/web_events/ops_events, but touching `clients_clean`/`campaigns_clean`
-was out of this chapter's stated scope (only "malformed values, duplicate
-leads, and missing campaign references" were named) and neither table has
-test coverage today to catch a regression. Left as a flagged, not fixed,
-finding for a future chapter or a dedicated fix.
+`clients_clean`/`campaigns_clean` dedup by a window ordered on the
+constant-per-run `_ingest_ts`, the same class of bug `_row_id` was added to
+fix for the fact tables, but touching those two dimension tables was out of
+this chapter's stated scope. Moved to
+[known-gaps.md](../known-gaps.md#clients_cleancampaigns_clean-dedup-ties-on-a-constant-timestamp)
+so the register is the single home for cross-chapter gaps rather than
+duplicating the writeup here.
 
 ## Roadmap acceptance mapping
 

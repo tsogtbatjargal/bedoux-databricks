@@ -85,6 +85,11 @@ uncommitted changes, not just the last commit. See
 [live-verification.md](sentinel/live-verification.md) for the full read-only
 verification checklist and the (separate, further-authorized) deploy/run steps.
 
+CI's own credential (`DATABRICKS_TOKEN`, a PAT) has an expiry date; when it
+lapses, CI's `Validate bundle`/`Deploy bundle` fail on authentication in a
+way that looks like a bundle defect but isn't — see
+[known-gaps.md](sentinel/known-gaps.md#ci-credential-expiry-will-look-like-a-bundle-defect).
+
 ## Repository hygiene
 
 Keep both portfolio tracks and their supporting docs. Remove a file only after
