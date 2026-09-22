@@ -1,7 +1,8 @@
 # Part 02 — Defend before damage spreads
 
-Status: PR #3 open on `series/02-quality-gate`, CI green, `mergeStateStatus:
-CLEAN`; **not merged** (a deliberate, still-open decision, not a blocker).
+Status: **Merged and integrated into `main`** (PR #3, merge commit `f8ae89d`;
+first-ever CI deployment to the workspace verified: correct resource IDs, no
+duplicates, correct job graph and config, Gold untouched by the deploy).
 **Demonstrated, not just implemented and locally tested**: a live baseline
 run found a real defect — the gate initially passed a run that lost 100% of
 its fact rows (see "Incident") — which this branch fixed, then proved via a

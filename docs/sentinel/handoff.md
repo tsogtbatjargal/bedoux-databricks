@@ -7,8 +7,22 @@ before continuing. Detailed session-by-session history lives in Git log and
 
 ## Current state
 
-- Branch `series/02-quality-gate`, pushed and in sync with origin. PR #3
-  open, CI green, `mergeStateStatus: CLEAN`. **Not merged.**
+- **Chapter 02 is merged and integrated into `main`.** PR #3 merged via a
+  merge commit (`f8ae89d`, `series/02-quality-gate` at `8c10bbf` is an
+  ancestor of `main`). The remote chapter branch is retained; the local
+  branch was deleted (`git branch -d`, all branch-workflow.md checks
+  passed: clean tree, remote branch exists, local tip == remote tip,
+  ancestor of both local and `origin/main`). Working checkout is now on
+  `main`, up to date with `origin/main`, 98 tests passing.
+- This merge was CI's **first-ever deployment** to the workspace. Watched
+  it: `Unit tests` and `Validate bundle` green, `Deploy bundle` ran
+  `databricks bundle deploy --target dev` and succeeded; `run_job` correctly
+  stayed skipped (manual opt-in only). Verified afterward by querying the
+  workspace directly: `bedoux_analytics_job` (same `job_id`, no duplicate),
+  all three `bedoux_*_pipeline`s (same `pipeline_id`s, no duplicates), job
+  graph still Bronze → Silver → gate → Gold, Bronze's config still reads
+  `bedoux.lead_invalid_rate: "0.02"`, and Gold's three digests unchanged —
+  deploy doesn't run anything, and it didn't.
 - **Chapter 02 is demonstrated**, not just implemented and locally tested.
   A live baseline run found a real defect (`silver.py` built `_reasons` with
   `array_remove(array(...), None)`, which is null-intolerant in Spark on its
@@ -45,7 +59,8 @@ before continuing. Detailed session-by-session history lives in Git log and
   capability (PAT verified working; no service principal exists, creation
   untested) is documented in `docs/sentinel/live-verification.md` — not
   duplicated here.
-- Chapters 00/01 are integrated into `main`; remote chapter branches retained.
+- Chapters 00/01/02 are all integrated into `main`; all three remote chapter
+  branches retained (no local copies — cleaned up after each merge).
 
 ## Checks and results
 
@@ -60,8 +75,11 @@ before continuing. Detailed session-by-session history lives in Git log and
   `bundle run` all succeeded across five full job runs in `dev` (healthy
   baseline, healthy re-run post-fix, fault, restore, replay). Deployed
   source diffed byte-for-byte against the checkout after each deploy.
-- CI: PR #3's `Unit tests` and `Validate bundle` are both green on the
-  current head; `Deploy bundle` correctly skips on PRs.
+- CI on `main` (post-merge): `Unit tests`, `Validate bundle`, and — for the
+  first time ever on this project — `Deploy bundle` all succeeded. Verified
+  the deploy's actual effect directly against the workspace: same resource
+  IDs (no duplicates), correct job graph, correct Bronze config, Gold
+  content unchanged (deploy doesn't run anything).
 
 ## Limitations
 
@@ -91,27 +109,26 @@ path is not.
 
 ## Exact next task
 
-Integrate and tidy up, per this turn's authorization:
+Chapter 02 is merged, integrated, CI-deployed and verified, and locally
+tidied up — nothing left outstanding from this chapter's implementation or
+demonstration. Two independent next steps, not mutually exclusive:
 
-1. Push the documentation fixes in this commit (architecture diagram gate
-   node + constraints wording, contracts wording, this compressed handoff,
-   roadmap status) and confirm CI stays green (docs-only, so `Validate
-   bundle` is correctly skipped by the path filter).
-2. Merge PR #3 with a **merge commit** (not squash/rebase — ancestry must be
-   preserved for the local branch cleanup check in
-   [branch-workflow.md](branch-workflow.md)). Do not pass any flag that
-   deletes the head branch.
-3. Watch the first-ever CI deployment to the workspace (`databricks bundle
-   deploy --target dev` via the PAT). Verify afterward: same `[dev
-   tsoglog_uli]` resources updated in place (no duplicates), job graph still
-   Bronze → Silver → gate → Gold, Bronze pipeline config still reads `0.02`.
-   Deploy does not run anything, so Gold content should be untouched.
-4. Local branch cleanup only if every check in branch-workflow.md's "Local
-   branch cleanup" passes (clean tree, remote branch still exists, local tip
-   equals remote tip, chapter tip is an ancestor of both mains). `git branch
-   -d`, never `-D`.
-5. Update this file after the merge and after cleanup with the final state
-   and a recommendation: draft the chapter 02 post, or start chapter 03.
+- **Draft the chapter 02 post** (`sentinel-story`, when asked). Publication
+  status is still "Not drafted" in `roadmap.md`, tracked separately from
+  implementation — the incident-then-fix arc (a gate that initially passed a
+  100% row-loss run, found and closed with a live demonstration) is
+  unusually strong, honest material for this series' actual premise.
+  Publishing itself (tag, register row, posting) needs its own authorization
+  when that's the task.
+- **Start chapter 03** from integrated `main` (`git switch -c
+  series/03-... main` once the next chapter's scope is authorized), per
+  `branch-workflow.md`'s chapter lifecycle.
+
+Neither is more urgent than the other from the repo's perspective — both
+are clean starting points now. Recommend deciding based on which serves the
+series' momentum better: a post while the fault→restore→replay evidence is
+freshest, or continuing the implementation arc into chapter 03's scope
+(`docs/sentinel/roadmap.md` — "Protect what matters").
 
 Use `sentinel-story` only when asked to draft posts. Jev remains optional;
 AWS is deferred with no budget or deployment authorization.
