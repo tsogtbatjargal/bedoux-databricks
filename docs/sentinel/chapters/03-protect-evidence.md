@@ -1,17 +1,22 @@
 # Part 03 — Protect what matters
 
-Status: **Scoped and partially implemented, not yet merged.** This session
-wrote the pure-Python redaction/canary spec (`src/bedoux/evidence.py`) and
-its tests (`tests/test_evidence.py`), on branch `series/03-protect-evidence`,
-and this doc. Two pre-merge review rounds followed: round 1 found and fixed
-three confirmed defects; round 2 found and fixed an over-blocking regression
-round 1's own fix introduced. See "Review findings, round 1" and "Review
-findings, round 2" below. Nothing here has been wired into the job,
-`resources/`, or `databricks.yml`; no outbound model call exists anywhere in
-this project yet. Distinguish, throughout this doc: **planned** (design
-decisions below not yet built), **implemented** (`evidence.py`'s functions,
-backed by passing unit tests), and **demonstrated** (none of this — nothing
-has run against a real model provider or a real job).
+Status: **Merged and integrated into `main`, but not complete** (PR #6,
+merge commit `569c03d` — the project's fourth CI deployment, verified
+directly against the workspace: correct `job_id`, no duplicate resources,
+unchanged job graph and Bronze config, all three Gold digests unchanged).
+This session wrote the pure-Python redaction/canary spec
+(`src/bedoux/evidence.py`) and its tests (`tests/test_evidence.py`), plus
+two pre-merge review rounds: round 1 found and fixed three confirmed
+defects; round 2 found and fixed an over-blocking regression round 1's own
+fix introduced. See "Review findings, round 1" and "Review findings, round
+2" below, and "Roadmap acceptance mapping" for exactly which acceptance
+criteria this leaves met, documented, or structurally blocked. Nothing here
+is wired into the job, `resources/`, or `databricks.yml`; no outbound model
+call exists anywhere in this project yet — merging shipped an inert module,
+not a new capability. Distinguish, throughout this doc: **planned** (design
+decisions not yet built), **implemented** (`evidence.py`'s functions, backed
+by passing unit tests), and **demonstrated** (none of this — nothing has run
+against a real model provider or a real job).
 
 ## What this chapter is protecting, and from what
 
@@ -271,3 +276,61 @@ redacting), but scoping and building it is explicitly deferred, not done —
 If a future session needs one of these, it belongs in a design step written
 down first, the same way this chapter's own AGENTS.md-governed scope was
 written down before code.
+
+## Roadmap acceptance mapping
+
+`roadmap.md`'s stated acceptance for chapter 03: "sensitive fixtures and the
+marker are blocked or redacted; useful non-sensitive evidence survives; a
+failed check prevents the external call. Document the inspected boundary.
+This is not an S3 unauthorized-read detector." Per criterion, stated
+honestly rather than marking the chapter complete:
+
+- **"Sensitive fixtures and the marker are blocked or redacted" — met,
+  proven by unit tests.** `redact_evidence_packet` strips every
+  `SENSITIVE_FIELDS` key at any depth
+  (`test_redact_strips_known_sensitive_fields`,
+  `test_redact_recurses_into_nested_row_dicts`); `evaluate_evidence_gate`
+  blocks `FICTIONAL_SENSITIVE_LEAD`'s canary and a sensitive value copied
+  into an unrelated field
+  (`test_gate_still_blocks_the_canary_fixture_after_the_over_blocking_fix`,
+  `test_gate_still_blocks_a_real_leak_after_the_over_blocking_fix`). Proven
+  in isolation, in plain Python — not proven against a real payload leaving
+  the process, because none ever has.
+- **"Useful non-sensitive evidence survives" — met, proven by unit tests.**
+  `test_redact_leaves_non_sensitive_evidence_untouched` and
+  `test_redact_preserves_non_sensitive_evidence_at_depth`, plus round 2's
+  false-positive fixes specifically restoring this for null/short/
+  coincidental-value fields that a real quarantined-row packet actually
+  contains.
+- **"A failed check prevents the external call" — not met, structurally
+  blocked, not merely undemonstrated.** This requires an external call
+  *site* that calls `evaluate_evidence_gate` and branches on its result —
+  no such call site exists anywhere in this project.
+  `evaluate_evidence_gate` correctly computes `allowed=False` on a bad
+  packet, which is a necessary precondition, but "prevents the call" is a
+  claim about a caller's control flow, and there is no caller. This is
+  chapter 04's job runtime to build, not something addable within chapter
+  03's own pure-Python scope — the chapter doc's opening section already
+  says this explicitly; repeating it here so it isn't lost in an
+  acceptance-criteria summary.
+- **"Document the inspected boundary" — met.** See "What this chapter is
+  protecting, and from what," above: one function's input, explicitly not
+  network/IAM/S3-layer enforcement.
+- **"This is not an S3 unauthorized-read detector" — honored.** Nothing
+  built here touches S3, IAM, or network-layer access at all.
+
+**Deferred by choice, not blocked by a missing dependency:** the
+append-only durable-evidence-log mechanism `known-gaps.md` names chapter 03
+as owning (see above) is not part of `roadmap.md`'s stated acceptance
+criteria for this chapter at all — it's a cross-reference this project
+chose to make, associating chapter 02's evidence-capture gap with chapter
+03 because both are about protecting/preserving evidence. Unlike the
+external-call criterion, nothing prevents building it within chapter 03's
+own scope today; it was simply not this session's focus. Whether it
+belongs here or as its own future chapter is worth a deliberate decision
+before more chapter-03 work happens, not an assumption either way.
+
+**Chapter 03 is not complete.** Two of four roadmap criteria are met and
+proven by tests; one criterion is documented; one criterion cannot be met
+until chapter 04 exists. Calling this chapter "done" would overstate what a
+pure-Python spec with no caller can prove.
