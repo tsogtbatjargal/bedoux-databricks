@@ -201,8 +201,8 @@ publication gate. See `docs/sentinel/chapters/02-quality-gate.md`.
 
 - One pipeline per layer: `bedoux_bronze_pipeline`, `bedoux_silver_pipeline`,
   `bedoux_gold_pipeline`. Serverless compute.
-- One job, `bedoux_analytics_job`, runs the three pipelines in order: Bronze,
-  then Silver, then **`bedoux_gate_task`**, then Gold. The gate task is a
+- One job, `bedoux_analytics_job`, runs four tasks in order: Bronze, then
+  Silver, then **`bedoux_gate_task`**, then Gold. The gate task is a
   notebook task (`src/bedoux/gate_check.py`), not a pipeline: it reads
   `gate_status` and raises if the batch is not publishable, which stops the run
   before Gold refreshes. It receives the run's start time so it can reject

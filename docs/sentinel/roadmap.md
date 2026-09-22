@@ -8,7 +8,7 @@ predecessor is integrated; do not create all future branches from today's baseli
 | --- | --- | --- | --- | --- |
 | 00 | `series/00-introduction` | The challenge | Integrated into `main` | Draft only |
 | 01 | `series/01-know-your-platform` | Know your platform | Integrated into `main` | Not drafted |
-| 02 | `series/02-quality-gate` | Defend before damage spreads | PR #3 open; deployed and run live in `dev` — found a blocking defect: gate reports pass while the clean/quarantine tables are silently empty (see handoff). Not demonstrated correctly; do not merge | Not drafted |
+| 02 | `series/02-quality-gate` | Defend before damage spreads | Demonstrated: fault → restore → replay all confirmed live in `dev` (see chapter doc). PR #3 open, CI green, pending merge | Not drafted |
 | 03 | `series/03-protect-evidence` | Protect what matters | Planned | Not drafted |
 | 04 | `series/04-investigate-recover` | Investigate and recover | Planned | Not drafted |
 | 05 | `series/05-jev-routing` | Spend intelligence carefully | Planned | Not drafted |
