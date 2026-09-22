@@ -94,7 +94,7 @@ def contains_canary(payload) -> bool:
     )
 
 
-def _collect_sensitive_values(fields):
+def _collect_sensitive_values(fields, _path=()):
     """Recursively collect the value found under every key in
     SENSITIVE_FIELDS, at any depth through dicts/lists/tuples. Reads from
     the original, pre-redaction input -- this is the independent source
@@ -108,16 +108,24 @@ def _collect_sensitive_values(fields):
     empty field elsewhere in the same packet (round 2's over-blocking
     regression: `{"ssn": None, "stage": None}` blocked because `None ==
     None`, not because anything leaked).
+
+    Returns a list of `(path, value)` pairs, not bare values. `path` is a
+    tuple of keys/indices locating where the value was found -- e.g.
+    `("rows", 0, "ssn")` for a nested packet. `evaluate_evidence_gate`'s
+    problem strings report the path, via `_format_path`, and never the
+    value itself (round 3 review finding: a problem string that embeds the
+    leaked value hands the secret to whoever reads the rejection -- see
+    the chapter doc).
     """
     values = []
     if isinstance(fields, dict):
         for key, value in fields.items():
             if key in SENSITIVE_FIELDS and value not in (None, ""):
-                values.append(value)
-            values.extend(_collect_sensitive_values(value))
+                values.append((_path + (key,), value))
+            values.extend(_collect_sensitive_values(value, _path + (key,)))
     elif isinstance(fields, (list, tuple)):
-        for item in fields:
-            values.extend(_collect_sensitive_values(item))
+        for index, item in enumerate(fields):
+            values.extend(_collect_sensitive_values(item, _path + (index,)))
     return values
 
 
@@ -161,6 +169,18 @@ def _value_leaked(packet, value) -> bool:
     return any(isinstance(atom, str) and value in atom for atom in _iter_atoms(packet))
 
 
+def _format_path(path) -> str:
+    """Render a path tuple like `("rows", 0, "ssn")` as `"rows[0].ssn"` for a
+    human-readable problem string. Only key names and list indices -- never
+    a value. A field name is not the secret; the value is."""
+    if not path:
+        return "<root>"
+    rendered = str(path[0])
+    for part in path[1:]:
+        rendered += f"[{part}]" if isinstance(part, int) else f".{part}"
+    return rendered
+
+
 def evaluate_evidence_gate(fields) -> tuple[bool, list[str]]:
     """Fail-closed pre-flight check an outbound model call must pass before
     it may send `fields` anywhere. Mirrors quality.evaluate_gate's shape: an
@@ -192,15 +212,21 @@ def evaluate_evidence_gate(fields) -> tuple[bool, list[str]]:
        of which key (or nesting depth) it's in -- catches what field-name
        redaction structurally cannot.
 
-    A packet that fails either check is blocked outright.
+    A packet that fails either check is blocked outright. **Problem strings
+    identify which check failed and, for the sensitive-value check, the
+    field path it fired on (via _format_path) -- never the value itself.**
+    A gate whose own rejection message contains the secret it just blocked
+    hands that secret to whoever reads the rejection (a log, an error, an
+    incident report) -- exactly the egress this module exists to prevent.
+    This was round 3's review finding; see the chapter doc.
     """
     packet = redact_evidence_packet(fields)
     problems = []
-    for value in _collect_sensitive_values(fields):
+    for path, value in _collect_sensitive_values(fields):
         if _value_leaked(packet, value):
             problems.append(
-                f"a sensitive value survived redaction, found elsewhere in "
-                f"the packet: {value!r}"
+                f"sensitive value at '{_format_path(path)}' survived "
+                f"redaction -- found elsewhere in the packet"
             )
     if contains_canary(packet):
         problems.append(
