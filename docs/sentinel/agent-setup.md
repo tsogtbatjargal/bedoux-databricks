@@ -20,6 +20,10 @@ assistant; they do not enforce the runtime security controls planned for Sentine
 
 ## Start a session
 
+For the next implementation increment and a small-context workflow, use the
+[Claude implementation brief](claude-implementation.md). Existing skills suffice;
+Jev routing remains an optional measured experiment.
+
 Launch from the repository root after accepting its project trust prompt where
 applicable. Restart an already-running assistant to discover newly added skills.
 
