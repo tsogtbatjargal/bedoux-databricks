@@ -1,7 +1,9 @@
 # Part 02 — Defend before damage spreads
 
 Status: PR #3 open on `series/02-quality-gate`; follow-up fixes are local and
-not merged. No live demonstration or post draft yet. Chapter 01 mapped the platform and found the gap
+not merged. A live baseline run found and this branch fixed a real defect —
+**the gate initially passed a run that lost 100% of its fact rows** — see
+"Incident" below. No post draft yet. Chapter 01 mapped the platform and found the gap
 this chapter closes: `expect_or_drop` silently drops rows with no record of
 what was dropped or why, no dedup exists on the fact tables, and an orphaned
 `campaign_id` vanishes from Gold with no error. This chapter changes pipeline
@@ -237,34 +239,153 @@ later justifies it.
 entirely. This is an orchestration control, not an invariant enforced inside
 Gold. Chapter 06's permission work is where "who may refresh Gold" belongs.
 
+## Incident: the gate passed a 100% row-loss run
+
+The first live healthy-baseline run (`bedoux_lead_invalid_rate=0.02`,
+2026-09-21) is the most valuable result this chapter has produced so far —
+not because it succeeded, but because of exactly how it failed. **Do not
+read what follows as a success story with a bug found along the way; a gate
+that cannot detect total row loss is not a gate**, and that is what this
+chapter shipped to `dev` on the first attempt.
+
+**What happened.** All four job tasks (bronze, silver, gate, gold) reported
+`SUCCESS`. But `leads_clean`, `leads_quarantine`, and the same pair for
+`web_events`/`ops_events`, plus `quality_metrics`, were all **0 rows** —
+every one of 2,865 Bronze fact rows vanished with no record in either table,
+the precise failure this chapter exists to prevent. `gate_status` reported
+`total=500/2000/365, quarantined=0, gate_passed=true` for all three sources —
+numbers that looked clean and were completely wrong, because they were
+computed from the same broken source as the empty tables. The gate did not
+just fail to catch a problem; it actively certified a false pass. Gold then
+refreshed on that false pass and overwrote the real 2026-07-30 baseline:
+`gold_client_funnel` 132 → 0 rows, `gold_ogi_ops_health` 183 → 0 rows,
+`gold_campaign_performance` kept 30 rows but every one now had `lead_count=0`
+and `cost_per_lead=NULL`.
+
+**Root cause.** `silver.py` built each `*_flagged` view's `_reasons` column
+as `array_remove(array(when(...), when(...), ...), None)`. Each `when(...)`
+with no `.otherwise()` evaluates to Spark `NULL` when its condition is
+false — normal and expected, meant to be stripped by `array_remove`. But
+Spark's `array_remove(array, element)` is **null-intolerant**: when the
+*element* argument is `NULL`, the whole result is `NULL`, not the array with
+nulls stripped. So `_reasons` was `NULL` on every single row, in all three
+`*_flagged` views, unconditionally. Every downstream consumer of that NULL
+inherited a different, self-consistent-looking wrong answer:
+`size(_reasons) == 0` (the `_clean` filter) is `NULL`, matched nothing;
+`size(_reasons) > 0` (the `_quarantine` filter) is also `NULL`, matched
+nothing either; `explode(_reasons)` on a NULL array emits nothing, so
+`quality_metrics` came out empty too; and `_row_counts`' original
+`(size(_reasons) > 0).cast("int")` evaluated to `0`, so `gate_status`
+computed `quarantined=0` — a rate of `0%`, comfortably under the 10%
+threshold. No exception anywhere: NULL propagation is silent by design, and
+the pipeline event log shows every flow completing with no WARN/ERROR event.
+This was diagnosed by reading the two array functions' actual Spark
+semantics side by side, not by re-running against live data — confirmed
+first against the source (`array_remove(..., None)` at three call sites),
+then reproduced live.
+
+**Why local tests did not catch it.** All 92 tests passing before this
+incident is not a suite that got weaker; it is a suite that was never asked
+this question. Every test in `tests/test_quality.py` and
+`tests/test_gate_policy.py` exercises `quality.py` (pure Python) or
+`quality.evaluate_gate` with hand-built row dicts — **`silver.py`'s actual
+Spark expressions have never been executed in this environment**, because
+there is no `pyspark`/`dlt` runtime available locally (see
+`docs/development.md`). `array_remove(..., None)`'s null-intolerance is a
+Spark runtime behavior; no amount of testing `quality.py` in pure Python
+could exercise it, because `quality.py` has no equivalent bug — its
+`reconcile()` builds a plain Python list and appends to it, which has no
+null-propagation semantics to get wrong. The source-grep tests added after
+the first review (`test_silver_reason_constants_match_quality_spec`) checked
+that reason-code *literals* matched between the two files; they did not, and
+structurally could not, check that the Spark *functions combining* those
+literals behaved as intended. This incident is the same category of gap
+that review flagged as unclosed, now landing for real. `Milestone 3`'s new
+`test_silver_does_not_use_null_intolerant_array_remove` closes this specific
+instance the same way — source-text/AST inspection, no Spark import — and
+is subject to the identical limitation: it proves this exact function isn't
+called again, not that no other Spark expression in this file has an
+analogous NULL-propagation defect.
+
+**The fix, in two parts, because one alone was not enough.**
+
+1. **Milestone 1 (stop losing the rows).** Replaced `array_remove(array(...),
+   None)` with `array_compact(array(...))` at all three `*_flagged` views —
+   `array_compact` actually strips NULL elements rather than propagating a
+   NULL element into a NULL result. Added
+   `@dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")` to each
+   view so a future regression of this exact kind fails the pipeline update
+   loudly instead of silently emptying three pairs of downstream tables.
+2. **Milestone 2 (make the gate able to detect this class of bug, not just
+   this instance of it) — the more important fix.** Milestone 1 alone would
+   have fixed this specific bug but left the gate exactly as blind as
+   before: `gate_status`'s only signal was a rate computed within the
+   `*_flagged` view, and any future defect that corrupted that same view
+   (this one, or a different one) would again compute a self-consistent,
+   wrong, passing rate. `gate_status` now also reads the **persisted**
+   `<source>_clean`/`<source>_quarantine` tables directly — the tables Gold
+   and the quarantine record actually depend on — and adds
+   `conserved = (accepted_rows + quarantined_rows == total)`. `total` still
+   comes from the `_flagged` view; `accepted_rows`/`quarantined_rows` come
+   from a completely independent read of what was actually written.
+   `quality.evaluate_gate` now withholds unless `gate_passed` **and**
+   `conserved` are both strictly true and `total` is a positive number
+   (an empty batch is not a healthy pass, even though `0 + 0 == 0` is
+   trivially "conserved"). Missing or null `conserved`/`total` fail closed
+   like every other gate field. This is what would have actually caught the
+   incident: even with `_reasons` NULL, `conserved` would have been `0 + 0
+   == 500` → `False` → withhold.
+
+**What this incident does not change:** the whole-Gold, not-transactional,
+freshness-not-batch-identity limitations recorded elsewhere in this chapter
+are unaffected. Conservation catches "the split doesn't add up to the
+input"; it does not catch every possible way a Spark expression could be
+subtly wrong while still conserving row counts (for example, a
+misclassification that quarantines the right *count* of rows for the wrong
+*reason* would still conserve). It closes the most severe failure mode —
+total, silent data loss passing as healthy — not every possible one.
+
 ## Live verification
 
-None of this chapter has run. The credential options, what deploys
-automatically once secrets exist, and the three-stage demonstration
-(healthy baseline, withheld bad batch with the baseline proven intact,
-restored corrected batch) are specified in
-[live-verification.md](../live-verification.md).
+The credential options, what deploys automatically once secrets exist, and
+the three-stage demonstration (healthy baseline, withheld bad batch with the
+baseline proven intact, restored corrected batch) are specified in
+[live-verification.md](../live-verification.md). See "Incident" above for
+the first baseline attempt's result and "Verification and limits" below for
+the post-fix re-run.
 
 ## Verification and limits
 
+**A note on what "local" proves, restated after the incident:** every row
+below labeled "policy only" or "no Spark runtime" means exactly that —
+these tests execute pure Python (`quality.py`) or hand-built dicts, never
+`silver.py`'s actual Spark expressions. That gap is what let the
+`array_remove(..., None)` defect ship in the first place (see "Incident"
+above). The new tests added for this fix close specific instances of that
+gap (source-text/AST checks that specific functions/constants are used
+correctly); they do not, and cannot, execute `silver.py`'s Spark logic
+end to end. Only a live pipeline run does that.
+
 | Check | Status | Evidence |
 | --- | --- | --- |
-| Local suite: policy, generator, notebook/Bronze wiring | **Verified locally** | `uv run --locked python -m pytest -q` — 92 passed during this follow-up; no Spark runtime. |
-| `quality.evaluate_gate`: normal, failed, missing, duplicate, null, stale, missing run context, timezone handling | **Verified (policy only)** | `tests/test_gate_policy.py`; does not prove that Spark produces those rows or that the scheduler stops Gold. |
-| `gate_check.py` wiring and exception propagation | **Verified with API stubs** | `tests/test_gate_notebook.py` executes the actual notebook with synthetic Spark/dbutils substitutes; not serverless execution. |
+| Local suite: policy, generator, notebook/Bronze wiring | **Verified locally** | `uv run --locked python -m pytest -q` — 98 passed after this fix (was 92); no Spark runtime — see note above. |
+| `quality.evaluate_gate`: normal, failed, missing, duplicate, null, stale, missing run context, timezone handling, **row conservation, empty batch** | **Verified (policy only)** | `tests/test_gate_policy.py`; does not prove that Spark produces those rows or that the scheduler stops Gold. |
+| `gate_check.py` wiring, exception propagation, new `conserved`/`accepted_rows`/`quarantined_rows` fields | **Verified with API stubs** | `tests/test_gate_notebook.py` executes the actual notebook with synthetic Spark/dbutils substitutes; not serverless execution. |
 | Job graph: `gold` depends on `gate`, not directly on `silver` | **Verified (YAML parse)** | `resources/bedoux_jobs.yml` parsed and asserted this session. |
 | Scenario A/B/C + normal control + replay, at the pure-function level | **Verified** | Same test run, see scenarios above. |
-| Gate rate arithmetic counts rows, not exploded reasons | **Verified (regression-tested)** | `test_gate_rate_counts_rows_not_reasons_for_multi_reason_batch`, added after the review found the original bug. |
+| Gate rate arithmetic counts rows, not exploded reasons | **Verified (regression-tested)** | `test_gate_rate_counts_rows_not_reasons_for_multi_reason_batch`, added after the first review found that bug. |
 | `silver.py` reason-code literals match `quality.py`'s vocabulary | **Verified (source-grep, no Spark import)** | `test_silver_reason_constants_match_quality_spec`. |
-| `silver.py`/`gold.py` native Spark *logic* (joins, windows, control flow) matching `quality.py`'s semantics | **Verified by code reading, untested against data** | Reviewed side by side; no automated check of the Spark expression structure itself exists (same precedent as `gold.py` vs. `transforms.py` — no test enforces the formulas match either). |
+| `silver.py` no longer calls null-intolerant `array_remove(..., None)`; uses `array_compact` at all three sites; `expect_or_fail` guards `_reasons` | **Verified (AST-checked, no Spark import)** | `test_silver_does_not_use_null_intolerant_array_remove`, added after the incident. Proves this exact function isn't called again; does not prove no analogous NULL-propagation defect exists elsewhere in the file. |
+| Row-conservation check (`accepted_rows + quarantined_rows == total`) is what would have caught the incident | **Verified against the incident's own numbers** | `test_unconserved_source_withholds_even_though_gate_passed_and_rate_look_clean` reproduces `gate_passed=True, rate=0.0, accepted_rows=0, quarantined_rows=0, total=500` and asserts the gate now withholds. |
+| `silver.py`/`gold.py` native Spark *logic* (joins, windows, control flow) matching `quality.py`'s semantics | **Verified by code reading, untested against data — this is exactly the category the incident came from** | Reviewed side by side; no automated check of the Spark expression structure itself exists (same precedent as `gold.py` vs. `transforms.py`). The array_remove defect survived this same kind of review once already. |
 | `bronze.py`'s `_row_id` batch identity | **Verified by code reading, untested against data** | Reviewed; not exercised against a live Bronze run. |
-| **A gate failure actually withholds the Gold refresh** | **Untested against a live pipeline** | The whole point of the chapter, and the thing no local test reaches. Requires a run where `bedoux_gate_task` fails and Gold is observed to keep its previous content. |
-| `notebook_task` with `base_parameters` runs on Free Edition serverless | **Untested** | The gate task type has never executed here. If Free Edition rejects it, the task type changes — the policy in `quality.py` would not. |
-| `{{job.start_time.timestamp_ms}}` resolves in the workspace | **Untested live** | Documented reference; missing or malformed values are rejected in local tests. |
-| Spark `unix_millis(_computed_ts)` feeds UTC comparison | **Untested live** | Python epoch conversion and comparison tested; actual Spark conversion still needs the demonstration. |
-| Whether Gold tables genuinely retain prior content when their pipeline does not run | **Untested** | Expected DLT behavior; unverified here. |
-| `databricks bundle validate --target dev` | **Unavailable** | Same reason. |
-| A live rerun demonstrating "replay does not duplicate" | **Untested** | Would require a live pipeline run; not attempted. Argued architecturally above instead. |
+| **A gate failure actually withholds the Gold refresh** | **Live-tested once, initially failed (the incident); fix not yet re-verified live** | First attempt: gate passed when it should have withheld (see Incident). Fix applied and unit-tested; a second live run is Milestone 4, pending at the time of writing — see the handoff for the outcome once run. |
+| `notebook_task` with `base_parameters` runs on Free Edition serverless | **Verified** | The 2026-09-21 baseline run executed `bedoux_gate_task` successfully as a notebook task; it read and evaluated `gate_status` correctly given its (then-wrong) inputs — the task mechanics worked, only the upstream data was wrong. |
+| `{{job.start_time.timestamp_ms}}` resolves in the workspace | **Verified** | Same run: `run_start_ms` resolved and `min_computed_ts` was computed without error. |
+| Spark `unix_millis(_computed_ts)` feeds UTC comparison | **Verified** | Same run: `_computed_ts` values were fresh and compared correctly against the run boundary — this part of the freshness mechanism was never the problem. |
+| Whether Gold tables genuinely retain prior content when their pipeline does not run | **Untested** | The incident run had the gate *wrongly pass*, so Gold ran and overwrote the baseline — it did not exercise the withhold path. Still needs a genuine fault-injection run. |
+| `databricks bundle validate --target dev` | **Verified, repeatedly** | Local Databricks CLI access set up this session; `bundle validate`/`bundle plan`/`bundle deploy` all executed successfully against `dev`. See the handoff for the CLI/profile setup. |
+| A live rerun demonstrating "replay does not duplicate" | **Untested** | Still requires a second successful healthy run compared against the first; not yet attempted post-fix. |
 
 ## Related finding, not fixed this chapter
 

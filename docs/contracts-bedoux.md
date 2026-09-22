@@ -114,6 +114,17 @@ Rules:
   `false` when the rate exceeds `0.10` (five times the generator's ~2%
   baseline invalid rate). See `docs/sentinel/chapters/02-quality-gate.md` for
   the reasoning.
+- `gate_status` also independently re-derives `accepted_rows` and
+  `quarantined_rows` from the *persisted* `<source>_clean`/`<source>_quarantine`
+  tables (not the `_flagged` view the rate is computed from) and publishes
+  `conserved = (accepted_rows + quarantined_rows == total)`. A rate computed
+  entirely from the `_flagged` view can look healthy even when nothing was
+  actually written to the persisted tables — this happened live (see the
+  chapter doc's incident writeup) — so the rate threshold alone is not the
+  gate. `quality.evaluate_gate` withholds publication unless `gate_passed`
+  **and** `conserved` are both strictly true and `total` is a positive
+  number; missing or null `conserved`/`total` fail closed like every other
+  gate field.
 
 ---
 
@@ -150,10 +161,16 @@ has passed before they run; a direct pipeline run bypasses that check.
 
 The gate is **fail-closed and whole-Gold**. It publishes only when every
 required source (`leads`, `web_events`, `ops_events`) has exactly one
-`gate_status` row, with `gate_passed` strictly true, computed at or after the
-current job run's start time. Missing rows, duplicate rows, null
-`gate_passed`, and evidence carried over from an earlier run all withhold
-publication. `campaigns` has no `gate_status` row — it is a dimension governed
+`gate_status` row, with `gate_passed` strictly true, `conserved` strictly
+true, `total` a positive number, computed at or after the current job run's
+start time. Missing rows, duplicate rows, null `gate_passed`/`conserved`,
+an empty (`total <= 0`) batch, and evidence carried over from an earlier run
+all withhold publication. A quarantine-rate threshold alone is not the gate:
+`conserved` independently checks the persisted `<source>_clean`/
+`<source>_quarantine` tables against `total`, because a rate computed only
+from the `_flagged` view can report a clean pass while nothing was actually
+written to those persisted tables. `campaigns` has no `gate_status` row — it
+is a dimension governed
 by `expect_or_drop` with no quarantine table — so it is not a gate input.
 
 The notebook requires `{{job.start_time.timestamp_ms}}`, converts Spark

@@ -151,7 +151,8 @@ def gate_passed(total: int, quarantined: int, threshold: float = QUARANTINE_RATE
 #
 # The policy is fail-closed: anything other than explicit, fresh, unanimous
 # evidence of passing is a failure. Missing sources, duplicated sources, null
-# gate_passed values, and stale evidence all block publication.
+# gate_passed values, stale evidence, unproven row conservation, and an empty
+# batch all block publication.
 # ---------------------------------------------------------------------------
 
 REQUIRED_SOURCES = ("leads", "web_events", "ops_events")
@@ -181,16 +182,28 @@ def evaluate_gate(rows, required_sources=REQUIRED_SOURCES, min_computed_ts=None)
     """Decide whether the Gold refresh may proceed.
 
     `rows` is the collected contents of workspace.bedoux_silver.gate_status as
-    a list of dicts with keys: source, gate_passed, quarantine_rate,
-    _computed_ts. `min_computed_ts` must be a timezone-aware job start time.
-    Older evidence is rejected. Freshness alone does not establish batch
-    identity: the demo requires a serialized job and no other writers.
+    a list of dicts with keys: source, gate_passed, quarantine_rate, total,
+    quarantined, accepted_rows, quarantined_rows, conserved, _computed_ts.
+    `min_computed_ts` must be a timezone-aware job start time. Older evidence
+    is rejected. Freshness alone does not establish batch identity: the demo
+    requires a serialized job and no other writers.
 
     Returns (passed, problems). `problems` is a list of human-readable strings,
     empty exactly when `passed` is True. Every required source must appear
-    exactly once, with gate_passed strictly True, computed at or after
-    `min_computed_ts`. Sources outside `required_sources` are ignored: they
-    carry no Gold table in this design, so they cannot block publication.
+    exactly once, with gate_passed strictly True, `conserved` strictly True,
+    `total` a positive number, computed at or after `min_computed_ts`. Sources
+    outside `required_sources` are ignored: they carry no Gold table in this
+    design, so they cannot block publication.
+
+    `conserved` (accepted_rows + quarantined_rows == total, computed in
+    gate_status from the *persisted* clean/quarantine tables) exists because
+    gate_passed/quarantine_rate alone were not enough: a live run once showed
+    _flagged-view-based counting reporting a clean 0%-quarantined pass while
+    the persisted clean/quarantine tables were both completely empty (see
+    docs/sentinel/chapters/02-quality-gate.md). A rate computed entirely
+    within one broken source can look perfectly healthy. Conservation checks
+    that source against what was actually written, independent of *why* it
+    might be wrong.
     """
     if not _aware_datetime(min_computed_ts):
         return False, ["Missing or invalid timezone-aware run boundary; withholding Gold"]
@@ -218,6 +231,23 @@ def evaluate_gate(rows, required_sources=REQUIRED_SOURCES, min_computed_ts=None)
             rate = row.get("quarantine_rate")
             rate_text = "unknown" if rate is None else f"{rate:.1%}"
             problems.append(f"{source}: gate_passed is false (quarantine rate {rate_text})")
+
+        conserved = row.get("conserved")
+        if conserved is None:
+            problems.append(f"{source}: conserved is null (row conservation not proven, not a pass)")
+        elif conserved is not True:
+            problems.append(
+                f"{source}: conserved is false -- accepted_rows + quarantined_rows != total "
+                "(rows were lost or double-counted between the flagged view and the "
+                "persisted clean/quarantine tables; see quality_metrics/gate_status "
+                "-- a rate-only check would not have caught this)"
+            )
+
+        total = row.get("total")
+        if total is None:
+            problems.append(f"{source}: total is null, cannot prove a non-empty batch")
+        elif not (total > 0):
+            problems.append(f"{source}: total is {total} (empty batch, nothing to publish from)")
 
         computed = row.get("_computed_ts")
         if computed is None:

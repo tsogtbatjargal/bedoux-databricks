@@ -1,7 +1,7 @@
 import dlt
 from pyspark.sql.functions import (
     array,
-    array_remove,
+    array_compact,
     col,
     count,
     current_timestamp,
@@ -115,6 +115,7 @@ def campaigns_clean():
 
 
 @dlt.view(name="leads_flagged")
+@dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")
 def leads_flagged():
     leads = spark.read.table("workspace.bedoux_bronze.leads_raw")
     known_campaigns = (
@@ -131,7 +132,12 @@ def leads_flagged():
         .withColumn("_dup_rank", row_number().over(dedup_window))
         .withColumn(
             "_reasons",
-            array_remove(
+            # array_compact, not array_remove(..., None): array_remove is
+            # null-intolerant -- a NULL *element* argument makes the whole
+            # result NULL instead of stripping NULLs, so every when(...)
+            # that evaluates False (NULL, no .otherwise()) poisoned the
+            # entire array on every row. See the chapter's incident writeup.
+            array_compact(
                 array(
                     when(col("campaign_id").isNull(), lit(REASON_NULL_CAMPAIGN_ID)),
                     when(
@@ -145,7 +151,6 @@ def leads_flagged():
                     when(col("stage").isNull() | (~col("stage").isin(*VALID_STAGES)), lit(REASON_INVALID_STAGE)),
                     when(col("_dup_rank") > 1, lit(_duplicate_reason("lead_id"))),
                 ),
-                None,
             ),
         )
     )
@@ -186,6 +191,7 @@ def leads_quarantine():
 
 
 @dlt.view(name="web_events_flagged")
+@dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")
 def web_events_flagged():
     events = spark.read.table("workspace.bedoux_bronze.web_events_raw")
     known_campaigns = (
@@ -200,7 +206,8 @@ def web_events_flagged():
         .withColumn("_dup_rank", row_number().over(dedup_window))
         .withColumn(
             "_reasons",
-            array_remove(
+            # array_compact, not array_remove(..., None) -- see leads_flagged above.
+            array_compact(
                 array(
                     when(col("campaign_id").isNull(), lit(REASON_NULL_CAMPAIGN_ID)),
                     when(
@@ -216,7 +223,6 @@ def web_events_flagged():
                     ),
                     when(col("_dup_rank") > 1, lit(_duplicate_reason("event_id"))),
                 ),
-                None,
             ),
         )
     )
@@ -257,13 +263,15 @@ def web_events_quarantine():
 
 
 @dlt.view(name="ops_events_flagged")
+@dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")
 def ops_events_flagged():
     events = spark.read.table("workspace.bedoux_bronze.ops_events_raw")
     dedup_window = Window.partitionBy("ops_event_id").orderBy(col("_row_id").asc())
 
+    # array_compact, not array_remove(..., None) -- see leads_flagged above.
     return events.withColumn("_dup_rank", row_number().over(dedup_window)).withColumn(
         "_reasons",
-        array_remove(
+        array_compact(
             array(
                 when(
                     col("latency_seconds").isNull() | (col("latency_seconds") < 0),
@@ -271,7 +279,6 @@ def ops_events_flagged():
                 ),
                 when(col("_dup_rank") > 1, lit(_duplicate_reason("ops_event_id"))),
             ),
-            None,
         ),
     )
 
@@ -317,6 +324,20 @@ def ops_events_quarantine():
 # the rate). gate_status instead counts rows once each, straight from the
 # "_flagged" views (quality.reconcile's conservation property, reapplied
 # here): total = count(*), quarantined = count(size(_reasons) > 0).
+#
+# INCIDENT (see docs/sentinel/chapters/02-quality-gate.md): a live baseline
+# run showed why counting "total"/"quarantined" from the _flagged views is
+# not enough on its own. array_remove(..., None)'s null-intolerance made
+# _reasons NULL on every row, so this same view-based counting path reported
+# total=500, quarantined=0, gate_passed=true for leads -- a clean-looking
+# pass -- while leads_clean and leads_quarantine, built from that identical
+# NULL _reasons, were both actually empty. The view-based total agreed with
+# itself and was still wrong, because nothing checked it against what the
+# *_clean/*_quarantine tables (the tables Gold and the quarantine record
+# actually depend on) really persisted. gate_status now also reads those
+# persisted tables directly and adds a `conserved` boolean
+# (accepted_rows + quarantined_rows == total) that catches exactly this: a
+# split that doesn't add back up to the input, regardless of why.
 # =============================================================================
 
 
@@ -335,6 +356,25 @@ def _row_counts(source_name, view_name):
     return df.withColumn("source", lit(source_name)).withColumn(
         "_quarantined", (size(col("_reasons")) > 0).cast("int")
     ).select("source", "_quarantined")
+
+
+def _persisted_counts(source_name, clean_table, quarantine_table):
+    """Row counts read from the *persisted* clean/quarantine tables, not the
+    _flagged view -- the ground truth gate_status's conservation check must
+    agree with. Declarative DataFrame aggregation (like everywhere else in
+    this pipeline), not a driver-side .count() action, so this stays legal
+    inside a dataset function."""
+    accepted = (
+        dlt.read(clean_table)
+        .agg(count("*").alias("accepted_rows"))
+        .withColumn("source", lit(source_name))
+    )
+    quarantined = (
+        dlt.read(quarantine_table)
+        .agg(count("*").alias("quarantined_rows"))
+        .withColumn("source", lit(source_name))
+    )
+    return accepted.join(quarantined, "source")
 
 
 @dlt.table(
@@ -363,11 +403,13 @@ def quality_metrics():
     name="gate_status",
     comment=(
         "Publication gate decision per source: whether this run's quarantine "
-        f"rate is at or below the {QUARANTINE_RATE_THRESHOLD:.0%} threshold. "
-        "Counted from the *_flagged views directly (one row in, one row "
-        "counted), not from quality_metrics' exploded per-reason breakdown. "
+        f"rate is at or below the {QUARANTINE_RATE_THRESHOLD:.0%} threshold, "
+        "AND whether accepted_rows + quarantined_rows (read from the "
+        "persisted *_clean/*_quarantine tables) equals total (read from the "
+        "_flagged view) -- `conserved`. quality.evaluate_gate withholds "
+        "unless both gate_passed and conserved are true and total > 0. "
         "bedoux_gate_task withholds the entire Gold pipeline when any "
-        "required source lacks fresh passing evidence."
+        "required source lacks fresh, passing, conserved evidence."
     ),
 )
 def gate_status():
@@ -380,12 +422,22 @@ def gate_status():
         count("*").alias("total"),
         _sum("_quarantined").alias("quarantined"),
     )
+    persisted = (
+        _persisted_counts("leads", "leads_clean", "leads_quarantine")
+        .unionByName(_persisted_counts("web_events", "web_events_clean", "web_events_quarantine"))
+        .unionByName(_persisted_counts("ops_events", "ops_events_clean", "ops_events_quarantine"))
+    )
     return (
-        counts.withColumn(
+        counts.join(persisted, "source", "left")
+        .withColumn(
             "quarantine_rate",
             when(col("total") > 0, col("quarantined") / col("total")).otherwise(lit(0.0)),
         )
         .withColumn("gate_passed", col("quarantine_rate") <= lit(QUARANTINE_RATE_THRESHOLD))
+        .withColumn(
+            "conserved",
+            (col("accepted_rows") + col("quarantined_rows")) == col("total"),
+        )
         # Freshness only, not a run ID. The gate rejects evidence older than
         # the job start; this assumes a serialized job with no other writers.
         .withColumn("_computed_ts", current_timestamp())

@@ -47,6 +47,7 @@ min_computed_ts = quality.utc_from_epoch_ms(run_start_ms)
 # This is a freshness check, not a batch ID or protection against other writers.
 evidence = spark.read.table(GATE_TABLE).selectExpr(  # noqa: F821
     "source", "gate_passed", "quarantine_rate", "total", "quarantined",
+    "accepted_rows", "quarantined_rows", "conserved",
     "unix_millis(_computed_ts) AS _computed_ms",
 )
 rows = []
@@ -65,6 +66,9 @@ for row in sorted(rows, key=lambda r: str(r.get("source"))):
         f"gate_passed={row.get('gate_passed')!r} "
         f"quarantine_rate={row.get('quarantine_rate')!r} "
         f"total={row.get('total')!r} quarantined={row.get('quarantined')!r} "
+        f"accepted_rows={row.get('accepted_rows')!r} "
+        f"quarantined_rows={row.get('quarantined_rows')!r} "
+        f"conserved={row.get('conserved')!r} "
         f"_computed_ts={row.get('_computed_ts')!r}"
     )
 print(f"Required sources: {list(quality.REQUIRED_SOURCES)}")

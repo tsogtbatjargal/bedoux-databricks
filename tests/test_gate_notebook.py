@@ -30,7 +30,8 @@ def run_notebook(monkeypatch, run_start=str(RUN_START_MS), passed=True, computed
         def select(*expressions):
             assert "unix_millis(_computed_ts) AS _computed_ms" in expressions
             records = [dict(source=source, gate_passed=passed, quarantine_rate=0.02,
-                            total=500, quarantined=10, _computed_ms=computed_ms)
+                            total=500, quarantined=10, accepted_rows=490,
+                            quarantined_rows=10, conserved=True, _computed_ms=computed_ms)
                        for source in ("leads", "web_events", "ops_events")]
             return SimpleNamespace(collect=lambda: [
                 SimpleNamespace(asDict=lambda row=row: row.copy()) for row in records

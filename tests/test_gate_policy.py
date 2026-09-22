@@ -27,13 +27,16 @@ DURING_RUN = RUN_START + timedelta(seconds=30)
 BEFORE_RUN = RUN_START - timedelta(hours=6)
 
 
-def _row(source, passed=True, rate=0.02, computed=DURING_RUN):
+def _row(source, passed=True, rate=0.02, computed=DURING_RUN, conserved=True, total=500, quarantined=10):
     return {
         "source": source,
         "gate_passed": passed,
         "quarantine_rate": rate,
-        "total": 500,
-        "quarantined": 10,
+        "total": total,
+        "quarantined": quarantined,
+        "accepted_rows": total - quarantined,
+        "quarantined_rows": quarantined,
+        "conserved": conserved,
         "_computed_ts": computed,
     }
 
@@ -85,6 +88,66 @@ def test_every_failing_source_is_reported_not_just_the_first():
     passed, problems = quality.evaluate_gate(rows, min_computed_ts=RUN_START)
     assert passed is False
     assert len(problems) == len(quality.REQUIRED_SOURCES)
+
+
+# ---------------------------------------------------------------------------
+# Row conservation -- a live baseline run found that gate_passed/
+# quarantine_rate alone were not enough: array_remove(..., None) made
+# _reasons NULL on every row, so the *_flagged-view-based rate looked like a
+# clean 0%-quarantined pass while leads_clean/leads_quarantine were both
+# actually empty. `conserved` (accepted_rows + quarantined_rows == total,
+# read from the persisted tables) is the check that catches that class of
+# defect regardless of what actually caused the split to go wrong. See
+# docs/sentinel/chapters/02-quality-gate.md for the full incident.
+# ---------------------------------------------------------------------------
+
+
+def test_unconserved_source_withholds_even_though_gate_passed_and_rate_look_clean():
+    # Reproduces the incident directly: gate_passed=True, rate=0.0, but
+    # accepted_rows + quarantined_rows (0 + 0) != total (500).
+    rows = _all_good()
+    rows[0] = _row(quality.REQUIRED_SOURCES[0], passed=True, rate=0.0, conserved=False)
+    passed, problems = quality.evaluate_gate(rows, min_computed_ts=RUN_START)
+    assert passed is False
+    assert any("conserved is false" in p for p in problems)
+
+
+def test_null_conserved_is_not_a_pass():
+    rows = _all_good()
+    rows[1] = _row(quality.REQUIRED_SOURCES[1], conserved=None)
+    passed, problems = quality.evaluate_gate(rows, min_computed_ts=RUN_START)
+    assert passed is False
+    assert any("conserved is null" in p for p in problems)
+
+
+def test_zero_total_withholds_even_when_conserved_is_trivially_true():
+    # accepted_rows=0, quarantined_rows=0, total=0 -> conserved is True
+    # (0 + 0 == 0), but an empty batch must still withhold: there is nothing
+    # to publish from, and "empty but conserved" is not the same as healthy.
+    rows = _all_good()
+    rows[2] = _row(quality.REQUIRED_SOURCES[2], total=0, quarantined=0, conserved=True)
+    passed, problems = quality.evaluate_gate(rows, min_computed_ts=RUN_START)
+    assert passed is False
+    assert any("empty batch" in p for p in problems)
+
+
+def test_null_total_is_not_a_pass():
+    rows = _all_good()
+    row = _row(quality.REQUIRED_SOURCES[0])
+    row["total"] = None
+    rows[0] = row
+    passed, problems = quality.evaluate_gate(rows, min_computed_ts=RUN_START)
+    assert passed is False
+    assert any("total is null" in p for p in problems)
+
+
+def test_normal_conserving_batch_publishes():
+    # total=500, accepted_rows=490, quarantined_rows=10, conserved=True --
+    # the healthy case the gate must still allow through.
+    rows = [_row(s, conserved=True, total=500, quarantined=10) for s in quality.REQUIRED_SOURCES]
+    passed, problems = quality.evaluate_gate(rows, min_computed_ts=RUN_START)
+    assert passed is True
+    assert problems == []
 
 
 # ---------------------------------------------------------------------------

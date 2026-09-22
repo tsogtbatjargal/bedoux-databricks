@@ -1,13 +1,25 @@
 # Session handoff
 
-Updated: 2026-09-21. **A live healthy-baseline run just found a blocking
-defect**: the job reports full success, but `leads_clean`/`leads_quarantine`
-(and the same pair for web_events/ops_events) and `quality_metrics` are all
-empty, `gate_status` reports a pass that is inconsistent with that emptiness,
-and Gold overwrote its prior real baseline with empty/degenerate content for
-two of three tables. See "Baseline run result: BLOCKING DEFECT found" below —
-read that before doing anything else with this chapter. Do not redeploy, rerun,
-or start fault injection until this is understood; nothing was worked around.
+Updated: 2026-09-21. **The blocking defect from the live baseline run
+(below) is root-caused, fixed, and unit-tested locally; a re-run is the next
+step.** Root cause: `silver.py` built `_reasons` with
+`array_remove(array(...), None)`, and Spark's `array_remove` is
+null-intolerant on its *element* argument — a NULL element makes the whole
+array result NULL, not stripped of NULLs — so `_reasons` was NULL on every
+row, silently emptying `leads_clean`/`leads_quarantine` (and the same pair
+for web_events/ops_events) and `quality_metrics`, while `gate_status`
+computed a self-consistent but wrong "pass" from that same NULL. Fixed with
+`array_compact` plus `expect_or_fail` guards (Milestone 1), and — more
+importantly — `gate_status` now independently checks row conservation
+against the *persisted* clean/quarantine tables, which is what would have
+actually caught this (Milestone 2). See "Incident" in
+[chapters/02-quality-gate.md](chapters/02-quality-gate.md) for the full
+writeup. **Correction to this file's own prior claim:** the destroyed Gold
+baseline is not unrecoverable — every business row is deterministic from
+`SEED=42` in `generator.py`; only audit timestamps (`_ingest_ts`,
+`_quarantined_ts`, `_computed_ts`, table `updated_at`) were ever
+irreproducible. A correct re-run reproduces the same business content, just
+with new audit timestamps.
 This file records context, not permission to push, merge, deploy, run jobs,
 change secrets, bind resources, or publish. Inspect Git before continuing.
 
@@ -171,18 +183,35 @@ artifact):
   silver `adc3328b-e2cc-4caa-88a2-a420099f34c4`, gold
   `664c30db-3e65-44e0-ae2b-bba1a04b97e7`, all `COMPLETED`.
 
-**Root cause not yet identified.** Ruled out: job/task failure (none),
-stale query cache (re-queried ~6 minutes apart, same result), stale deployed
-code (diffed deployed `silver.py` byte-for-byte against the checkout —
-identical). What's left points at the DLT/Lakeflow Declarative Pipelines
-runtime itself — likely something about how a `@dlt.view` (`leads_flagged`
-etc., non-materialized, recomputed per reference) behaves when read via
-`dlt.read()` from several sibling `@dlt.table`s in the same update, on this
-serverless configuration — but the pipeline event log has no WARN/ERROR/
-exception to point at, and CLI-level read-only tools don't expose Spark
-driver logs or per-flow row-count metrics. This needs either Spark UI /
-driver log access through the workspace UI, or a deliberately instrumented
-diagnostic run, neither of which this task's scope covers.
+**Root cause found and fixed — correcting the guess below.** At the time
+this incident was first recorded, the cause hadn't been identified from
+CLI-level tools, and the paragraph below speculated it was a DLT/Lakeflow
+runtime quirk needing Spark UI/driver-log access. **That guess was wrong.**
+The actual cause was found directly in the source, no Spark UI needed:
+`silver.py` built `_reasons` with `array_remove(array(...), None)`, and
+Spark's `array_remove(array, element)` is null-intolerant on its *element*
+argument — when `element` is NULL, the result is NULL (not the array with
+NULLs stripped). Every `when(...)` with no `.otherwise()` evaluates to NULL
+when false, so `array(...)` always contained a NULL, and
+`array_remove(..., None)` therefore made `_reasons` NULL on **every row, in
+all three `*_flagged` views, unconditionally** — silently, since NULL
+propagation raises no exception, which matches the clean pipeline event log
+observed below. Every downstream reader inherited a different
+self-consistent-looking wrong answer from that same NULL: `size(_reasons) ==
+0`/`> 0` are both NULL so neither `_clean` nor `_quarantine` matched
+anything, `explode(NULL)` emitted nothing for `quality_metrics`, and the
+original `(size(_reasons) > 0).cast("int")` evaluated to `0` for every row,
+which is exactly why `gate_status` reported a clean `quarantined=0`. Fixed
+with `array_compact` (which does strip NULLs) plus `expect_or_fail` guards,
+and — the more important part — `gate_status` now cross-checks against the
+persisted `_clean`/`_quarantine` tables independently of the `_flagged`-view
+arithmetic, so a future defect in that same view wouldn't again produce a
+self-consistent false pass. (Before this was found, a stale-cache explanation
+was ruled out by re-querying ~6 minutes apart with the same result, and a
+stale-deployed-code explanation was ruled out by diffing the deployed
+`silver.py` byte-for-byte against the checkout — identical; both are still
+valid, just superseded by the real cause above.) Full writeup:
+[chapters/02-quality-gate.md](chapters/02-quality-gate.md#incident-the-gate-passed-a-100-row-loss-run).
 
 **Left in this state deliberately, not rerun.** Per this task's instructions
 not to repeatedly rerun or bypass the gate on a failure — and this is worse
@@ -192,8 +221,18 @@ dimension tables are healthy; all three fact-source clean/quarantine tables
 and `quality_metrics` are empty; `gate_status` shows a false-looking pass;
 Gold has empty/degenerate content for all three tables where it previously
 had a real 2026-07-30 baseline. Rollback (redeploy from `main`) would restore
-the *ungated* graph, not fix this, and would not restore the destroyed Gold
-baseline (no backup of it beyond the digests recorded above).
+the *ungated* graph, not fix this. **Correction:** an earlier version of this
+note called the destroyed baseline unrecoverable; that overstated it. Every
+business row is deterministic from `generator.py`'s fixed `SEED = 42`, and
+(re-confirmed live) none of the three Gold tables' schemas carry an audit
+timestamp column — `gold_campaign_performance`, `gold_client_funnel`, and
+`gold_ogi_ops_health` are pure business content. So a correct healthy run at
+`bedoux_lead_invalid_rate=0.02` should reproduce the 2026-07-30 baseline's
+Gold content **exactly**, and the pre-run digests recorded above are a valid
+exact-match check for that, not just a fingerprint of something gone. (Silver
+does carry audit columns — `_ingest_ts`, `_quarantined_ts` — so a
+row-for-row Silver digest would differ across runs even when correct; the
+digests above were only taken for Gold, where this doesn't apply.)
 
 ## Databricks CLI access
 
@@ -299,25 +338,34 @@ the workspace to read, and changed nothing.
    "Baseline run result: BLOCKING DEFECT found" above). The run did not
    demonstrate a working gate — it demonstrated a silent data-loss defect
    that the gate's own passing status did not catch.
-4. **Not proposed: fault injection.** Running `bedoux_lead_invalid_rate=0.30`
-   on top of a pipeline that already loses 100% of fact rows at 0.02 would
-   not test anything meaningful and would compound the damage to Gold. The
-   next authorized step should be **root-causing why `leads_clean`/
-   `leads_quarantine`/`quality_metrics` come out empty while `gate_status`
-   reports counts inconsistent with that emptiness** — most likely via Spark
-   UI / driver log access on the silver pipeline update
-   (`adc3328b-e2cc-4caa-88a2-a420099f34c4`) through the workspace UI, which
-   this CLI-only task didn't have. Only once a healthy run actually produces
-   correct, self-consistent clean/quarantine/gate_status content should
-   fault → restore → replay be attempted.
-5. The destroyed `gold_client_funnel`/`gold_ogi_ops_health` baseline content
-   cannot be un-lost; only the pre-run digests above remain. A real fix will
-   need a genuinely fresh baseline, not a restore.
-6. Only mark demonstrated after real evidence of a *correct* run. Push/
+4. **Done: root-caused and fixed, locally.** `array_remove(array(...), None)`
+   is null-intolerant in Spark (a NULL *element* argument nulls the whole
+   result), not the DLT/Lakeflow runtime bug this file previously guessed
+   at — confirmed directly against the source, not by re-investigating live.
+   Fixed with `array_compact` + `expect_or_fail` guards, plus a row-
+   conservation check in `gate_status` (`accepted_rows + quarantined_rows ==
+   total`, read from the persisted `_clean`/`_quarantine` tables, independent
+   of the `_flagged`-view-based rate) that would have caught this incident
+   specifically. See "Incident" in
+   [chapters/02-quality-gate.md](chapters/02-quality-gate.md) for the full
+   writeup and `quality.py`/`silver.py`/`gate_check.py` diffs. 98 tests pass
+   locally (was 92); this is still policy/AST-level testing, not Spark
+   execution — see the chapter doc's note on what that does and doesn't prove.
+5. **Correction:** the destroyed `gold_client_funnel`/`gold_ogi_ops_health`
+   baseline content is not permanently lost. Every business row is
+   deterministic from `SEED = 42`, and none of the three Gold tables carry an
+   audit timestamp column, so a correct healthy re-run should reproduce the
+   2026-07-30 baseline's Gold content exactly — the pre-run digests recorded
+   above are a valid check for that.
+6. **Next: Milestone 4**, one more authorized healthy re-run
+   (`bedoux_lead_invalid_rate=0.02`) to confirm the fix live — see below for
+   the outcome once attempted. Fault injection stays out of scope until a
+   healthy run is confirmed clean.
+7. Only mark demonstrated after real evidence of a *correct* run. Push/
    integration and remote retention/local-branch cleanup follow
    [branch-workflow.md](branch-workflow.md) within user authorization. Chapter
    03 should not start from this branch's current state until this defect is
-   resolved.
+   confirmed fixed live, not just locally.
 
 Use `sentinel-story` only when asked to draft posts. Jev remains optional;
 AWS is deferred with no budget or deployment authorization. Earlier AWS reuse

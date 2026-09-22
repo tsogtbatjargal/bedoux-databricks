@@ -256,3 +256,59 @@ def test_silver_reason_constants_match_quality_spec():
         assert re.search(rf"lit\({name}\)", silver_src), f"{name} defined but never used in a lit(...) call"
     for key in ("lead_id", "event_id", "ops_event_id"):
         assert f'_duplicate_reason("{key}")' in silver_src
+
+
+# ---------------------------------------------------------------------------
+# Incident regression: array_remove(array(...), None) is null-intolerant in
+# Spark -- a NULL *element* argument makes the WHOLE result NULL instead of
+# stripping NULLs, so every when(...) with no .otherwise() (NULL when false)
+# poisoned the entire _reasons array on every row. A live baseline run showed
+# the consequence: leads_clean/leads_quarantine (and the same pair for
+# web_events/ops_events) came out completely empty while gate_status reported
+# a clean pass. Fixed with array_compact(...), which does strip NULL
+# elements. This is a source-text check, like
+# test_silver_reason_constants_match_quality_spec above, for the same reason:
+# silver.py needs a live `dlt`/pyspark runtime this environment doesn't have,
+# so it can't be imported and exercised directly. No Spark/pyspark import
+# required. See docs/sentinel/chapters/02-quality-gate.md for the incident.
+# ---------------------------------------------------------------------------
+
+
+def test_silver_does_not_use_null_intolerant_array_remove():
+    import ast
+    from pathlib import Path
+
+    silver_src = (Path(__file__).parent.parent / "src" / "bedoux" / "silver.py").read_text()
+
+    # AST-parsed (silver.py can be parsed without a live dlt/pyspark runtime,
+    # just not imported/executed), not grepped, so the explanatory comments
+    # above that mention "array_remove(...)" in prose don't trip a substring
+    # match -- only an actual `from pyspark.sql.functions import array_remove`
+    # or a call would.
+    tree = ast.parse(silver_src)
+    imported_names = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    assert "array_remove" not in imported_names, (
+        "array_remove(array(...), None) is null-intolerant in Spark -- a NULL "
+        "element argument makes the whole result NULL. Use array_compact(...) "
+        "instead."
+    )
+    called_names = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "array_remove" not in called_names
+
+    assert silver_src.count("array_compact(") == 3, (
+        "expected array_compact(...) at all three *_flagged views "
+        "(leads/web_events/ops_events)"
+    )
+    assert silver_src.count('@dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")') == 3, (
+        "each *_flagged view should fail loudly, not silently empty its "
+        "downstream tables, if _reasons is ever NULL again"
+    )
