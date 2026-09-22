@@ -71,3 +71,43 @@ If `gold.py` is missing any of these three tables, Gold is not done.
 
 - One pipeline per layer. Each pipeline runs that layer's file (`bronze.py`, `silver.py`, `gold.py`) and targets that layer's schema in the `workspace` catalog. Serverless compute.
 - One job that runs the three pipelines in order: Bronze, then Silver, then Gold. Bronze must finish before Silver starts; Silver before Gold. The job can be scheduled (e.g. daily).
+
+---
+
+## Track 1 stays
+
+Removing Track 1 was considered and rejected. It stays because it's the
+project's only demonstration of **Auto CDC against genuinely incremental
+data** (`customer`/`orders`, above) — `docs/contracts-bedoux.md` explicitly
+cites this file as "the correct place Auto CDC is demonstrated" when
+justifying why Track 2's `clients`/`campaigns` dimensions deliberately use
+plain materialized tables instead of CDC. That justification only holds up
+with a real CDC example present to compare against; without Track 1, Track
+2's choice to skip CDC would read as an omission rather than a decision.
+
+**Candidate for extraction into its own repo later**, not now. If that
+happens, extraction means moving: `src/bronze.py`, `src/silver.py`,
+`src/gold.py`, `src/transforms.py`, `resources/jobs.yml`,
+`resources/pipelines.yml`, this file, and Track 1's tests
+(`tests/test_transforms.py` and the Track-1-specific parts of any shared
+test file).
+
+**The constraint that makes this non-trivial:** `databricks.yml` includes
+`resources/*.yml` — both tracks currently share **one bundle**. Deleting
+`resources/jobs.yml`/`resources/pipelines.yml` and deploying would not just
+remove them from this repo; Databricks Asset Bundles delete resources that
+leave the bundle definition, so that deploy would **destroy the live
+TPC-H job and pipelines in the workspace** — not archive them, not leave
+them alone. Extraction is therefore a workspace decision (bind the
+existing resources to a new, separate bundle first, or accept recreating
+them from scratch) as much as a code move, and it needs to be planned as
+one before any file leaves this repo. A future session should not have to
+rediscover this by deploying and watching Track 1 disappear.
+
+**The same one-bundle fact also creates live coupling today**, independent
+of any future extraction: every Track 2 bundle deployment can
+create/update Track 1 resources, because `bundle deploy` operates on the
+whole bundle, not per track. This is already called out where deployment
+actually happens — see
+[`sentinel/live-verification.md`](sentinel/live-verification.md), section
+2 — rather than restated here.

@@ -40,7 +40,29 @@ now shows exactly `origin/main` plus the four retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`).
 
+A docs-currency pass is on `chore/docs-currency` (PR #12, open, not merged,
+docs only — no bundle path touched, CI skips Validate/Deploy): records the
+Track 1 keep decision (README.md, `contracts.md#track-1-stays` — kept for
+its Auto CDC comparison point, flagged as an extraction candidate later,
+with the `databricks.yml`-includes-`resources/*.yml` constraint that makes
+removing its resource files a workspace-destroying operation, not a code
+move); brings `architecture.md` current (adds `bedoux_gate_task` to the
+diagram, states `evidence.py`'s missing call site is a deliberate omission
+from it); rewrites README's Sentinel section to present tense; fixes
+`roadmap.md`'s stale "121 tests" and missing PR #8 reference, and a
+mislabeled test count in `chapters/03-protect-evidence.md` (24 tests in
+`test_evidence.py`, not 125 — that was the repo-wide total); and re-checks
+`ai_rules.md` (current, unchanged) and `genie.md` (flagged the CLI version
+its subcommands were last verified against is behind `mise.toml`'s current
+pin, not re-verified since).
+
+**Separately, chapter 03's append-only evidence log is on
+`series/03-evidence-log` (PR #11, open, not merged, touches `src/**` — merging
+deploys).** See that PR/branch for details; not repeated here.
+
 ## Exact next useful task
 
-**Chapter 04 is the next substantive work and needs explicit authorization
-before any of it starts.** Nothing else is outstanding from chapters 00–03.
+**Merge PR #12 (docs, no deploy) and PR #11 (deploys) when authorized, run
+PR #11's live demonstration per `live-verification.md` section 6, then
+chapter 04 is the next substantive work and needs its own explicit
+authorization before any of it starts.**

@@ -1,9 +1,14 @@
 # Genie CLI
 
 Genie is Databricks' natural-language query agent over Unity Catalog tables. This project
-uses the real `databricks genie` subcommands from CLI v1.10.0 (verified against
-`databricks genie --help`; some names differ from older docs/examples floating around —
-e.g. there is no `create-conversation`, it's `start-conversation`).
+uses the real `databricks genie` subcommands, last verified against
+`databricks genie --help` on CLI v1.10.0 (some names differ from older docs/examples
+floating around — e.g. there is no `create-conversation`, it's `start-conversation`).
+`mise.toml` now pins the CLI to v1.17.0 for unrelated reasons
+([`branch-workflow.md`](sentinel/branch-workflow.md)); the commands below have not
+been re-verified against that version, though Genie's subcommand shape is not expected
+to have changed. Re-check `databricks genie --help` before trusting this table blindly
+against a future CLI upgrade.
 
 ## Setup
 

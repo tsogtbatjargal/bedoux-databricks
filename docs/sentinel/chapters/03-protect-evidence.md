@@ -305,8 +305,8 @@ log/error/report surface.
 
 ## What "blocked or redacted" is proven by, and what remains merely asserted
 
-**Proven, this session:** `tests/test_evidence.py` (125 tests total, across
-three review rounds) exercises the functions above directly against
+**Proven, this session:** `tests/test_evidence.py` (24 tests, across three
+review rounds, part of the repo's 125-test total) exercises the functions above directly against
 `FICTIONAL_SENSITIVE_LEAD` and clean/edge-case fixtures — `mise exec -- uv
 run --locked python -m pytest -q`. This proves the functions behave as
 described, in isolation, in plain Python — including, after round 2, that
