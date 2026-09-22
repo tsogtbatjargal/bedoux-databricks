@@ -1,10 +1,15 @@
 # Part 02 — Defend before damage spreads
 
-Status: PR #3 open on `series/02-quality-gate`; follow-up fixes are local and
-not merged. A live baseline run found a real defect — **the gate initially
-passed a run that lost 100% of its fact rows** — which this branch has since
-fixed and re-verified with a second live run. See "Incident" below. No post
-draft yet. Chapter 01 mapped the platform and found the gap
+Status: PR #3 open on `series/02-quality-gate`, CI green, `mergeStateStatus:
+CLEAN`; **not merged** (a deliberate, still-open decision, not a blocker).
+**Demonstrated, not just implemented and locally tested**: a live baseline
+run found a real defect — the gate initially passed a run that lost 100% of
+its fact rows (see "Incident") — which this branch fixed, then proved via a
+full live fault → restore → replay sequence: the withhold path correctly
+stopped Gold on a genuine 32.8% quarantine rate, restoration was explicit
+and verified, and a literal back-to-back replay showed no duplication. See
+"Fault → restore → replay demonstration" below. No post draft yet.
+Chapter 01 mapped the platform and found the gap
 this chapter closes: `expect_or_drop` silently drops rows with no record of
 what was dropped or why, no dedup exists on the fact tables, and an orphaned
 `campaign_id` vanishes from Gold with no error. This chapter changes pipeline
@@ -367,14 +372,62 @@ corrected claim: the destroyed baseline was fully recoverable because every
 business row is deterministic from `SEED=42` and Gold carries no audit
 timestamp column. See the handoff for run/update IDs.
 
-## Live verification
+## Fault → restore → replay demonstration
 
-The credential options, what deploys automatically once secrets exist, and
-the three-stage demonstration (healthy baseline, withheld bad batch with the
-baseline proven intact, restored corrected batch) are specified in
-[live-verification.md](../live-verification.md). See "Incident" above for
-the first baseline attempt's result and "Verification and limits" below for
-the post-fix re-run.
+The procedure is specified in [live-verification.md](../live-verification.md).
+This section records what was actually observed running it, in one
+continuous session, against the confirmed-good `dev` baseline from the
+post-fix re-run (`gold_campaign_performance` 30 rows, `gold_client_funnel`
+132 rows, `gold_ogi_ops_health` 183 rows — same digests throughout, given
+below truncated for readability).
+
+**Stage 1 — Fault (`bedoux_lead_invalid_rate=0.30`).** Deployed, confirmed
+the live config read back `"0.30"`, ran the job once (`330174171866992`).
+`bedoux_bronze_task`/`bedoux_silver_task` succeeded; `bedoux_gate_task`
+failed; `bedoux_gold_task` was skipped (`UPSTREAM_FAILED`). Critically, a
+red job by itself proves nothing — `expect_or_fail` firing, a notebook bug,
+and a real quarantine-rate failure all look identical from job status alone.
+Queried `gate_status` directly: `leads` — total 500, accepted_rows 336,
+quarantined_rows 164, rate 32.8%, `gate_passed=false`, **`conserved=true`**.
+That last field is the point: a real, conserved, above-threshold rate, not
+another silent-loss defect wearing a different number. Exact match to the
+predicted 336/164/32.80% (`quality.py`'s reference rules and `silver.py`'s
+Spark expressions agree). `web_events`/`ops_events` correctly unaffected
+(2.3%/2.19%, both passing and conserved — only leads uses the override).
+Queried all three Gold tables afterward: digests unchanged, and `updated_at`
+**predated the run's start entirely** — not "unchanged since last checked,"
+proof Gold was never touched.
+
+**Stage 2 — Restore (`bedoux_lead_invalid_rate=0.02`).** Did not assume the
+setting would revert; explicitly redeployed and confirmed the live config
+read back `"0.02"` before running. Run `262274593519322`: all four tasks
+succeeded. `gate_status`: leads back to 490/10 (2.0%), conserved and passing,
+matching the confirmed-good baseline exactly. Gold's digests matched again —
+and this time `updated_at` **advanced**, proving a genuine recomputation
+landed on identical content, not that Gold sat untouched by coincidence.
+
+**Stage 3 — Replay (`bedoux_lead_invalid_rate=0.02`, no config change).** Ran
+the job again immediately: `98756061776337`. All four tasks succeeded;
+`gate_status` identical to Stage 2 in every field except `_computed_ts`,
+which advanced (`00:44:20.768Z` → `01:24:03.322Z`) — fresh evidence each
+run, not stale evidence reused. Re-queried the persisted Silver tables
+directly (not just `gate_status`): identical counts to Stage 2. Gold's
+digests matched the baseline again, `updated_at` advanced again. This is the
+literal back-to-back replay this chapter previously lacked: two consecutive
+runs of the same healthy job, no configuration change between them,
+identical business content and multiplicities, fresh audit timestamps each
+time — direct evidence against duplication, not an architectural argument.
+
+**What this does not establish**, stated plainly rather than sanded down:
+`expect_or_fail` has still never fired (no run has produced a NULL
+`_reasons`); `conserved=false` has still never been observed live, only
+reproduced in policy tests against the incident's own numbers — so the
+conservation check's *passing* behavior is proven live, its *own* failure
+path is not. The chapter's other documented limits (whole-Gold not
+per-table withholding, freshness not immutable batch identity, no atomic
+multi-table publication, the untested first-run-failure case, the unfixed
+`clients_clean`/`campaigns_clean` tie bug) are all unchanged by this
+demonstration — see "Verification and limits" and "Related finding" below.
 
 ## Verification and limits
 
@@ -401,14 +454,14 @@ end to end. Only a live pipeline run does that.
 | Row-conservation check (`accepted_rows + quarantined_rows == total`) is what would have caught the incident | **Verified against the incident's own numbers** | `test_unconserved_source_withholds_even_though_gate_passed_and_rate_look_clean` reproduces `gate_passed=True, rate=0.0, accepted_rows=0, quarantined_rows=0, total=500` and asserts the gate now withholds. |
 | `silver.py`/`gold.py` native Spark *logic* (joins, windows, control flow) matching `quality.py`'s semantics | **Verified by code reading, untested against data — this is exactly the category the incident came from** | Reviewed side by side; no automated check of the Spark expression structure itself exists (same precedent as `gold.py` vs. `transforms.py`). The array_remove defect survived this same kind of review once already. |
 | `bronze.py`'s `_row_id` batch identity | **Verified by code reading, untested against data** | Reviewed; not exercised against a live Bronze run. |
-| A healthy run's gate correctly PASSES with conserved, accurate evidence | **Verified live, post-fix** | Second live run (2026-09-21): `gate_status` conserved=true for all three sources; directly queried `_clean`/`_quarantine` table counts matched `gate_status`'s own numbers exactly (490/10, 1954/46, 357/8) — the specific thing that was wrong the first time. |
-| **A failing gate actually withholds the Gold refresh, leaving prior content intact** | **Still untested live** | The only live run so far where the gate *should* have failed (the incident) instead wrongly passed. A genuine fault-injection run (Milestone 5, not yet authorized) is what would exercise the withhold path for real. |
-| `notebook_task` with `base_parameters` runs on Free Edition serverless | **Verified** | The 2026-09-21 baseline run executed `bedoux_gate_task` successfully as a notebook task; it read and evaluated `gate_status` correctly given its (then-wrong) inputs — the task mechanics worked, only the upstream data was wrong. |
-| `{{job.start_time.timestamp_ms}}` resolves in the workspace | **Verified** | Same run: `run_start_ms` resolved and `min_computed_ts` was computed without error. |
-| Spark `unix_millis(_computed_ts)` feeds UTC comparison | **Verified** | Same run: `_computed_ts` values were fresh and compared correctly against the run boundary — this part of the freshness mechanism was never the problem. |
-| Whether Gold tables genuinely retain prior content when their pipeline does not run | **Untested** | The incident run had the gate *wrongly pass*, so Gold ran and overwrote the baseline — it did not exercise the withhold path. Still needs a genuine fault-injection run. |
-| `databricks bundle validate --target dev` | **Verified, repeatedly** | Local Databricks CLI access set up this session; `bundle validate`/`bundle plan`/`bundle deploy` all executed successfully against `dev`. See the handoff for the CLI/profile setup. |
-| A live rerun demonstrating "replay does not duplicate" | **Suggestive, not conclusive** | The post-fix re-run's three Gold digests matched the pre-incident 2026-07-30 baseline exactly, byte-for-byte — strong evidence the deterministic-seed/full-recompute design doesn't duplicate across two genuinely different runs (old ungated pipeline vs. new gated one). That is not the same claim as "running this exact healthy job twice in a row produces identical output," which needs a literal back-to-back rerun and has not been done — only one post-fix run was authorized this session. |
+| A healthy run's gate correctly PASSES with conserved, accurate evidence | **Verified live, post-fix, twice** | Milestone-4 re-run and the replay stage (below) both show `gate_status` conserved=true for all three sources, with directly-queried `_clean`/`_quarantine` counts matching exactly (490/10, 1954/46, 357/8) both times. |
+| **A failing gate actually withholds the Gold refresh, leaving prior content intact** | **Verified live** | Fault stage (`bedoux_lead_invalid_rate=0.30`, run `330174171866992`): `leads` quarantine rate 32.8% (predicted 32.80%, exact match), `gate_passed=false`, **`conserved=true`** — a genuine high-but-conserved rate, not a conservation false-positive. `bedoux_gate_task` FAILED, `bedoux_gold_task` SKIPPED (`UPSTREAM_FAILED`). Gold's three digests were unchanged and `updated_at` predated the run entirely — not merely "unchanged since last checked," proof it was never touched. |
+| `notebook_task` with `base_parameters` runs on Free Edition serverless | **Verified, five times** | Executed successfully across the baseline, Milestone-4 re-run, fault, restore, and replay runs, including raising an exception correctly on the fault run and exiting cleanly on the others. |
+| `{{job.start_time.timestamp_ms}}` resolves in the workspace | **Verified** | `run_start_ms` resolved and `min_computed_ts` computed without error on every run this chapter has made. |
+| Spark `unix_millis(_computed_ts)` feeds UTC comparison | **Verified** | `_computed_ts` values were fresh and compared correctly against the run boundary on every run, including advancing correctly between the restore and replay stages (`00:44:20.768Z` → `01:24:03.322Z`), proving stale evidence isn't reused. |
+| Whether Gold tables genuinely retain prior content when their pipeline does not run | **Verified live** | Fault stage: all three Gold digests unchanged, `updated_at` predated the run. Restore/replay stages: Gold *did* refresh (new `updated_at` each time) and landed on the identical baseline digests both times — refresh vs. retention is now distinguished by direct evidence, not inferred from job status. |
+| `databricks bundle validate --target dev` | **Verified, repeatedly** | `bundle validate`/`bundle plan`/`bundle deploy`/`bundle run` all executed successfully against `dev` across five separate runs this chapter. |
+| A live rerun demonstrating "replay does not duplicate" | **Verified, literal back-to-back replay** | Restore run (`262274593519322`) and replay run (`98756061776337`), same `0.02` config, run consecutively with no change between them: identical `gate_status` counts (490/10, 1954/46, 357/8 both times), identical persisted Silver counts, identical Gold digests, `_computed_ts` and `updated_at` both advancing each time — fresh evidence each run, same business content, no duplication. This supersedes the earlier "suggestive, not conclusive" comparison against a different/older run. |
 
 ## Related finding, not fixed this chapter
 
@@ -428,12 +481,18 @@ finding for a future chapter or a dedicated fix.
 
 - "Account for accepted, quarantined, and duplicate records without
   double-counting" — `reconcile()`'s conservation assertion,
-  `test_reconcile_conserves_every_row`.
-- "A failed gate preserves the previously published data" —
-  `bedoux_gate_task` must fail before Gold starts; untested against a live workspace.
-- "Normal input passes" — `test_normal_control_passes_the_gate`.
-- "Test repeated processing" — `test_replay_is_idempotent`, with the
-  architectural argument above for why it generalizes to the live pipeline.
+  `test_reconcile_conserves_every_row`, **and live-verified** via
+  `gate_status`'s `conserved` field matching directly-queried persisted
+  table counts on every run, including the fault run.
+- "A failed gate preserves the previously published data" — **live-verified**:
+  the fault-stage run failed `bedoux_gate_task`, and Gold's digests were
+  confirmed unchanged with `updated_at` predating the run entirely.
+- "Normal input passes" — `test_normal_control_passes_the_gate`, and
+  live-verified on the baseline, Milestone-4, restore, and replay runs.
+- "Test repeated processing" — `test_replay_is_idempotent` at the
+  pure-function level, and **live-verified** with a literal back-to-back
+  replay (Stage 2 → Stage 3): identical business content and
+  multiplicities, advancing audit timestamps, no duplication.
 - "Do not claim whole-platform transactional publication unless actually
   implemented" — explicitly not claimed; see the business-decision section
-  above.
+  above. Unchanged by this demonstration.

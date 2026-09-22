@@ -1,9 +1,11 @@
 # Session handoff
 
-Updated: 2026-09-22. **Fault → restore stages of the live demonstration are
-both confirmed; replay is in progress. `dev` is currently deployed at the
-normal `bedoux_lead_invalid_rate=0.02`.** See "Fault → restore → replay
-demonstration" below for full evidence.
+Updated: 2026-09-22. **All three stages of the fault → restore → replay
+demonstration are confirmed live — chapter 02 is now demonstrated, not just
+implemented and locally tested.** `dev` is deployed at the normal
+`bedoux_lead_invalid_rate=0.02`. See "Fault → restore → replay
+demonstration" below for full evidence, and "Exact next task" for the
+merge recommendation.
 
 Earlier: **the blocking defect from the live baseline run
 (below) is root-caused, fixed, unit-tested, confirmed live, and pushed —
@@ -31,21 +33,27 @@ change secrets, bind resources, or publish. Inspect Git before continuing.
 
 ## Current checkpoint
 
-- Branch: `series/02-quality-gate`, **pushed and in sync with origin** as of
-  this session (head `8331824`). PR #3 is open, `mergeable: MERGEABLE`,
-  `mergeStateStatus: CLEAN`, CI green on the fixed code — see "Push and
-  re-validation" under "CI verification" below.
-- Four commits landed this session: `26b9d99` (incident record), `9d3ca54`
-  (the fix), `a80c914` (live re-run confirmation), `8331824` (a
-  reviewer-caught correction to this file's own commit count). Pushing was
-  explicitly authorized by the user; not done unilaterally.
-- Working tree clean. No merge or deploy has occurred. Two authorized job
-  runs occurred this session (see below): the first found the incident, the
-  second confirmed the fix.
+- Branch: `series/02-quality-gate`, **pushed and in sync with origin**, head
+  `15a2203` (plus one more doc-only commit landing with this update). PR #3
+  is open, `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`, CI green on the
+  fixed code.
+- This session's commits: `26b9d99` (incident record), `9d3ca54` (the fix),
+  `a80c914` (live re-run confirmation), `8331824` (commit-count correction),
+  `f63f113` (push record), `52e09fb` (fault-stage safety checkpoint),
+  `15a2203` (fault+restore evidence) — all pushed, each authorized (docs-only
+  commits were pre-authorized this session; the code fix and earlier push
+  were separately authorized in prior turns).
+- Working tree clean. No merge or deploy of Track 1 has occurred. **Five**
+  job runs occurred across this session and the prior one: healthy baseline
+  (found the incident), healthy re-run (confirmed the fix), fault 0.30
+  (confirmed withholding), restore 0.02, replay 0.02 (confirmed no
+  duplication back-to-back). `dev` is currently deployed at the normal
+  `bedoux_lead_invalid_rate=0.02`.
 - Track 1 source/resources and CI policy are unchanged.
 - Chapters 00/01 are integrated into main; remote chapter branches retained.
-- **Not merged.** Merging PR #3 is still a separate deployment decision —
-  a green PR is not authorization to merge.
+- **Not merged.** See "Exact next task" for the merge recommendation — a
+  demonstrated chapter is not the same as authorization to merge; that
+  remains yours to decide.
 
 ## Implementation now in the checkout
 
@@ -288,10 +296,10 @@ expected for a single `gate_status` table refresh).
 
 **What this run does and does not establish:** it proves a healthy run now
 correctly passes with self-consistent, conserved evidence, and that the fix
-didn't regress anything Milestone 4's acceptance criteria named. It does
-**not** exercise the withhold path — no fault was injected this session, so
-a failing gate actually stopping Gold and preserving prior content remains
-untested live. See "Exact next task" for the proposed next step.
+didn't regress anything Milestone 4's acceptance criteria named. At the time
+this section was written, the withhold path was still unexercised. It has
+since been — see "Fault → restore → replay demonstration" below, done in a
+later turn of this same continued session.
 
 ## Fault → restore → replay demonstration (2026-09-21/22, one session)
 
@@ -370,8 +378,40 @@ content, not a no-op.
 
 ### Stage 3 — REPLAY (0.02)
 
-In progress — see below once complete, or the top of this file if this
-session ends before it finishes.
+No config change, no deploy — ran `bedoux_analytics_job` again immediately.
+Run `98756061776337`, 2026-09-21T19:20:43–19:26:50. All four tasks
+**SUCCESS**. `gate_status`:
+
+| source | total | quarantined | accepted_rows | quarantined_rows | rate | gate_passed | conserved |
+|---|---|---|---|---|---|---|---|
+| leads | 500 | 10 | 490 | 10 | 2.0% | true | true |
+| web_events | 2000 | 46 | 1954 | 46 | 2.3% | true | true |
+| ops_events | 365 | 8 | 357 | 8 | 2.19% | true | true |
+
+Identical to Stage 2 in every field except `_computed_ts`, which
+**advanced** from `00:44:20.768Z` (Stage 2) to `01:24:03.322Z` (Stage 3) —
+fresh evidence each run, not stale evidence reused. Directly re-queried the
+persisted Silver tables (not just `gate_status`): `leads_clean`/
+`leads_quarantine` 490/10, `web_events_clean`/`quarantine` 1954/46,
+`ops_events_clean`/`quarantine` 357/8 — exact match to Stage 2. Gold's three
+digests matched the baseline **again**, and `updated_at` **advanced again**
+(01:26:34Z, after this run's own `_computed_ts`) — a third independent
+recomputation landing on byte-identical business content.
+
+This is the literal back-to-back replay evidence that was missing before:
+two consecutive runs of the exact same healthy job (Stage 2 → Stage 3, no
+config change between them) produced identical business content and
+multiplicities with fresh, advancing audit timestamps — not the
+"compared against a different, older run" caveat that applied to the first
+post-fix confirmation.
+
+**All three stages of the fault → restoration → replay demonstration are
+now confirmed live**, closing every gap this file previously listed as
+untested: the withhold path fired correctly on a genuine (not
+false-positive) high rate, restoration was explicit and verified rather than
+assumed, and replay was observed back-to-back rather than argued
+architecturally. Full per-check status is in the chapter doc's verification
+table.
 
 ## Databricks CLI access
 
@@ -491,52 +531,57 @@ the live re-run confirmation — it is no longer validating the buggy code.
 
 ## Exact next task
 
-1. Done: [live-verification.md](live-verification.md) section 1 is **closed**
-   (local OAuth, credential capability, CI secrets).
-2. Done: preflight + one healthy-baseline deploy + run, which found the
-   incident (see "Baseline run result" above).
-3. Done: root-caused, fixed, unit-tested (98 passing, was 92), and committed
-   locally as `9d3ca54` on top of `26b9d99` — see "Incident" in
-   [chapters/02-quality-gate.md](chapters/02-quality-gate.md) for the full
-   writeup.
-4. Done: **Milestone 4 re-run confirmed the fix live** — see "Re-run result"
-   above. `gate_status`'s `conserved` field now matches the persisted tables
-   exactly for all three sources; Gold's content digests matched the
-   pre-incident baseline byte-for-byte.
-5. Done: pushed (`26b9d99`, `9d3ca54`, `a80c914`, `8331824`) after explicit
-   authorization. PR #3 re-ran CI on `8331824`: `Unit tests` (98 passed),
-   `Validate bundle` both green; `Deploy bundle` skipped (PRs never deploy).
-   `mergeStateStatus` is now `CLEAN`. Still **not merged**.
+**All prior next-task items are done.** In order: live-verification section 1
+closed; healthy baseline found the incident; root-caused and fixed (98 tests,
+was 92); fix confirmed live; pushed with PR #3 green; and now **fault (0.30)
+→ restore (0.02) → replay (0.02) all confirmed live in one session** — see
+"Fault → restore → replay demonstration" above for full evidence (run IDs,
+per-task outcomes, complete `gate_status` rows, Silver counts, Gold digests
+and `updated_at` for every stage).
 
-**Proposed authorization block for the fault → restoration → replay
-milestone:**
+### Status: planned / implemented / demonstrated, precisely
 
-- **Fault (0.30):** deploy `bedoux_lead_invalid_rate=0.30`, run the job once,
-  and this time actually exercise the withhold path — confirm Bronze/Silver
-  succeed, `leads` quarantine rate exceeds 10%, `conserved` stays true (a
-  high but *conserved* rate should still be distinguishable from an
-  *unconserved* one), `gate_passed=false`, `bedoux_gate_task` fails, Gold
-  never runs, and — the check this session's discipline earns — directly
-  query Gold's digests afterward to confirm they're unchanged from this
-  session's confirmed-good baseline, not just that the job went red.
-- **Restore (0.02):** redeploy `0.02` explicitly and run again; confirm the
-  setting was restored and content matches this session's baseline digests
-  again (business content should be identical; only audit timestamps
-  differ).
-- **Replay:** one more `0.02` run with no config change, to get the literal
-  "run the same healthy job twice in a row" evidence this session's re-run
-  couldn't provide (it compared against a *different*, pre-chapter-02 run,
-  not a back-to-back replay of this exact job).
-- Each stage needs its own confirmation before deploying the next, per
-  [live-verification.md](live-verification.md) — do not chain them
-  unattended. The 0.30 setting must not be left deployed if a session ends
-  mid-sequence; record that prominently if it happens.
+- **Demonstrated, live, with ground-truth verification (not just job
+  status):** healthy run passes with conserved evidence; a genuinely
+  above-threshold *and conserved* rate correctly fails the gate and leaves
+  Gold provably untouched (`updated_at` predates the run); restore is
+  explicit, verified, and not assumed; replay is a real back-to-back rerun
+  with advancing `_computed_ts` and byte-identical business content.
+- **Implemented and unit-tested, not live-exercised:** `expect_or_fail`
+  firing (never triggered — `_reasons` was never NULL in any of five runs);
+  `conserved=false` (never observed in the workspace, only in policy tests
+  reproducing the incident's own numbers) — meaning the conservation check's
+  *passing* behavior is live-proven, but its own failure path is not.
+- **Known, documented, not in scope for this chapter:** whole-Gold
+  withholding (not per-table); freshness-based binding (not immutable
+  batch/run identity — another writer's newer data could pass); no atomic
+  multi-table Gold publication; `clients_clean`/`campaigns_clean`'s
+  `_ingest_ts`-tie dedup (separate latent bug, flagged not fixed); a
+  first-ever-run failure (untestable here without destroying the real
+  baseline). Row conservation catches "the split doesn't add up to the
+  input," not every possible correctly-conserved misclassification.
 
-Only mark this chapter demonstrated after that sequence completes with real
-evidence. Push/integration and remote retention/local-branch cleanup follow
-[branch-workflow.md](branch-workflow.md) within your authorization. Chapter
-03 should not start from this branch until you're satisfied with where this
-one landed.
+### Recommendation on merging PR #3
+
+**Lean toward merging**, with the caveat that it's your call, not mine to
+make. Reasoning: `main` would receive the exact code that has now run
+successfully five times in `dev` under direct observation, including the
+specific failure mode (silent data loss passing as healthy) that motivated
+this whole session — found, root-caused, fixed, and then the fix's own
+correctness re-verified under both the healthy and the fault condition.
+Merging would deploy this same code path via CI (bundle-path push + working
+PAT), which is a real action but not a new one — `dev` already runs it.
+Leaving PR #3 open longer doesn't reduce risk; it just delays chapter 03,
+which per `AGENTS.md` should start from integrated `main`. Counter-argument,
+for balance: this session made real changes to the gate's contract
+(`conserved`, `accepted_rows`, `quarantined_rows`), and while `dev` proves
+they work, nothing has proven the *deploy-from-main* path specifically
+(versus the manual `bundle deploy` this session used) — though that gap is
+identical for every prior chapter and isn't specific to this one.
+
+Push/integration and remote retention/local-branch cleanup follow
+[branch-workflow.md](branch-workflow.md) within your authorization either
+way. Chapter 03 should start from integrated `main` once you've decided.
 
 Use `sentinel-story` only when asked to draft posts. Jev remains optional;
 AWS is deferred with no budget or deployment authorization. Earlier AWS reuse
