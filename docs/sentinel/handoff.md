@@ -3,183 +3,131 @@
 This file records current state and the next task, not permission to merge,
 deploy, run jobs, change secrets, bind resources, or publish. Inspect Git
 before continuing. Detailed session-by-session history lives in Git log and
-`docs/sentinel/chapters/02-quality-gate.md`, not here.
+each chapter's own doc, not here.
 
 ## Current state
 
-- **Chapter 02 is merged and integrated into `main`** (PR #3, merge commit
-  `f8ae89d`). **A follow-on external review then found five more issues**
-  against the merged code; four are fixed and **merged** (PR #4, merge
-  commit `b62bffa`, branch `series/02-quality-gate-fixes` — created from
-  `main`, per `branch-workflow.md`'s "make later fixes on a new branch from
-  main, treat a published branch as a snapshot"; `series/02-quality-gate`
-  itself was not reopened, since PR #3 was already closed/merged). The
-  fifth was already fixed by `8c10bbf` before this round — verified
-  directly against the file contents, not assumed. **This is now fully
-  closed out**: verified with one live run (no deviation from the
-  prediction), merged, CI-deployed a second time, and cleaned up.
-  1. **Fixed — campaign-reference gap (real, was latent):**
-     `leads_flagged`/`web_events_flagged` checked campaign existence against
-     `campaigns_raw` (Bronze), not `campaigns_clean` (the eligible,
-     publishable Silver dimension). A campaign `campaigns_clean` itself
-     rejects (its own `expect_or_drop`: `client_id IS NOT NULL`, `budget >=
-     0`) would still count as "known," so a lead referencing it passed
-     Silver, conserved, passed the gate, and vanished from
-     `gold_client_funnel`'s inner join with no record — contradicting this
-     chapter's own "nothing vanishes without a record" claim. Fixed: both
-     views now read `dlt.read("campaigns_clean")`. Latent on the seeded
-     generator's data (budget always `uniform(200, 5000)`, `client_id`
-     always set) — an adversarial fixture (`quality.eligible_campaign_ids`
-     + two new tests) pins it closed without changing the generator.
-  2. **Fixed — batch-identity terminology (wording only, no behavior
-     change):** `_row_id` was called "batch identity" in `bronze.py`'s
-     docstring and two spots in the chapter doc. It restarts at 0 every run
-     and resolves duplicate ordering *within* one run's recompute — it is
-     not a batch or run identifier, and real batch/run identity is not
-     implemented anywhere in this pipeline. Retitled to "row-order
-     identity" everywhere the imprecise term appeared (`bronze.py`, the
-     chapter doc, `roadmap.md`, chapter 01's doc); left alone everywhere it
-     already correctly stated the *absence* of batch identity.
-  3. **Captured — durable evidence:** the demonstration's per-stage
-     evidence (run IDs, `gate_status` rows, persisted counts, full Gold
-     digests, exact commands) only survived in session transcripts; the
-     fault-stage quarantine contents are already gone from the live
-     workspace (recomputed since). Committed
-     [chapter-02-evidence.md](chapter-02-evidence.md), sourced from
-     transcripts and prior chapter-doc/handoff records — no jobs re-run to
-     produce it. Values never separately captured (the incident run's
-     broken Gold digest; persisted-table counts for the fault/restore
-     stages specifically) are marked "not captured," not reconstructed.
-  4. **Noted, not fixed:** [known-gaps.md](known-gaps.md) is a new durable
-     cross-chapter register (linked from this file and
-     `docs/sentinel/README.md`) — local tests don't execute Spark (the
-     exact boundary the `array_remove` defect escaped through, narrower
-     now that the live fault run cross-validated one code path by
-     execution, but not closed); incident evidence capture is manual, no
-     append-only mechanism exists (belongs to chapter 03); `expect_or_fail`
-     and `conserved=false` have still never fired/been observed live.
-- Working checkout is on `main`, up to date with `origin/main`, 101 tests
-  passing. Both `series/02-quality-gate` and `series/02-quality-gate-fixes`
-  local branches were deleted after merging (`git branch -d`, all
-  `branch-workflow.md` checks passed both times); both remote branches are
-  retained.
-- **Both merges triggered a CI deployment** to the workspace (PR #3's merge
-  was the project's first-ever; PR #4's merge was the second). Both
-  verified afterward by querying the workspace directly: same `job_id`/
-  `pipeline_id`s both times (no duplicates), job graph still Bronze →
-  Silver → gate → Gold, Bronze's config still reads
-  `bedoux.lead_invalid_rate: "0.02"`, Gold's three digests unchanged by the
-  deploy step itself (a deploy doesn't run anything). The live verification
-  run for PR #4's changes (one `bedoux_analytics_job` run before merging,
-  not the CI deploy) showed **zero deviation** from the predicted 490
-  clean / 10 quarantined, `conserved=true`, matching Gold digests — the
-  campaign-reference fix is confirmed behaviorally inert on the current
-  seeded data, exactly as expected, while closing a real structural gap.
-- **Chapter 02 is demonstrated**, not just implemented and locally tested.
-  A live baseline run found a real defect (`silver.py` built `_reasons` with
-  `array_remove(array(...), None)`, which is null-intolerant in Spark on its
-  *element* argument — a NULL element nulls the whole array rather than
-  stripping NULLs — so every `_flagged` view's `_reasons` was NULL on every
-  row, silently emptying the persisted clean/quarantine tables while
-  `gate_status` computed a self-consistent but wrong "pass" from that same
-  NULL). Fixed with `array_compact` + `expect_or_fail` guards, and — the
-  more load-bearing fix — `gate_status` now independently cross-checks row
-  conservation (`accepted_rows + quarantined_rows == total`) against the
-  *persisted* tables, not just the `_flagged` view the rate comes from. Full
-  incident writeup, root cause, and fix are in the chapter doc's "Incident"
-  section.
-- The fix was then proven live with a full fault → restore → replay
-  sequence in one session, in `dev`, all with ground-truth verification
-  (direct table queries, not just job status):
-  - **Fault** (`bedoux_lead_invalid_rate=0.30`): leads 336 accepted / 164
-    quarantined / 32.8% / `gate_passed=false` / **`conserved=true`** — a
-    genuinely high, correctly-conserved rate, not another silent-loss defect.
-    `bedoux_gate_task` failed, `bedoux_gold_task` skipped, and Gold's three
-    digests were confirmed unchanged with `updated_at` predating the run
-    entirely — proof, not inference, that Gold was never touched.
-  - **Restore** (`0.02`, explicitly redeployed and confirmed, not assumed):
-    leads back to 490/10, Gold's digests matched the baseline again with
-    `updated_at` advanced — a genuine re-derivation onto identical content.
-  - **Replay** (`0.02`, no config change, run again immediately): identical
-    `gate_status` and persisted-table counts to Restore, identical Gold
-    digests, but `_computed_ts`/`updated_at` both advanced — fresh evidence
-    each run, no duplication, a literal back-to-back rerun rather than a
-    comparison against an older/different run.
-- `dev` is currently deployed at the normal `bedoux_lead_invalid_rate=0.02`.
-- Local Databricks CLI access (install method, profile `bedoux-databricks`,
-  verification commands) is documented in `docs/development.md`. Credential
-  capability (PAT verified working; no service principal exists, creation
-  untested) is documented in `docs/sentinel/live-verification.md` — not
-  duplicated here.
-- Chapters 00/01/02 are all integrated into `main`; all three remote chapter
-  branches retained (no local copies — cleaned up after each merge).
+- **Chapter 02 is fully closed out**: implemented, demonstrated live (fault →
+  restore → replay, one uninterrupted `dev` session), review-closed (a real
+  campaign-reference gap and terminology fixes, PR #4), and now has a
+  drafted-not-published post (PR #5, merge commit `1b0694f` — the project's
+  **third** CI deployment, verified directly against the workspace: same
+  `job_id` `133273744478391` and all three `bedoux_*_pipeline` IDs, unchanged
+  job graph Bronze → Silver → gate → Gold, Bronze's config still
+  `bedoux.lead_invalid_rate: 0.02`, all three Gold digests byte-for-byte
+  unchanged from the reference values in `chapter-02-evidence.md`). Full
+  history, incident writeup, and the "LinkedIn draft"/"Before posting"
+  sections are in
+  [chapters/02-quality-gate.md](chapters/02-quality-gate.md); durable
+  per-stage evidence in [chapter-02-evidence.md](chapter-02-evidence.md);
+  deferred structural gaps in [known-gaps.md](known-gaps.md) (including the
+  CI PAT's 2026-12-20 expiry and its misleading auth-failure symptom, and the
+  `clients_clean`/`campaigns_clean` dedup-tie finding). **Not published**: no
+  `post/02-quality-gate` tag, no publication-register row — both need
+  separate authorization from drafting.
+- `dev` is deployed at the normal `bedoux_lead_invalid_rate=0.02`. `main`,
+  `series/02-quality-gate`, `series/02-quality-gate-fixes`, and
+  `series/02-post-draft` were all merged/cleaned up per
+  `branch-workflow.md` (local branches deleted with `git branch -d` only
+  after remote-tip-match/ancestor checks; all remote branches retained).
+- **Chapter 03 ("Protect what matters") is scoped and its redaction/canary
+  half is implemented and tested, not merged.** Branch
+  `series/03-protect-evidence`, PR #6 open (from integrated `main`). Design
+  and scope in [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md).
+  Built across two rounds this session, pure Python, no Spark/`dlt`/network
+  (same pattern as `quality.py`):
+  - `src/bedoux/evidence.py`: `FICTIONAL_SENSITIVE_LEAD` (an isolated
+    fixture, not wired into `generator.py` or any real table), a
+    `CANARY_MARKER` planted in a non-sensitive-looking field (`notes`),
+    `redact_evidence_packet` (recursively strips known sensitive field
+    names through dicts/lists/tuples), `contains_canary` (recursive scan of
+    both keys and values), and `evaluate_evidence_gate` (fail-closed: two
+    independent checks — a sensitive-value leak check against the original
+    pre-redaction input, and a canary scan of the redacted result).
+  - **A pre-merge review round found and fixed three confirmed defects**
+    (each reproduced by execution first, each pinned by a test that failed
+    before the fix): (1) redaction was shallow while canary detection was
+    already recursive, so a sensitive field nested under the realistic
+    `{"rows": [row, ...]}` packet shape was neither redacted nor blocked —
+    **the same shape as chapter 02's first review finding, a correct
+    control pointed at the wrong input scope**; (2) the canary scan checked
+    values but not keys; (3) the "sensitive field survived redaction" check
+    validated `redact_evidence_packet`'s own output against itself and
+    could never fire — **the same shape as chapter 02's original incident,
+    a check deriving its verdict from the same source as the thing it
+    checks**. Full writeup with reproduction commands in the chapter doc's
+    "Review findings, round 1" section. Explicitly lower severity than
+    chapter 02's: caught pre-merge in code nothing calls yet, not a live
+    incident.
+  - `tests/test_evidence.py`: 15 tests total (9 from the first round, 6
+    pinning the three defects above), including the positive case that
+    non-sensitive evidence still survives redaction at nesting depth.
+  - **A further gap noticed, not fixed**: `evidence.py` can only recognize
+    sensitive content under a known field name, carrying the literal
+    canary, or copied from a recognized field elsewhere in the same
+    packet. Freeform sensitive text with none of those properties is
+    invisible to it — inherent to the rule-based approach, not part of
+    this round's fix.
+  - **Deliberately not built this session**: no wiring into
+    `bedoux_analytics_job`, no `resources/`/`databricks.yml` changes, no
+    outbound model call anywhere in the project, and — separately —
+    **no append-only durable-evidence-log mechanism**. `known-gaps.md`'s
+    "Durable incident evidence is manual" entry names chapter 03 as that
+    gap's owner; this session closes only the redaction/canary half, not
+    that gap. See the chapter doc's "Does this close the durable-evidence
+    gap from chapter 02?" section.
+  - **One decision flagged for the user, not acted on**: `evidence.py`
+    sits under `src/**`, so CI's bundle filter matches it and merging PR #6
+    will deploy — shipping a module nothing imports to the workspace.
+    Harmless, but noted in the PR: is that intended, or should non-pipeline
+    pure-Python modules live outside the bundle's `src/**` path? Not
+    restructured.
+  - `roadmap.md`'s chapter 03 build-status column reflects this split
+    (scoped + redaction spec implemented, durable-log half not started);
+    publication column untouched ("Not drafted" — accurate, nothing drafted).
 
 ## Checks and results
 
-- `uv run --locked python -m pytest -q`: **101 passed** (98 before this
-  review-fix round; +3: `eligible_campaign_ids` unit test, adversarial
-  lead/web-event tests pinning the campaign-reference fix). No Spark/DLT
-  runtime is exercised — see `known-gaps.md`.
-- `uv lock --check`, `git diff --check`: clean.
-- Chapter-02 demonstration round: `bundle validate`/`bundle plan`/
-  `bundle deploy`/`bundle run` all succeeded across five full job runs in
-  `dev` (healthy baseline, healthy re-run post-fix, fault, restore, replay)
-  — see `chapter-02-evidence.md` for the full per-stage record.
-- Review-fix round: deployed source diffed byte-for-byte against the
-  checkout; one live run confirmed zero deviation from the prediction
-  (`gate_status`, persisted Silver counts, and all three Gold digests
-  matched exactly).
-- CI: PR #3's merge (project's first-ever deployment) and PR #4's merge
-  (second) both succeeded — `Unit tests`, `Validate bundle`, `Deploy
-  bundle` all green — and both were verified directly against the
-  workspace afterward (no duplicate resources, correct job graph/config,
-  Gold unchanged by the deploy step itself).
+- `uv run --locked python -m pytest -q`: **116 passed** (101 before this
+  session; +9 for `evidence.py`'s first round; +6 pinning the three
+  confirmed defects). `uv lock --check` and `git diff --check` clean
+  throughout.
+- PR #5's CI (two runs, one per push) and the resulting `main` deploy: `Unit
+  tests`/`Validate bundle`/`Deploy bundle` all green; deploy verified
+  directly against the workspace (see above) — no drift, no duplicates.
+- Chapter 03 work this session: unit tests only, run locally, both rounds.
+  No `bundle validate`, no deploy, no job run — none were needed or
+  authorized, since nothing in `resources/`/`databricks.yml`/`src/bedoux/*`
+  that the job actually imports changed.
 
 ## Limitations
 
 Structural/deferred gaps (whole-Gold not per-table withholding, freshness
-not immutable batch identity, row conservation not catching every possible
-misclassification, the `clients_clean`/`campaigns_clean` dedup-tie bug, the
-untestable first-run-failure case, `expect_or_fail`/`conserved=false` never
-observed live, local tests not executing Spark, manual incident-evidence
-capture, and CI's PAT expiring 2026-12-20) are consolidated in
-[known-gaps.md](known-gaps.md) — the single home for these now, not
-duplicated here.
-
-## Current housekeeping + post draft round (`series/02-post-draft`)
-
-Branch from `main`, three commits, **pushed with a PR open, not merged**:
-
-1. Housekeeping: recorded the `github-actions-ci` PAT's 2026-12-20 expiry
-   and what its failure will look like (a CI auth error that reads like a
-   bundle defect — the exact confusion an earlier session spent a full
-   session on) in `known-gaps.md`; noted the three PATs in the workspace
-   for the user's own revocation decision, not acted on; moved the
-   `clients_clean`/`campaigns_clean` dedup-tie finding out of the chapter
-   doc and into `known-gaps.md` as the single register.
-2. Drafted the chapter 02 LinkedIn post as a new "LinkedIn draft" section in
-   `chapters/02-quality-gate.md` (mirroring chapter 00's pattern), with a
-   "Before posting" checklist. Every claim traces to `chapter-02-evidence.md`
-   or the chapter doc's own sections; no invented costs, incidents, quotes,
-   or personal stories. **Not published** — no `post/02-quality-gate` tag
-   exists, and publishing needs its own separate authorization.
-3. `roadmap.md`'s publication column for chapter 02 updated to "Draft only,"
-   kept separate from the (unchanged) implementation/integration status.
-
-101 tests still pass; `git diff --check` clean throughout.
+not immutable batch identity, the `clients_clean`/`campaigns_clean`
+dedup-tie bug, `expect_or_fail`/`conserved=false` never observed live, local
+tests not executing Spark, manual incident-evidence capture — now explicitly
+still open despite chapter 03's first session, see above — and CI's PAT
+expiring 2026-12-20) are consolidated in [known-gaps.md](known-gaps.md).
 
 ## Exact next task
 
-Nothing left outstanding from chapter 02's implementation, demonstration,
-external review, or this housekeeping/draft round. Two independent next
-steps, not mutually exclusive:
+Two independent paths, not mutually exclusive:
 
-- **Publish the chapter 02 post**, when the user requests it: tag
-  `post/02-quality-gate` at the demonstrated commit, add the publication-
-  register row in `branch-workflow.md`, post the draft, then record the
-  public URL. All of that is a separate authorization from drafting.
-- **Start chapter 03** from integrated `main`, per `branch-workflow.md`'s
-  chapter lifecycle, once its scope is authorized.
+- **Publish the chapter 02 post**, when requested: tag
+  `post/02-quality-gate` at the demonstrated commit, add the
+  publication-register row in `branch-workflow.md`, post the draft, record
+  the public URL.
+- **Continue chapter 03**: either build the append-only durable-evidence-log
+  mechanism (the still-open half of the chapter's own scope, per
+  `known-gaps.md`), or wire `evidence.py`'s gate into an actual call site —
+  both need their own authorization and design discussion before code, per
+  this chapter's own "deliberately left unbuilt" list. `series/03-protect-
+  evidence` is pushed with PR #6 open, CI green (not merged); review or
+  extend on that branch rather than starting a new one for continuation
+  work. Before merging, resolve the flagged decision about `evidence.py`'s
+  location under `src/**` (see above) — it doesn't block the merge, but it
+  should be a deliberate choice, not an accident of where the file landed.
 
-Use `sentinel-story` only when asked to draft/revise posts. Jev remains
-optional; AWS is deferred with no budget or deployment authorization.
+Use `sentinel-story` only when asked to draft/revise posts;
+`sentinel-chapter` for chapter implementation/review. Jev remains optional;
+AWS is deferred with no budget or deployment authorization.

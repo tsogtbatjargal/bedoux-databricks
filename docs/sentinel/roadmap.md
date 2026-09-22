@@ -9,7 +9,7 @@ predecessor is integrated; do not create all future branches from today's baseli
 | 00 | `series/00-introduction` | The challenge | Integrated into `main` | Draft only |
 | 01 | `series/01-know-your-platform` | Know your platform | Integrated into `main` | Not drafted |
 | 02 | `series/02-quality-gate` | Defend before damage spreads | Demonstrated, integrated, and review-closed: fault → restore → replay confirmed live in `dev` (PR #3); a follow-on review's campaign-reference gap and terminology findings fixed and verified with a second live run (PR #4, branch `series/02-quality-gate-fixes`); durable evidence in `chapter-02-evidence.md`, deferred gaps in `known-gaps.md` | Draft only (`chapters/02-quality-gate.md`, "LinkedIn draft" section); no tag |
-| 03 | `series/03-protect-evidence` | Protect what matters | Planned | Not drafted |
+| 03 | `series/03-protect-evidence` | Protect what matters | Scoped (`chapters/03-protect-evidence.md`); redaction/canary spec implemented and unit-tested (`evidence.py`), not wired to a job or a model call; durable-evidence-log half not started | Not drafted |
 | 04 | `series/04-investigate-recover` | Investigate and recover | Planned | Not drafted |
 | 05 | `series/05-jev-routing` | Spend intelligence carefully | Planned | Not drafted |
 | 06 | `series/06-agent-boundaries` | Establish rules of command | Planned | Not drafted |
