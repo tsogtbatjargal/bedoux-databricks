@@ -137,43 +137,49 @@ before continuing. Detailed session-by-session history lives in Git log and
 
 ## Limitations
 
-Known and documented, not changed by this chapter's demonstration:
+Structural/deferred gaps (whole-Gold not per-table withholding, freshness
+not immutable batch identity, row conservation not catching every possible
+misclassification, the `clients_clean`/`campaigns_clean` dedup-tie bug, the
+untestable first-run-failure case, `expect_or_fail`/`conserved=false` never
+observed live, local tests not executing Spark, manual incident-evidence
+capture, and CI's PAT expiring 2026-12-20) are consolidated in
+[known-gaps.md](known-gaps.md) — the single home for these now, not
+duplicated here.
 
-- Gold withholding is whole-pipeline, not per-table; successful gate
-  approval does not make multi-table Gold publication atomic.
-- Freshness (`_computed_ts` vs. job start), not immutable batch/run
-  identity — another writer's newer evidence could pass. The supported
-  demo assumes one serialized job with no concurrent writers.
-- Row conservation catches "the split doesn't add up to the input"; it does
-  not catch every possible Spark-logic defect that still conserves row
-  counts (e.g. a misclassification that quarantines the right count of rows
-  for the wrong reason).
-- `clients_clean`/`campaigns_clean` still dedup on a window ordered by the
-  tied `_ingest_ts` (same class of bug `_row_id` fixed for the fact tables) —
-  flagged, not fixed; out of this chapter's stated scope.
-- A first-ever-run gate failure can't be demonstrated in this `dev` target
-  without destroying its real baseline; left as a design argument.
+## Current housekeeping + post draft round (`series/02-post-draft`)
 
-**Two gaps live-unexercised even after the full demonstration:**
-`expect_or_fail` has never fired (no run has produced a NULL `_reasons`),
-and `conserved=false` has never been observed in the workspace — only
-reproduced in policy tests against the incident's own numbers. The
-conservation check's *passing* behavior is proven live; its own failure
-path is not.
+Branch from `main`, three commits, **pushed with a PR open, not merged**:
+
+1. Housekeeping: recorded the `github-actions-ci` PAT's 2026-12-20 expiry
+   and what its failure will look like (a CI auth error that reads like a
+   bundle defect — the exact confusion an earlier session spent a full
+   session on) in `known-gaps.md`; noted the three PATs in the workspace
+   for the user's own revocation decision, not acted on; moved the
+   `clients_clean`/`campaigns_clean` dedup-tie finding out of the chapter
+   doc and into `known-gaps.md` as the single register.
+2. Drafted the chapter 02 LinkedIn post as a new "LinkedIn draft" section in
+   `chapters/02-quality-gate.md` (mirroring chapter 00's pattern), with a
+   "Before posting" checklist. Every claim traces to `chapter-02-evidence.md`
+   or the chapter doc's own sections; no invented costs, incidents, quotes,
+   or personal stories. **Not published** — no `post/02-quality-gate` tag
+   exists, and publishing needs its own separate authorization.
+3. `roadmap.md`'s publication column for chapter 02 updated to "Draft only,"
+   kept separate from the (unchanged) implementation/integration status.
+
+101 tests still pass; `git diff --check` clean throughout.
 
 ## Exact next task
 
-Chapter 02 is merged, integrated, review-closed, CI-deployed and verified
-twice, and locally tidied up — nothing outstanding from implementation,
-demonstration, or the external review. Two independent next steps, not
-mutually exclusive:
+Nothing left outstanding from chapter 02's implementation, demonstration,
+external review, or this housekeeping/draft round. Two independent next
+steps, not mutually exclusive:
 
-- **Draft the chapter 02 post** (`sentinel-story`, when asked). Publication
-  status is still "Not drafted" in `roadmap.md` — the incident-then-fix arc,
-  now including a real external-review round closed the same way, is
-  unusually strong, honest material for this series' actual premise.
+- **Publish the chapter 02 post**, when the user requests it: tag
+  `post/02-quality-gate` at the demonstrated commit, add the publication-
+  register row in `branch-workflow.md`, post the draft, then record the
+  public URL. All of that is a separate authorization from drafting.
 - **Start chapter 03** from integrated `main`, per `branch-workflow.md`'s
   chapter lifecycle, once its scope is authorized.
 
-Use `sentinel-story` only when asked to draft posts. Jev remains optional;
-AWS is deferred with no budget or deployment authorization.
+Use `sentinel-story` only when asked to draft/revise posts. Jev remains
+optional; AWS is deferred with no budget or deployment authorization.
