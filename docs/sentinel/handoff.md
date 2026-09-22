@@ -1,13 +1,11 @@
 # Session handoff
 
-> **⚠ TEMPORARY, REMOVE ONCE RESTORED:** `dev`'s `bedoux_bronze_pipeline` is
-> currently deployed with `bedoux_lead_invalid_rate=0.30` (Stage 1 FAULT of
-> the fault→restore→replay demonstration, confirmed working as intended —
-> `leads` quarantine rate 32.8%, gate correctly withheld, Gold untouched).
-> Restore to `0.02` is the very next step in progress. If this banner is
-> still here, **restore has not happened yet — do that before anything else.**
+Updated: 2026-09-22. **Fault → restore stages of the live demonstration are
+both confirmed; replay is in progress. `dev` is currently deployed at the
+normal `bedoux_lead_invalid_rate=0.02`.** See "Fault → restore → replay
+demonstration" below for full evidence.
 
-Updated: 2026-09-22. **The blocking defect from the live baseline run
+Earlier: **the blocking defect from the live baseline run
 (below) is root-caused, fixed, unit-tested, confirmed live, and pushed —
 PR #3 now reflects it and CI is green on the fixed code.** Root cause:
 `silver.py` built `_reasons` with `array_remove(array(...), None)`, and
@@ -294,6 +292,86 @@ didn't regress anything Milestone 4's acceptance criteria named. It does
 **not** exercise the withhold path — no fault was injected this session, so
 a failing gate actually stopping Gold and preserving prior content remains
 untested live. See "Exact next task" for the proposed next step.
+
+## Fault → restore → replay demonstration (2026-09-21/22, one session)
+
+Authorized scope: three job runs (fault 0.30, restore 0.02, replay 0.02),
+chained without stopping between fault and restore. All three completed in
+this session. Baseline digests (recorded above, re-confirmed clean
+immediately before Stage 1) —
+`gold_campaign_performance` `72575a78...a805dba` (30 rows),
+`gold_client_funnel` `636c7dd0...7df1c2e` (132 rows),
+`gold_ogi_ops_health` `72aef48d...2083e41d` (183 rows).
+
+### Stage 1 — FAULT (0.30)
+
+Preflight: no active runs; `bundle plan` showed only
+`pipelines.bedoux_bronze_pipeline` changing (the invalid-rate config), 0
+deletions. Deployed with `--fail-on-active-runs`, no `--auto-approve`;
+confirmed the live pipeline config read back `bedoux.lead_invalid_rate:
+"0.30"` before running.
+
+Run `330174171866992`, 2026-09-21T18:33:28–18:38:31 (local). Job-level
+result: **FAILED** — `bedoux_gate_task` raised
+`RuntimeError: Publication gate failed; withholding Gold refresh: - leads:
+gate_passed is false (quarantine rate 32.8%)`. Per-task: `bedoux_bronze_task`
+SUCCESS, `bedoux_silver_task` SUCCESS, `bedoux_gate_task` FAILED (two
+attempts, both failed identically — Databricks' own retry, not something
+this pipeline configured), `bedoux_gold_task` SKIPPED (`UPSTREAM_FAILED`).
+
+A red job alone is not proof of withholding (an `expect_or_fail` firing, a
+notebook bug, or a conservation false-positive would look identical from job
+status). Queried `gate_status` directly — the actual evidence, not the
+notebook's stdout, which `jobs get-run-output` doesn't capture for a
+notebook that never calls `dbutils.notebook.exit()`:
+
+| source | total | quarantined | accepted_rows | quarantined_rows | rate | gate_passed | conserved |
+|---|---|---|---|---|---|---|---|
+| leads | 500 | 164 | 336 | 164 | 32.8% | **false** | **true** |
+| web_events | 2000 | 46 | 1954 | 46 | 2.3% | true | true |
+| ops_events | 365 | 8 | 357 | 8 | 2.19% | true | true |
+
+**Exact match to the predicted 336/164/32.80%** — no divergence between
+`quality.py`'s reference rules and `silver.py`'s Spark expressions to
+investigate. `conserved=true` on the failing row is the specific thing this
+chapter needed to prove: a genuinely high, *conserved* rate, not another
+silent-loss defect wearing a different number. web_events/ops_events
+correctly unaffected (only leads uses the override) and both still conserved
+and passing.
+
+Directly queried all three Gold tables afterward: **digests unchanged**
+(`72575a78...`, `636c7dd0...`, `72aef48d...` — identical to the pre-stage
+baseline) and `updated_at` (00:15:07.9/7.1/7.1Z) **predates this run's start
+entirely** — not just "unchanged since a recent check," proof Gold was never
+touched, not coincidentally regenerated to the same values.
+
+### Stage 2 — RESTORE (0.02)
+
+Did not assume reversion; explicitly re-validated, re-planned (`bundle plan`
+showed the same single-resource change back), and redeployed
+`bedoux_lead_invalid_rate=0.02` with `--fail-on-active-runs`. Confirmed the
+live pipeline config read back `"0.02"` before running.
+
+Run `262274593519322`, 2026-09-21T18:40:19–18:46:24. All four tasks
+**SUCCESS**. `gate_status`:
+
+| source | total | quarantined | accepted_rows | quarantined_rows | rate | gate_passed | conserved |
+|---|---|---|---|---|---|---|---|
+| leads | 500 | 10 | 490 | 10 | 2.0% | true | true |
+| web_events | 2000 | 46 | 1954 | 46 | 2.3% | true | true |
+| ops_events | 365 | 8 | 357 | 8 | 2.19% | true | true |
+
+Back to the same 490/10 as the confirmed-good Milestone-4 run. Gold's three
+digests matched the baseline **again, exactly** — and this time `updated_at`
+**advanced** (to 00:46:17–18Z, after this run's `gate_status._computed_ts`
+00:44:20.768Z) confirming Gold genuinely re-derived the content rather than
+being left alone — a real recomputation landing on identical business
+content, not a no-op.
+
+### Stage 3 — REPLAY (0.02)
+
+In progress — see below once complete, or the top of this file if this
+session ends before it finishes.
 
 ## Databricks CLI access
 
