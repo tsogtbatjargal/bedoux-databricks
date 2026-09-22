@@ -6,17 +6,19 @@ directly against the workspace: correct `job_id`, no duplicate resources,
 unchanged job graph and Bronze config, all three Gold digests unchanged).
 This session wrote the pure-Python redaction/canary spec
 (`src/bedoux/evidence.py`) and its tests (`tests/test_evidence.py`), plus
-two pre-merge review rounds: round 1 found and fixed three confirmed
-defects; round 2 found and fixed an over-blocking regression round 1's own
-fix introduced. See "Review findings, round 1" and "Review findings, round
-2" below, and "Roadmap acceptance mapping" for exactly which acceptance
-criteria this leaves met, documented, or structurally blocked. Nothing here
-is wired into the job, `resources/`, or `databricks.yml`; no outbound model
-call exists anywhere in this project yet — merging shipped an inert module,
-not a new capability. Distinguish, throughout this doc: **planned** (design
-decisions not yet built), **implemented** (`evidence.py`'s functions, backed
-by passing unit tests), and **demonstrated** (none of this — nothing has run
-against a real model provider or a real job).
+three review rounds: round 1 found and fixed three confirmed defects;
+round 2 found and fixed an over-blocking regression round 1's own fix
+introduced; round 3 (post-merge) found and fixed the module's own
+rejection messages leaking the secret they were reporting on. See "Review
+findings, round 1/2/3" below, and "Roadmap acceptance mapping" for exactly
+which acceptance criteria this leaves met, documented, or structurally
+blocked. Nothing here is wired into the job, `resources/`, or
+`databricks.yml`; no outbound model call exists anywhere in this project
+yet — merging shipped an inert module, not a new capability. Distinguish,
+throughout this doc: **planned** (design decisions not yet built),
+**implemented** (`evidence.py`'s functions, backed by passing unit tests),
+and **demonstrated** (none of this — nothing has run against a real model
+provider or a real job).
 
 ## What this chapter is protecting, and from what
 
@@ -223,10 +225,88 @@ regression tests proving the real leak and the canary fixture both still
 block. None of the prior 116 were weakened, and the depth fix (round 1,
 finding 1) and key-scanning fix (round 1, finding 2) were not touched.
 
+## Review findings, round 3 (post-merge, the gate's own rejection leaked the secret)
+
+Reproduced against merged, deployed code (not pre-merge, unlike rounds 1–2):
+
+```python
+evaluate_evidence_gate({"ssn": "000-00-0000", "notes": "SSN on file: 000-00-0000"})
+# -> (False, ["a sensitive value survived redaction, found elsewhere in the
+#              packet: '000-00-0000'"])
+```
+
+The gate correctly blocks this packet — but its own problem string embeds
+the raw SSN, verbatim, in the second element of the return value. A caller
+that logs `problems`, puts them in an error message, or files them into an
+incident report (exactly the surfaces this module exists to protect) hands
+the secret to whoever reads that surface. The gate blocks the packet and
+then leaks the secret through its own rejection. This was first flagged by
+`claude-implementation.md`'s assessment while scoping a future caller, not
+found by a fresh line-by-line review — worth noting, since it means the
+existing test suite passed with this present the whole time; nothing
+asserted on problem-string *content* being safe, only on whether the gate
+blocked or allowed.
+
+Every `problems.append` call site in the module was checked, not just this
+one. Only one leaked: the sensitive-value message above. The canary
+message (`"canary marker present in packet after redaction..."`) was
+already safe — it names the condition, never the marker itself.
+
+**Fix:** `_collect_sensitive_values` now returns `(path, value)` pairs
+instead of bare values, where `path` is a tuple of keys/indices locating
+where the sensitive value was found (e.g. `("rows", 0, "ssn")`). A new
+`_format_path` renders that as `"rows[0].ssn"` — structure, not secret. The
+sensitive-value problem string now reads `"sensitive value at 'ssn'
+survived redaction -- found elsewhere in the packet"`: it identifies which
+check failed and which field it fired on, never the value that failed it.
+The check itself — what counts as a leak — is unchanged; only what gets
+reported changed.
+
+Four new tests assert the *absence* of the literal secret and the literal
+canary string in every returned problem string (for the leak case, the
+canary fixture, and a nested packet combining both), so a future
+reintroduction of interpolation fails a test rather than passing silently
+the way this one did. **125 total tests** (121 + 4), none weakened.
+
+**The pattern, stated plainly — this is the chapter's real finding:** this
+is the *third* time in one chapter that a control's own reporting or
+verification leaked through the same channel it was supposed to protect,
+or verified against its own output instead of an independent source:
+
+1. Round 1, finding 1: redaction and canary-detection disagreed about
+   *depth* — a control correct in isolation, scoped to the wrong input.
+2. Round 1, finding 3: the original sensitive-value check verified
+   `redact_evidence_packet`'s output against itself — a check that could
+   never fail because it never looked anywhere else.
+3. Round 3 (this finding): the check that *does* look elsewhere then
+   reported what it found through an unprotected channel — the fix for
+   finding 3 fixed the verification but not the reporting.
+
+Three findings, one chapter, all controls-checking-themselves or
+controls-leaking-through-their-own-output in slightly different shapes.
+Chapter 02 had exactly one incident of this kind (`gate_status` computing
+its pass/fail from the same NULL that caused the loss) and one review
+finding of the "wrong scope" kind. That a chapter *about* protecting
+sensitive evidence produced this pattern three times before a single line
+called it in anger is worth more than any one of the three fixes — it
+suggests the failure mode itself, not any specific function, is what needs
+a standing check (e.g., a lint or test convention that flags interpolated
+values in any string a security-relevant function returns) — a suggestion
+for a future pass, not built here.
+
+This finding is now fully closed at the code level: `_format_path` reports
+structure only, four tests pin the absence of both the secret and the
+canary in every problem string, and the underlying check is unchanged.
+Nothing about it belongs in `known-gaps.md` as a new entry — what remains
+open is the pre-existing fact this doc's "Roadmap acceptance mapping"
+section already records: no caller of `evaluate_evidence_gate` exists yet,
+so this fix is proven against the function in isolation, not against a real
+log/error/report surface.
+
 ## What "blocked or redacted" is proven by, and what remains merely asserted
 
-**Proven, this session:** `tests/test_evidence.py` (121 tests total, across
-two review rounds) exercises the functions above directly against
+**Proven, this session:** `tests/test_evidence.py` (125 tests total, across
+three review rounds) exercises the functions above directly against
 `FICTIONAL_SENSITIVE_LEAD` and clean/edge-case fixtures — `mise exec -- uv
 run --locked python -m pytest -q`. This proves the functions behave as
 described, in isolation, in plain Python — including, after round 2, that

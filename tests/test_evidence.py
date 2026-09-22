@@ -140,11 +140,13 @@ def test_gate_catches_a_sensitive_value_copied_into_a_non_sensitive_field():
     # an unrelated field name that field-name redaction has no way to know
     # about. The fixed check verifies against the original input's
     # sensitive values (an independent source), not the redaction
-    # function's own claim about itself.
+    # function's own claim about itself. The problem string names the
+    # originating field ("ssn"), never the leaked value -- see round 3.
     fields = {"ssn": "000-00-0000", "notes": "SSN on file: 000-00-0000"}
     allowed, problems = evidence.evaluate_evidence_gate(fields)
     assert allowed is False
-    assert any("000-00-0000" in p for p in problems)
+    assert any("ssn" in p for p in problems)
+    assert not any("000-00-0000" in p for p in problems)
 
 
 # ---------------------------------------------------------------------------
@@ -188,14 +190,65 @@ def test_gate_does_not_block_on_a_coincidental_non_string_match():
 def test_gate_still_blocks_a_real_leak_after_the_over_blocking_fix():
     # The regression fix must not have thrown out the real check: a
     # meaningful-length string sensitive value copied verbatim into an
-    # unrelated field must still block.
+    # unrelated field must still block, without naming the value.
     fields = {"ssn": "000-00-0000", "notes": "SSN on file: 000-00-0000"}
     allowed, problems = evidence.evaluate_evidence_gate(fields)
     assert allowed is False
-    assert any("000-00-0000" in p for p in problems)
+    assert not any("000-00-0000" in p for p in problems)
 
 
 def test_gate_still_blocks_the_canary_fixture_after_the_over_blocking_fix():
     allowed, problems = evidence.evaluate_evidence_gate(evidence.FICTIONAL_SENSITIVE_LEAD)
     assert allowed is False
     assert any("canary" in p for p in problems)
+
+
+# ---------------------------------------------------------------------------
+# Round 3: a blocked packet's own problem strings must never contain the
+# secret (or the canary) they're reporting on -- a gate that rejects a
+# payload and then hands the rejection reader the secret it just blocked
+# defeats its own purpose. Assert on the ABSENCE of the literal value, so
+# these fail if anyone reintroduces interpolation.
+# ---------------------------------------------------------------------------
+
+
+def test_problem_strings_never_contain_the_leaked_value():
+    fields = {"ssn": "000-00-0000", "notes": "SSN on file: 000-00-0000"}
+    _, problems = evidence.evaluate_evidence_gate(fields)
+    assert problems  # sanity: this case must actually block
+    for p in problems:
+        assert "000-00-0000" not in p
+
+
+def test_problem_strings_never_contain_the_canary_marker():
+    _, problems = evidence.evaluate_evidence_gate(evidence.FICTIONAL_SENSITIVE_LEAD)
+    assert problems  # sanity: this case must actually block
+    for p in problems:
+        assert evidence.CANARY_MARKER not in p
+
+
+def test_problem_strings_never_contain_a_nested_leaked_value_or_canary():
+    packet = {
+        "source": "leads_quarantine",
+        "rows": [
+            {
+                "ssn": "000-00-0000",
+                "notes": f"SSN on file: 000-00-0000 -- ref {evidence.CANARY_MARKER}",
+            }
+        ],
+    }
+    _, problems = evidence.evaluate_evidence_gate(packet)
+    assert problems  # sanity: this case must actually block
+    for p in problems:
+        assert "000-00-0000" not in p
+        assert evidence.CANARY_MARKER not in p
+
+
+def test_problem_string_names_the_field_path_for_a_nested_leak():
+    packet = {
+        "source": "leads_quarantine",
+        "rows": [{"ssn": "000-00-0000", "notes": "SSN on file: 000-00-0000"}],
+    }
+    allowed, problems = evidence.evaluate_evidence_gate(packet)
+    assert allowed is False
+    assert any("rows[0].ssn" in p for p in problems)
