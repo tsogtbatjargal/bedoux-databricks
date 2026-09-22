@@ -50,6 +50,12 @@ chapter 03 ("Protect what matters"), not this chapter. Chapter 02's gate
 decides whether to publish; it was never scoped to also preserve evidence
 of what it rejected beyond one run's `_quarantine` tables.
 
+**Still open.** Chapter 03's first session built the redaction/canary half
+of its scope (`src/bedoux/evidence.py`) but explicitly did not build this
+mechanism — see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#does-this-close-the-durable-evidence-gap-from-chapter-02)
+for what was and wasn't done and why.
+
 ## Two conservation-check paths have never fired live
 
 - `@dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")` has
