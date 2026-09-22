@@ -37,50 +37,132 @@ FICTIONAL_SENSITIVE_LEAD = {
 }
 
 
-def redact_evidence_packet(fields: dict) -> dict:
-    """Return a copy of `fields` with every key in SENSITIVE_FIELDS replaced
-    by REDACTED. Every other key, including one that happens to carry the
-    canary marker in free text (see FICTIONAL_SENSITIVE_LEAD's "notes"), is
-    passed through unchanged -- field-name redaction alone cannot know that.
-    Proving the canary doesn't survive end to end is contains_canary()'s job,
-    not this function's; evaluate_evidence_gate() below combines both.
+def redact_evidence_packet(fields):
+    """Return a copy of `fields` with every value under a key in
+    SENSITIVE_FIELDS replaced by REDACTED, recursing through nested dicts,
+    lists, and tuples -- the same traversal contains_canary() already does.
+    The realistic evidence-packet shape is a list of quarantined row dicts
+    under a key (`{"source": ..., "rows": [row, row, ...]}`), so a sensitive
+    field one level down must be redacted exactly as if it were top-level;
+    a shallow, top-level-only version of this function previously left
+    nested sensitive fields untouched while contains_canary was already
+    recursive, so the two halves of the gate disagreed about depth and a
+    nested field was neither redacted nor blocked.
+
+    A key's own name that happens to carry the canary marker (see
+    FICTIONAL_SENSITIVE_LEAD's "notes") is passed through unchanged --
+    field-name redaction alone cannot know that. Proving the canary doesn't
+    survive end to end is contains_canary()'s job, not this function's;
+    evaluate_evidence_gate() below combines both.
     """
-    return {
-        key: (REDACTED if key in SENSITIVE_FIELDS else value)
-        for key, value in fields.items()
-    }
+    if isinstance(fields, dict):
+        return {
+            key: (REDACTED if key in SENSITIVE_FIELDS else redact_evidence_packet(value))
+            for key, value in fields.items()
+        }
+    if isinstance(fields, list):
+        return [redact_evidence_packet(item) for item in fields]
+    if isinstance(fields, tuple):
+        return tuple(redact_evidence_packet(item) for item in fields)
+    return fields
+
+
+def _iter_atoms(payload):
+    """Yield every scalar (leaf) value in payload, plus every dict key, at
+    any depth through dicts/lists/tuples. Both contains_canary() and
+    evaluate_evidence_gate()'s sensitive-value check need to inspect the
+    same surface: a canary or a copied sensitive value can hide in a key
+    name exactly as easily as in a value, and at any nesting depth."""
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            yield key
+            yield from _iter_atoms(value)
+    elif isinstance(payload, (list, tuple)):
+        for item in payload:
+            yield from _iter_atoms(item)
+    else:
+        yield payload
 
 
 def contains_canary(payload) -> bool:
-    """True if CANARY_MARKER appears anywhere in payload, recursively through
-    dicts/lists/tuples and as a substring of any string value. Used to prove
-    -- not assume -- whether a built payload is canary-free, independent of
-    which field name it was hiding in."""
-    if isinstance(payload, str):
-        return CANARY_MARKER in payload
-    if isinstance(payload, dict):
-        return any(contains_canary(v) for v in payload.values())
-    if isinstance(payload, (list, tuple)):
-        return any(contains_canary(v) for v in payload)
+    """True if CANARY_MARKER appears anywhere in payload -- as a dict key or
+    a dict/list/tuple value, at any depth, as a substring of any string atom.
+    Used to prove -- not assume -- whether a built payload is canary-free,
+    independent of which field name or nesting depth it was hiding in."""
+    return any(
+        isinstance(atom, str) and CANARY_MARKER in atom for atom in _iter_atoms(payload)
+    )
+
+
+def _collect_sensitive_values(fields):
+    """Recursively collect the value found under every key in
+    SENSITIVE_FIELDS, at any depth through dicts/lists/tuples. Reads from
+    the original, pre-redaction input -- this is the independent source
+    evaluate_evidence_gate()'s sensitive-value check verifies against,
+    deliberately not redact_evidence_packet()'s own output."""
+    values = []
+    if isinstance(fields, dict):
+        for key, value in fields.items():
+            if key in SENSITIVE_FIELDS:
+                values.append(value)
+            values.extend(_collect_sensitive_values(value))
+    elif isinstance(fields, (list, tuple)):
+        for item in fields:
+            values.extend(_collect_sensitive_values(item))
+    return values
+
+
+def _value_leaked(packet, value) -> bool:
+    """True if `value` (a sensitive value read from the original input, via
+    _collect_sensitive_values) is still present anywhere in the redacted
+    `packet` -- as an exact atom, or, for strings, as a substring of a
+    string atom. Independent of which key it's under, so a sensitive value
+    copied verbatim into an unrelated, non-sensitive field is still caught."""
+    for atom in _iter_atoms(packet):
+        if atom == value:
+            return True
+        if isinstance(value, str) and isinstance(atom, str) and value in atom:
+            return True
     return False
 
 
-def evaluate_evidence_gate(fields: dict) -> tuple[bool, list[str]]:
+def evaluate_evidence_gate(fields) -> tuple[bool, list[str]]:
     """Fail-closed pre-flight check an outbound model call must pass before
     it may send `fields` anywhere. Mirrors quality.evaluate_gate's shape: an
     empty problems list is the only way `allowed` is True. No caller of this
     function exists yet in this project -- see the module docstring.
 
-    Redacts known sensitive fields first, then scans the *result* for the
-    canary regardless of which field it's in. A packet that still contains
-    the canary after redaction is blocked outright, since a field-name miss
-    here is exactly the failure mode this gate exists to catch.
+    Two independent checks against the redacted result, not one check
+    validating itself:
+
+    1. Sensitive-value check: every value that appeared under a
+       SENSITIVE_FIELDS key in the *original* `fields` (collected by
+       _collect_sensitive_values, before redaction) must not appear anywhere
+       in the redacted packet. This is deliberately not "does
+       redact_evidence_packet's own output still have REDACTED under those
+       keys" -- that would only ever confirm redact_evidence_packet agrees
+       with itself, which it always will by construction. Instead it re-reads
+       the pre-redaction input as an independent source and scans the
+       *result* for leftover copies, the same shape as chapter 02's row-
+       conservation check (verify accepted+quarantined against the persisted
+       tables, not against the rate computation that might itself be wrong).
+       This is what catches a sensitive value duplicated, verbatim, into an
+       unrelated non-sensitive field that field-name redaction has no way to
+       know about.
+    2. Canary check: scans the redacted result for CANARY_MARKER regardless
+       of which key (or nesting depth) it's in -- catches what field-name
+       redaction structurally cannot.
+
+    A packet that fails either check is blocked outright.
     """
     packet = redact_evidence_packet(fields)
     problems = []
-    for field in SENSITIVE_FIELDS:
-        if field in fields and packet.get(field) != REDACTED:
-            problems.append(f"{field}: sensitive field survived redaction")
+    for value in _collect_sensitive_values(fields):
+        if _value_leaked(packet, value):
+            problems.append(
+                f"a sensitive value survived redaction, found elsewhere in "
+                f"the packet: {value!r}"
+            )
     if contains_canary(packet):
         problems.append(
             "canary marker present in packet after redaction -- field-name "

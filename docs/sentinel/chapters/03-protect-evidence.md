@@ -3,12 +3,14 @@
 Status: **Scoped and partially implemented, not merged.** This session wrote
 the pure-Python redaction/canary spec (`src/bedoux/evidence.py`) and its
 tests (`tests/test_evidence.py`), on branch `series/03-protect-evidence`, and
-this doc. Nothing here has been wired into the job, `resources/`, or
-`databricks.yml`; no outbound model call exists anywhere in this project yet.
-Distinguish, throughout this doc: **planned** (design decisions below not yet
-built), **implemented** (`evidence.py`'s functions, backed by passing unit
-tests), and **demonstrated** (none of this — nothing has run against a real
-model provider or a real job).
+this doc. A pre-merge review then found three confirmed defects in
+`evidence.py`, fixed on the same branch before PR #6 merges — see "Review
+findings, round 1" below. Nothing here has been wired into the job,
+`resources/`, or `databricks.yml`; no outbound model call exists anywhere in
+this project yet. Distinguish, throughout this doc: **planned** (design
+decisions below not yet built), **implemented** (`evidence.py`'s functions,
+backed by passing unit tests), and **demonstrated** (none of this — nothing
+has run against a real model provider or a real job).
 
 ## What this chapter is protecting, and from what
 
@@ -70,6 +72,87 @@ the redacted result for the canary regardless of where it is. That's the
 mechanism this chapter is actually testing: not "did we redact the fields we
 already knew about," but "would something we didn't anticipate still get
 through."
+
+## Review findings, round 1 (pre-merge, before PR #6 merged)
+
+A pre-merge review of the first version of `evidence.py` found three
+confirmed defects — confirmed by running the reproduction below against the
+actual code, not inferred from reading it. Each is pinned by a test that
+failed before the fix and passes after.
+
+**Severity, stated plainly so this isn't overstated:** all three were caught
+in code nothing calls yet, before it ever merged. That is a materially
+different severity from chapter 02's incident, which was a live pipeline run
+silently losing 100% of its rows in the workspace. Nothing here ever ran
+against real evidence, a real job, or a real model call. The value of this
+round is that two of the three are the *same class of mistake* chapter 02
+already named, recurring inside the very chapter written to apply that
+lesson — which is worth recording precisely because it shows the lesson
+didn't fully transfer on the first attempt, not because anything broke in
+production.
+
+1. **Redaction was shallow; canary detection was already recursive.**
+   `redact_evidence_packet` only inspected a packet's top-level keys.
+   `contains_canary` already walked dicts/lists/tuples at any depth. The
+   realistic evidence-packet shape is a list of quarantined row dicts under
+   a key (`{"source": ..., "rows": [row, ...]}`) — exactly the shape a
+   caller would build from `<source>_quarantine`. Reproduced:
+   ```python
+   p = {"source": "leads_quarantine", "rows": [dict(FICTIONAL_SENSITIVE_LEAD)]}
+   p["rows"][0]["notes"] = "clean note, no canary"
+   evaluate_evidence_gate(p)   # before: (True, []) with ssn/credit_card/api_key
+                                #         still present, two levels down, untouched
+   ```
+   Fixed by making `redact_evidence_packet` recurse through dicts, lists,
+   and tuples the same way `contains_canary` already did. After the fix,
+   the same call still returns `(True, [])` — but now correctly, because
+   `redact_evidence_packet` actually redacted the nested fields rather than
+   never looking at them. **This is chapter 02's first review finding,
+   recurring**: a correct control (redaction by known field name) pointed
+   at the wrong input scope (top-level only, when the real evidence lives
+   nested) — the same shape as the campaign-reference check validating
+   against unfiltered Bronze while Gold read the filtered Silver dimension.
+2. **`contains_canary` scanned values, not keys.** A canary smuggled into a
+   key name rather than a value was reported clean. Reproduced:
+   ```python
+   evaluate_evidence_gate({"ref_" + CANARY_MARKER: "x"})   # before: (True, [])
+   ```
+   Fixed: the traversal (`_iter_atoms`) now yields dict keys as well as
+   leaf values, at any depth, so both `contains_canary` and the
+   sensitive-value check below inspect the same surface. This one is a
+   straightforward completeness gap, not a recurrence of a prior finding.
+3. **The "sensitive field survived redaction" check validated
+   `redact_evidence_packet`'s output against itself.** It looked up each
+   `SENSITIVE_FIELDS` key in the packet `redact_evidence_packet` had just
+   produced and asserted it equaled `REDACTED` — something that function
+   guarantees unconditionally by construction. It could never fire,
+   regardless of input. Fixed by making it a real independent check:
+   `_collect_sensitive_values` reads the *original*, pre-redaction `fields`
+   for every value that appeared under a sensitive key (an independent
+   source), and `_value_leaked` scans the redacted *result* for any of
+   those values turning up anywhere else — catching a sensitive value
+   copied verbatim into an unrelated, non-sensitive field, which field-name
+   redaction has no way to know about. **This is chapter 02's original
+   incident, recurring in miniature**: a check deriving its verdict from
+   the same source as the thing it's checking, rather than from independent
+   evidence — the same shape `gate_status`'s row-conservation check was
+   added to fix (verify against the persisted tables, not the rate
+   computation that might itself be broken).
+
+Nine new tests were added (116 total, from 110) covering all three, plus the
+positive case that non-sensitive evidence still survives redaction at
+nesting depth. None of the original 110 were weakened to make this pass.
+
+**A further gap noticed, not fixed:** this module can only recognize
+sensitive content that is either under a `SENSITIVE_FIELDS` key, carries the
+literal `CANARY_MARKER`, or is an exact/substring copy of a value that
+appeared under a recognized key elsewhere in the same packet. Genuinely
+freeform sensitive text — typed directly into an unlabeled field, never
+duplicated from a labeled one, containing no canary — is invisible to it.
+That's inherent to a pattern/rule-based approach rather than a defect in
+this round's fix, and it's the same caveat `known-gaps.md` and the section
+below already carry: proven for what was tested, not proven as a general
+guarantee.
 
 ## What "blocked or redacted" is proven by, and what remains merely asserted
 
