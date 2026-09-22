@@ -1,11 +1,12 @@
 # Part 03 — Protect what matters
 
-Status: **Scoped and partially implemented, not merged.** This session wrote
-the pure-Python redaction/canary spec (`src/bedoux/evidence.py`) and its
-tests (`tests/test_evidence.py`), on branch `series/03-protect-evidence`, and
-this doc. A pre-merge review then found three confirmed defects in
-`evidence.py`, fixed on the same branch before PR #6 merges — see "Review
-findings, round 1" below. Nothing here has been wired into the job,
+Status: **Scoped and partially implemented, not yet merged.** This session
+wrote the pure-Python redaction/canary spec (`src/bedoux/evidence.py`) and
+its tests (`tests/test_evidence.py`), on branch `series/03-protect-evidence`,
+and this doc. Two pre-merge review rounds followed: round 1 found and fixed
+three confirmed defects; round 2 found and fixed an over-blocking regression
+round 1's own fix introduced. See "Review findings, round 1" and "Review
+findings, round 2" below. Nothing here has been wired into the job,
 `resources/`, or `databricks.yml`; no outbound model call exists anywhere in
 this project yet. Distinguish, throughout this doc: **planned** (design
 decisions below not yet built), **implemented** (`evidence.py`'s functions,
@@ -154,13 +155,81 @@ this round's fix, and it's the same caveat `known-gaps.md` and the section
 below already carry: proven for what was tested, not proven as a general
 guarantee.
 
+## Review findings, round 2 (pre-merge, over-blocking regression)
+
+Round 1's fix for finding 3 (the independent sensitive-value check) was
+itself defective: it matched too broadly, not too narrowly. Three
+reproductions, run against the actual code before changing anything:
+
+```python
+evaluate_evidence_gate({"ssn": None, "stage": None})           # -> blocked
+evaluate_evidence_gate({"password": "a", "stage": "qualified"}) # -> blocked
+evaluate_evidence_gate({"api_key": 9001, "lead_id": 9001})      # -> blocked
+```
+
+All three reported a sensitive value "survived redaction" when nothing had
+leaked. The first is the one that matters in practice: evidence packets are
+built from quarantined rows, and rows are quarantined largely *because* a
+field is null — a lead with `ssn=None` and any other null field anywhere in
+the same packet blocked the whole thing, every time, for no reason. A gate
+that blocks nearly every realistic packet is not a stricter gate; it is a
+disabled one, because the first person it inconveniences routes around it.
+
+Root causes and fixes, both in `_collect_sensitive_values`/`_value_leaked`:
+
+- `None == None` and `"" == ""` are trivially true and carry no information
+  — a null sensitive field matched any other null field in the same packet.
+  Fixed: `_collect_sensitive_values` now skips `None` and `""` outright, since
+  there is nothing there to leak.
+- A short string (`"a"`) matches almost any text as a substring — `"a" in
+  "password"` and `"a" in "qualified"` are both true and both meaningless.
+  Fixed: `_value_leaked` only checks string values of at least
+  `_MIN_LEAK_MATCH_LENGTH` (chosen as **8**: every fictional sensitive format
+  in this project — `ssn`/`credit_card`/`api_key` — is 11+ characters, so 8
+  sits comfortably under all of them while ruling out short tokens and
+  single-character values). Below that length, a value is indistinguishable
+  from ordinary text and is deliberately not checked this way at all, not
+  checked more loosely.
+- A non-string sensitive value (`api_key: 9001`) matching another field by
+  bare equality (`lead_id: 9001`) is common by coincidence — small fixtures
+  reuse small integer ranges constantly — and equality alone cannot tell a
+  coincidence from a copy. **Decision, stated plainly:** `_value_leaked` now
+  only checks string values. Every `SENSITIVE_FIELDS` value in this
+  project's actual fixture (`ssn`, `credit_card`, `api_key`,
+  `phone_number`, `password`) is string-shaped, so this scoping costs
+  nothing against the real fixture; a non-string sensitive value is still
+  redacted by field name in `redact_evidence_packet`, just not
+  cross-checked here. If a future sensitive field is genuinely numeric,
+  this check will not catch a numeric copy of it — a known, accepted limit
+  of this design, not an oversight.
+
+**The tradeoff, named explicitly:** over-blocking is the *safer* failure
+mode for a gate in isolation — a false block costs an inconvenienced caller,
+a false pass costs a leak. But a gate that refuses nearly every realistic
+packet does not stay safer in practice: it gets disabled, bypassed, or
+ignored the first time it is inconvenient, which is a worse outcome than a
+narrower check that only fires on real signal. Round 1's fix optimized
+purely for "never miss a leak" and, in doing so, became unusable against
+ordinary quarantined-row data. Round 2 narrows the check's *precision*
+(what counts as evidence of a leak) without narrowing its *scope* (still
+recursive, still independent of the redaction function's own claim about
+itself) — the real-leak case (`ssn` copied verbatim into `notes`) and the
+canary case both still block, unchanged, after this fix.
+
+Five new tests (121 total, from 116) pin the three false-positive cases plus
+regression tests proving the real leak and the canary fixture both still
+block. None of the prior 116 were weakened, and the depth fix (round 1,
+finding 1) and key-scanning fix (round 1, finding 2) were not touched.
+
 ## What "blocked or redacted" is proven by, and what remains merely asserted
 
-**Proven, this session:** `tests/test_evidence.py` (9 tests) exercises the
-functions above directly against `FICTIONAL_SENSITIVE_LEAD` and clean
-fixtures — `mise exec -- uv run --locked python -m pytest -q`, 110 passed
-(101 before this chapter + 9 new). This proves the functions behave as
-described, in isolation, in plain Python.
+**Proven, this session:** `tests/test_evidence.py` (121 tests total, across
+two review rounds) exercises the functions above directly against
+`FICTIONAL_SENSITIVE_LEAD` and clean/edge-case fixtures — `mise exec -- uv
+run --locked python -m pytest -q`. This proves the functions behave as
+described, in isolation, in plain Python — including, after round 2, that
+they behave correctly on both genuine leaks and the null/short/coincidental
+fields a real quarantined-row packet actually contains.
 
 **Merely asserted, not proven:** everything about what happens once a
 payload would actually leave this process. No caller of

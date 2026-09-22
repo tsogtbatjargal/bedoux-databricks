@@ -99,11 +99,20 @@ def _collect_sensitive_values(fields):
     SENSITIVE_FIELDS, at any depth through dicts/lists/tuples. Reads from
     the original, pre-redaction input -- this is the independent source
     evaluate_evidence_gate()'s sensitive-value check verifies against,
-    deliberately not redact_evidence_packet()'s own output."""
+    deliberately not redact_evidence_packet()'s own output.
+
+    Skips `None` and `""`: evidence packets are built from quarantined rows,
+    and rows land in quarantine largely *because* a field is null -- a
+    sensitive field that is itself empty carries no content to leak, and
+    checking it only produces false positives against every other null or
+    empty field elsewhere in the same packet (round 2's over-blocking
+    regression: `{"ssn": None, "stage": None}` blocked because `None ==
+    None`, not because anything leaked).
+    """
     values = []
     if isinstance(fields, dict):
         for key, value in fields.items():
-            if key in SENSITIVE_FIELDS:
+            if key in SENSITIVE_FIELDS and value not in (None, ""):
                 values.append(value)
             values.extend(_collect_sensitive_values(value))
     elif isinstance(fields, (list, tuple)):
@@ -112,18 +121,44 @@ def _collect_sensitive_values(fields):
     return values
 
 
+# Below this length, a string sensitive value is indistinguishable from
+# ordinary text -- checking it produces noise, not signal. Every fictional
+# sensitive format in this project (FICTIONAL_SENSITIVE_LEAD's ssn/
+# credit_card/api_key) is 11+ characters; 8 sits comfortably under all of
+# them while ruling out short tokens, initials, and single-character values
+# that are common, unrelated content in a real packet.
+_MIN_LEAK_MATCH_LENGTH = 8
+
+
 def _value_leaked(packet, value) -> bool:
     """True if `value` (a sensitive value read from the original input, via
-    _collect_sensitive_values) is still present anywhere in the redacted
-    `packet` -- as an exact atom, or, for strings, as a substring of a
-    string atom. Independent of which key it's under, so a sensitive value
-    copied verbatim into an unrelated, non-sensitive field is still caught."""
-    for atom in _iter_atoms(packet):
-        if atom == value:
-            return True
-        if isinstance(value, str) and isinstance(atom, str) and value in atom:
-            return True
-    return False
+    _collect_sensitive_values) is still present as a substring of some
+    string atom anywhere in the redacted `packet`. Independent of which key
+    it's under, so a sensitive value copied verbatim into an unrelated,
+    non-sensitive field is still caught.
+
+    Two deliberate narrowings, both against over-blocking regressions found
+    in round 2 review (see the chapter doc):
+
+    - Only checks string values of at least _MIN_LEAK_MATCH_LENGTH. A short
+      string (`"password": "a"`) matched almost every other field as a
+      substring of ordinary text -- not a leak, just short strings being
+      common. There is no length below which a match is still meaningful,
+      so short values are not checked at all, not checked more loosely.
+    - Only checks string values, full stop. A non-string sensitive value
+      (e.g. a numeric `api_key`) matching another field by bare equality
+      (`api_key == lead_id`) is common by coincidence in small fixtures --
+      unrelated numeric fields collide constantly -- and equality alone
+      can't distinguish that from a real copy. Every SENSITIVE_FIELDS value
+      in this project's actual fixture is string-shaped (ssn, credit_card,
+      api_key, phone_number, password are all secrets rendered as text), so
+      this check's value is in string content matching; a non-string
+      sensitive value is still redacted by field name in
+      redact_evidence_packet, just not cross-checked here.
+    """
+    if not isinstance(value, str) or len(value) < _MIN_LEAK_MATCH_LENGTH:
+        return False
+    return any(isinstance(atom, str) and value in atom for atom in _iter_atoms(packet))
 
 
 def evaluate_evidence_gate(fields) -> tuple[bool, list[str]]:
@@ -135,8 +170,8 @@ def evaluate_evidence_gate(fields) -> tuple[bool, list[str]]:
     Two independent checks against the redacted result, not one check
     validating itself:
 
-    1. Sensitive-value check: every value that appeared under a
-       SENSITIVE_FIELDS key in the *original* `fields` (collected by
+    1. Sensitive-value check: every meaningful string value that appeared
+       under a SENSITIVE_FIELDS key in the *original* `fields` (collected by
        _collect_sensitive_values, before redaction) must not appear anywhere
        in the redacted packet. This is deliberately not "does
        redact_evidence_packet's own output still have REDACTED under those
@@ -148,7 +183,11 @@ def evaluate_evidence_gate(fields) -> tuple[bool, list[str]]:
        tables, not against the rate computation that might itself be wrong).
        This is what catches a sensitive value duplicated, verbatim, into an
        unrelated non-sensitive field that field-name redaction has no way to
-       know about.
+       know about. "Meaningful" excludes None/empty values
+       (_collect_sensitive_values) and non-string or short-string values
+       (_value_leaked's _MIN_LEAK_MATCH_LENGTH) -- see those functions'
+       docstrings for why checking them produced false positives, not real
+       findings, in round 2 review.
     2. Canary check: scans the redacted result for CANARY_MARKER regardless
        of which key (or nesting depth) it's in -- catches what field-name
        redaction structurally cannot.

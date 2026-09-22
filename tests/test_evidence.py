@@ -145,3 +145,57 @@ def test_gate_catches_a_sensitive_value_copied_into_a_non_sensitive_field():
     allowed, problems = evidence.evaluate_evidence_gate(fields)
     assert allowed is False
     assert any("000-00-0000" in p for p in problems)
+
+
+# ---------------------------------------------------------------------------
+# Round 2: the sensitive-value check over-blocked on coincidence, not leaks.
+# Evidence packets are built from quarantined rows, and rows are quarantined
+# largely because a field is null -- so a sensitive field that happened to be
+# null was blocking the entire packet for no reason. All three reproduce
+# exactly as found in review, before the _collect_sensitive_values/
+# _value_leaked narrowing.
+# ---------------------------------------------------------------------------
+
+
+def test_gate_does_not_block_on_a_null_sensitive_field():
+    # Before the fix: "ssn": None equaled "stage": None by bare equality,
+    # and the gate reported a sensitive value "survived redaction" when
+    # nothing was ever there to leak.
+    allowed, problems = evidence.evaluate_evidence_gate({"ssn": None, "stage": None})
+    assert allowed is True
+    assert problems == []
+
+
+def test_gate_does_not_block_on_a_short_sensitive_value():
+    # Before the fix: "password": "a" matched "password" (the key) and
+    # "qualified" as a substring -- short strings are common, unrelated
+    # content, not leak evidence.
+    allowed, problems = evidence.evaluate_evidence_gate({"password": "a", "stage": "qualified"})
+    assert allowed is True
+    assert problems == []
+
+
+def test_gate_does_not_block_on_a_coincidental_non_string_match():
+    # Before the fix: a numeric api_key equal to an unrelated lead_id
+    # blocked the packet by bare equality -- two independent fields sharing
+    # a value by coincidence is not evidence either was copied from the
+    # other, and non-string values are not string-content-matched here.
+    allowed, problems = evidence.evaluate_evidence_gate({"api_key": 9001, "lead_id": 9001})
+    assert allowed is True
+    assert problems == []
+
+
+def test_gate_still_blocks_a_real_leak_after_the_over_blocking_fix():
+    # The regression fix must not have thrown out the real check: a
+    # meaningful-length string sensitive value copied verbatim into an
+    # unrelated field must still block.
+    fields = {"ssn": "000-00-0000", "notes": "SSN on file: 000-00-0000"}
+    allowed, problems = evidence.evaluate_evidence_gate(fields)
+    assert allowed is False
+    assert any("000-00-0000" in p for p in problems)
+
+
+def test_gate_still_blocks_the_canary_fixture_after_the_over_blocking_fix():
+    allowed, problems = evidence.evaluate_evidence_gate(evidence.FICTIONAL_SENSITIVE_LEAD)
+    assert allowed is False
+    assert any("canary" in p for p in problems)
