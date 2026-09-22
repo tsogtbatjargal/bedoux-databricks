@@ -36,8 +36,13 @@ That's what the first live test of Bedoux Sentinel's new publication gate
 showed. Bronze, Silver, and the gate task all reported success. But every
 Silver table meant to hold accepted and rejected leads was empty, on both
 sides. The gate itself reported a clean pass: 0% quarantined, nothing
-rejected. Gold refreshed on that pass and silently overwrote real published
-numbers with empty ones.
+rejected. Gold refreshed on that pass — and the damage wasn't uniform.
+`gold_client_funnel` went from 132 rows to 0, `gold_ogi_ops_health` from
+183 to 0. But `gold_campaign_performance` kept all 30 rows, still there,
+still looking like a normal table — just with `lead_count` at 0 and
+`cost_per_lead` at NULL on every one of them. A dashboard reading that
+table wouldn't see it vanish. It would see every campaign go quietly to
+zero.
 
 The cause was one function: `array_remove(array(...), None)`. Spark's
 `array_remove` is null-intolerant on its *element* argument — a NULL
