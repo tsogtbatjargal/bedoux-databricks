@@ -1,12 +1,73 @@
 # Part 01 — Know your platform
 
-Status: integrated into `main` (merge commit `442c7a8`, PR #2). No post draft
-yet. This chapter is a mapping exercise: it describes what
-Track 2 (Bedoux) already does, states three synthetic incident scenarios and a
-normal control that later chapters will exercise, and records which claims
-below are verified against code versus untested against a live workspace.
-Implementation status (this page) is separate from publication status (the
-roadmap and branch-workflow publication register).
+Status: integrated into `main` (merge commit `442c7a8`, PR #2). **A post
+draft exists** (below); not published — publication status is tracked
+separately in `docs/sentinel/roadmap.md`. This chapter is a mapping
+exercise: it describes what Track 2 (Bedoux) already does, states three
+synthetic incident scenarios and a normal control that later chapters will
+exercise, and records which claims below are verified against code versus
+untested against a live workspace. Implementation status (this page) is
+separate from publication status (the roadmap and branch-workflow
+publication register).
+
+## LinkedIn draft
+
+Before changing anything in this pipeline, I read it.
+
+Track 2 of this project moves fictional marketing data through Bronze,
+Silver, and Gold on Databricks. Chapter 01 wasn't a new feature — it was
+reading `silver.py` and `gold.py` line by line and writing down what they
+actually do, not what the docs claimed.
+
+Three things stood out, each confirmed against the actual code:
+
+`leads_clean`'s `expect_or_drop` silently drops any row with a null
+`campaign_id`. No quarantine table. No reason code. No count anywhere. A
+quality incident today is invisible unless someone diffs row counts by
+hand.
+
+`clients_clean` and `campaigns_clean` dedup with a window function.
+`leads_clean`, `web_events_clean`, and `ops_events_clean` don't. A
+duplicated `lead_id` gets counted twice in every Gold aggregate that
+touches it.
+
+And a `campaign_id` that exists in Bronze but never passes Silver's own
+validation vanishes from `gold_client_funnel`'s inner join and
+`gold_campaign_performance`'s left join alike — no error, no log line, no
+trace it was ever there.
+
+None of this is hypothetical; it's the platform's current, deployed
+behavior. It's also verified against the join and expectation logic
+directly, not against a live fixture — a distinction this chapter states
+plainly rather than blurring it.
+
+Sun Tzu's "know yourself" isn't a metaphor here. You can't defend a
+boundary you haven't read. Chapter 02 closed all three gaps above with a
+real publication gate, proven live — this map is what made that fix
+possible to scope correctly instead of guessing at what needed fixing.
+
+Next: a job that reported success while quietly losing everything it was
+supposed to protect.
+
+## Before posting
+
+- Have the author edit any sentence that doesn't sound like them.
+- Evidence backing every claim in the draft is in this file's "Platform
+  map," "Trust boundaries," and "Synthetic incident scenarios" sections —
+  each finding cites the exact file/line it was verified against. No cost,
+  incident, or quote is claimed; the "verified against code, not a live
+  fixture" limitation from "Capability checks" is preserved in the draft
+  itself, not softened for the post.
+- No `post/01-know-your-platform` tag exists yet — tagging is a separate,
+  authorized publication step. Until then, the verifiable public reference
+  is PR #2 (`442c7a8`), merged into this public repository, and this
+  chapter doc on `main`. Add the tag and update this note with the
+  permalink before publishing.
+- Publish chapter 01's post before or after chapter 02's is a sequencing
+  choice for the author, not a technical dependency — both drafts already
+  exist and neither references the other's publication status.
+- Mark this draft unpublished until the user requests publication; no
+  assistant posts it automatically.
 
 ## Existing vs. planned
 

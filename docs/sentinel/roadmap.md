@@ -7,7 +7,7 @@ predecessor is integrated; do not create all future branches from today's baseli
 | Part | Branch | Working title | Build status | Publication |
 | --- | --- | --- | --- | --- |
 | 00 | `series/00-introduction` | The challenge | Integrated into `main` | Draft only |
-| 01 | `series/01-know-your-platform` | Know your platform | Integrated into `main` | Not drafted |
+| 01 | `series/01-know-your-platform` | Know your platform | Integrated into `main` | Draft only (`chapters/01-know-your-platform.md`, "LinkedIn draft" section); no tag |
 | 02 | `series/02-quality-gate` | Defend before damage spreads | Demonstrated, integrated, and review-closed: fault → restore → replay confirmed live in `dev` (PR #3); a follow-on review's campaign-reference gap and terminology findings fixed and verified with a second live run (PR #4, branch `series/02-quality-gate-fixes`); durable evidence in `chapter-02-evidence.md`, deferred gaps in `known-gaps.md` | Draft only (`chapters/02-quality-gate.md`, "LinkedIn draft" section); no tag |
 | 03 | `series/03-protect-evidence` | Protect what matters | Integrated into `main` (PR #6, two pre-merge review rounds), **not acceptance-complete**: redaction/canary spec implemented and unit-tested (`evidence.py`, 121 tests) meets "blocked or redacted" and "non-sensitive evidence survives" and documents the inspected boundary, but "a failed check prevents the external call" is structurally blocked until chapter 04 builds a call site — no model call exists yet. Durable-evidence-log half deferred by choice, not started. See `chapters/03-protect-evidence.md`'s "Roadmap acceptance mapping" | Not drafted |
 | 04 | `series/04-investigate-recover` | Investigate and recover | Planned | Not drafted |

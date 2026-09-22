@@ -102,6 +102,64 @@ for in this project's records). Whether to revoke either of the unused ones
 is the user's decision; this file only records that they exist and when
 they expire.
 
+## No caller of `evaluate_evidence_gate` exists anywhere
+
+`src/bedoux/evidence.py`'s `evaluate_evidence_gate` is implemented and unit
+tested, but nothing in this project calls it — no job task, no notebook, no
+model-call site. The roadmap's chapter 03 acceptance criterion "a failed
+check prevents the external call" cannot be demonstrated as a result, and
+this is **structurally blocked, not merely undemonstrated**: "prevents the
+call" is a claim about a caller's control flow, and there is no caller to
+have that control flow. A gate that exists but is never called protects
+nothing.
+
+Building the call site is chapter 04's job runtime, not more chapter-03
+pure-Python work. See
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping)
+for the full per-criterion mapping this gap is one line of.
+
+## The sensitive-value leak check misses short and non-string secrets
+
+`evaluate_evidence_gate`'s sensitive-value check (`_value_leaked` in
+`src/bedoux/evidence.py`) only substring-matches string values of at least
+8 characters, and skips non-string values entirely (both narrowings were
+added to fix a round-2 over-blocking regression — see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#review-findings-round-2-pre-merge-over-blocking-regression)).
+Concretely, this lets a real leak through:
+
+```python
+evaluate_evidence_gate({"password": "hunter2", "notes": "pw is hunter2"})
+# -> (True, [])
+```
+
+A 7-character secret copied verbatim into another field is invisible to
+this check. It is not a bug in the sense of behaving other than designed —
+the 8-character threshold is deliberate — but the threshold's stated basis
+is narrower than the field set it applies to: it was calibrated against
+`FICTIONAL_SENSITIVE_LEAD`, which only ever populates `ssn`, `credit_card`,
+and `api_key` (all 11+ characters). `SENSITIVE_FIELDS` also names
+`password` and `phone_number`, which the fixture never populates and which
+are routinely shorter than 8 characters in realistic use (a 6-8 character
+password, a 7-10 digit phone number without country code). The threshold is
+defensible against what was tested; it was not validated against the full
+field set it's meant to cover.
+
+## Freeform sensitive text with no recognized marker is invisible to `evidence.py`
+
+The module can only recognize sensitive content that is either under a
+`SENSITIVE_FIELDS` key, carries the literal `CANARY_MARKER`, or is a
+meaningful-length copy of a value that appeared under a recognized key
+elsewhere in the same packet. Sensitive text typed directly into an
+unlabeled field — never duplicated from a labeled one, containing no
+canary — is invisible to it. This is inherent to a rule-based/pattern
+approach, not a defect any specific fix closes: there is no way to
+recognize "this looks like a secret" from content alone without a much
+broader detection method (format-specific pattern matching, a classifier,
+or similar), none of which this module attempts. `evidence.py` is a
+targeted check against a known field/marker set, not general DLP — see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md) for
+where this caveat is also stated in the chapter's own scope.
+
 ## `clients_clean`/`campaigns_clean` dedup ties on a constant timestamp
 
 `clients_clean` and `campaigns_clean` (`silver.py`) dedup by a window

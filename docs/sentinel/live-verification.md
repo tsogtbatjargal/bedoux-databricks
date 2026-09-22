@@ -1,9 +1,16 @@
 # Live verification runbook
 
-Chapter 02 is implemented and locally tested, **not demonstrated**. Section 1
-is now satisfied: local CLI access exists and read-only checks have run against
-the live workspace. Nothing in sections 3 and 4 has been executed — no deploy,
-no job run, no runtime evidence.
+**Chapter 02 has since been demonstrated live**, using the procedure below:
+five full `bedoux_analytics_job` runs in `dev` (healthy baseline, healthy
+re-run post-fix, fault, restore, replay) and four CI deployments to the
+workspace since (chapters 02 and 03, plus their review-fix rounds). Sections
+1–4 below are no longer a plan; they are the procedure that was executed,
+kept intact because a future chapter will reuse it. Section 3's "observed
+starting state" is now explicitly labeled historical, with a current
+re-observation alongside it. Section 5 lists only what genuinely remains
+unproved after the demonstration, not everything the demonstration itself
+proved. Durable per-stage results are in
+[chapter-02-evidence.md](chapter-02-evidence.md), not repeated here.
 Read [handoff.md](handoff.md) for current checkpoints and authorization limits.
 
 ## 1. Access without widening deployment authority
@@ -82,20 +89,39 @@ existing workspace resources implicitly.
 
 ## 3. Preconditions for this small demonstration
 
-### Observed starting state (read-only, 2026-09-21)
+### Observed starting state (read-only, 2026-09-21) — historical, pre-chapter-02
 
-The `dev` target is not empty, and that changes what this demo can show:
+This subsection is preserved as a record of what `dev` looked like *before*
+this procedure was first executed. It no longer describes the current
+workspace — see the re-observation immediately below. At the time:
 
-- `[dev tsoglog_uli] bedoux_analytics_job` exists with `max_concurrent_runs: 1`,
-  but its **deployed task graph is the pre-chapter-02 one**: bronze → silver →
-  gold, with no `bedoux_gate_task`. The gate exists only in this checkout. The
-  first deploy is therefore what introduces it.
-- All three `workspace.bedoux_gold.*` tables already exist, last written
-  2026-07-30. That is a real published baseline, which makes stage 2's
-  retention claim checkable rather than vacuous: if the gate withholds, their
-  content and `updated_at` must be unchanged afterwards.
-- Because a baseline exists, the **first-ever-run** case cannot be shown in
-  `dev` without destroying it. Leave that as a design argument, not a stage.
+- `[dev tsoglog_uli] bedoux_analytics_job` existed with
+  `max_concurrent_runs: 1`, but its deployed task graph was the
+  pre-chapter-02 one: bronze → silver → gold, with no `bedoux_gate_task`. The
+  gate existed only in the checkout; the first deploy was what introduced it.
+- All three `workspace.bedoux_gold.*` tables already existed, last written
+  2026-07-30 — a real published baseline, which made stage 2's retention
+  claim checkable rather than vacuous.
+- Because a baseline existed, the **first-ever-run** case could not be shown
+  in `dev` without destroying it. That remains a design argument, not a
+  stage — see section 5.
+
+### Current state (read-only, re-verified this round)
+
+Re-queried directly against the workspace under profile
+`bedoux-databricks`, not assumed from prior records:
+
+- `bedoux_analytics_job` (`job_id 133273744478391`) still has
+  `max_concurrent_runs: 1`. Its deployed task graph is now
+  `bedoux_bronze_task → bedoux_silver_task → bedoux_gate_task →
+  bedoux_gold_task` — the gate task is deployed and live, not checkout-only.
+- All three `workspace.bedoux_gold.*` tables hold their post-chapter-02/03
+  content: `gold_campaign_performance` 30 rows, `gold_client_funnel` 132
+  rows, `gold_ogi_ops_health` 183 rows — matching the reference digests in
+  [chapter-02-evidence.md](chapter-02-evidence.md).
+- The first-ever-run case still cannot be shown in `dev` without destroying
+  the existing baseline — unchanged from the historical note above; still a
+  design argument, not a stage. See section 5.
 
 - User authorizes the actual target, full-bundle deployment scope, and synthetic
   Track 2 runs. No merge is needed to test the chapter branch.
@@ -183,13 +209,30 @@ rather than weakening the check.
 
 ## 5. What remains unproved
 
-Workspace authentication and `bundle validate --target dev` have now both
-succeeded locally. Everything downstream of them is still unverified: notebook
-import paths, serverless execution of a notebook task, SQL timestamp
-conversion, orchestration withholding, and Gold retention/replay. Validation
-checks definitions, not behavior.
+The full demonstration (section 4, five job runs across baseline / fault /
+restore / replay, plus four CI deployments since) proved what this section
+used to list as open: notebook import paths, serverless execution of a
+notebook task, SQL timestamp conversion, orchestration withholding, and
+Gold retention/replay. See
+[chapter-02-evidence.md](chapter-02-evidence.md) for the run-by-run record
+and [chapters/02-quality-gate.md](chapters/02-quality-gate.md)'s
+"Fault → restore → replay demonstration" section for the narrative. None of
+those belong in this list anymore.
 
-Even a successful demonstration does not establish immutable batch binding,
-atomic multi-table publication, or an authorization boundary. A first-run
-failure should also be tested in a separately authorized empty destination;
-do not drop baseline tables to manufacture that scenario.
+What genuinely remains unproved:
+
+- **Immutable batch/run binding.** The gate checks timestamp freshness, not
+  an immutable batch or run identifier (section 3 already states this as a
+  limit, not a bug). Another writer's newer data could pass the freshness
+  check. Never demonstrated otherwise, because nothing in the current design
+  makes it provable.
+- **Atomic multi-table publication.** The gate withholds all of Gold
+  together on a failure; it has never been tested under a partial-write or
+  crash-mid-refresh scenario, and DLT's own atomicity guarantees for a
+  multi-table pipeline were not independently verified here.
+- **An authorization boundary.** Running the Gold pipeline directly bypasses
+  the gate entirely (stated in section 3). No IAM or permissions control
+  prevents that; this project has not built or tested one.
+- **The first-run-failure case.** Cannot be shown in `dev` without
+  destroying the existing baseline (section 3). Would need a separately
+  authorized empty destination; not attempted.
