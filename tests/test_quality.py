@@ -101,6 +101,56 @@ def test_scenario_c_unknown_campaign_id_quarantined_not_silently_dropped():
     assert reasons == ["unknown_campaign_id"]
 
 
+def test_eligible_campaign_ids_excludes_negative_budget_and_null_client():
+    campaigns = [
+        {"campaign_id": 1, "client_id": 10, "budget": 500},
+        {"campaign_id": 2, "client_id": 11, "budget": -50},  # campaigns_clean drops: budget < 0
+        {"campaign_id": 3, "client_id": None, "budget": 200},  # campaigns_clean drops: null client_id
+    ]
+    assert quality.eligible_campaign_ids(campaigns) == {1}
+
+
+def test_lead_referencing_a_campaign_campaigns_clean_would_reject_is_quarantined():
+    # ADVERSARIAL: a review found that leads_flagged/web_events_flagged
+    # checked campaign existence against campaigns_raw, not campaigns_clean.
+    # campaigns_clean drops a campaign with a negative budget via its own
+    # expect_or_drop; a lead referencing that campaign must be quarantined
+    # as unknown_campaign_id, not accepted as if the campaign were eligible
+    # -- otherwise it passes Silver, conserves, passes the gate, and vanishes
+    # from Gold's inner join (gold_client_funnel) with no record at all. The
+    # seeded generator never produces a droppable campaign (budget is always
+    # uniform(200, 5000), client_id is always set), so this gap is latent on
+    # real fixture data -- this fixture is what keeps it from regressing.
+    campaigns_raw = [
+        {"campaign_id": 1, "client_id": 10, "budget": 500},
+        {"campaign_id": 2, "client_id": 11, "budget": -50},
+    ]
+    eligible = quality.eligible_campaign_ids(campaigns_raw)
+
+    leads = [{"lead_id": 100, "campaign_id": 2, "stage": "new"}]
+    accepted, quarantined = quality.reconcile(leads, "lead_id", quality.classify_lead, eligible)
+    assert accepted == []
+    assert len(quarantined) == 1
+    assert quarantined[0][1] == ["unknown_campaign_id"]
+
+    # Using the un-filtered Bronze set instead would wrongly accept it --
+    # pinning that this is a real behavioral difference, not a vacuous check.
+    bronze_known = {c["campaign_id"] for c in campaigns_raw}
+    accepted_wrong, _ = quality.reconcile(leads, "lead_id", quality.classify_lead, bronze_known)
+    assert accepted_wrong == leads
+
+
+def test_web_event_referencing_a_campaign_campaigns_clean_would_reject_is_quarantined():
+    campaigns_raw = [{"campaign_id": 1, "client_id": None, "budget": 500}]  # dropped: null client_id
+    eligible = quality.eligible_campaign_ids(campaigns_raw)
+    assert eligible == set()
+
+    events = [{"event_id": 1, "campaign_id": 1, "session_duration_seconds": 5}]
+    accepted, quarantined = quality.reconcile(events, "event_id", quality.classify_web_event, eligible)
+    assert accepted == []
+    assert quarantined[0][1] == ["unknown_campaign_id"]
+
+
 def test_classify_lead_distinguishes_null_from_unknown_campaign_id():
     known = {1, 2}
     assert quality.classify_lead({"campaign_id": None, "stage": "new"}, known) == ["null_campaign_id"]

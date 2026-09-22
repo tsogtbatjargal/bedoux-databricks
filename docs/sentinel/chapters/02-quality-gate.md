@@ -21,12 +21,17 @@ Integration remains a deployment decision for the user.
 
 ## Scope
 
-- **Batch identity.** Bronze stamps every `leads_raw`/`web_events_raw`/
-  `ops_events_raw` row with `_row_id`: its position in that run's generated
-  Python list, assigned before the Spark DataFrame is created
-  (`bronze.py:_with_row_id`). `_ingest_ts` (`current_timestamp()`) is constant
-  across every row of one table computation, so it ties and can't order
-  duplicates deterministically — `_row_id` is what dedup keys off of instead.
+- **Row-order identity (not batch identity).** Bronze stamps every
+  `leads_raw`/`web_events_raw`/`ops_events_raw` row with `_row_id`: its
+  position in that run's generated Python list, assigned before the Spark
+  DataFrame is created (`bronze.py:_with_row_id`). `_ingest_ts`
+  (`current_timestamp()`) is constant across every row of one table
+  computation, so it ties and can't order duplicates deterministically —
+  `_row_id` is what dedup keys off of instead. `_row_id` restarts at 0 every
+  run and is not globally unique across runs — it resolves duplicates
+  *within* one run's recompute, nothing more. **Real batch/run identity is
+  not implemented anywhere in this pipeline**; see "Verification and limits"
+  below.
 - **Persistent quarantine with reasons.** Each fact table's Silver stage now
   reads a `_flagged` view (`leads_flagged`, `web_events_flagged`,
   `ops_events_flagged`) that computes a `_reasons` array per row, then splits
@@ -454,7 +459,7 @@ end to end. Only a live pipeline run does that.
 | `silver.py` no longer calls null-intolerant `array_remove(..., None)`; uses `array_compact` at all three sites; `expect_or_fail` guards `_reasons` | **Verified (AST-checked, no Spark import)** | `test_silver_does_not_use_null_intolerant_array_remove`, added after the incident. Proves this exact function isn't called again; does not prove no analogous NULL-propagation defect exists elsewhere in the file. |
 | Row-conservation check (`accepted_rows + quarantined_rows == total`) is what would have caught the incident | **Verified against the incident's own numbers** | `test_unconserved_source_withholds_even_though_gate_passed_and_rate_look_clean` reproduces `gate_passed=True, rate=0.0, accepted_rows=0, quarantined_rows=0, total=500` and asserts the gate now withholds. |
 | `silver.py`/`gold.py` native Spark *logic* (joins, windows, control flow) matching `quality.py`'s semantics | **Verified by code reading, untested against data — this is exactly the category the incident came from** | Reviewed side by side; no automated check of the Spark expression structure itself exists (same precedent as `gold.py` vs. `transforms.py`). The array_remove defect survived this same kind of review once already. |
-| `bronze.py`'s `_row_id` batch identity | **Verified by code reading, untested against data** | Reviewed; not exercised against a live Bronze run. |
+| `bronze.py`'s `_row_id` row-order identity (dedup ordering within one run — not batch/run identity, which is not implemented) | **Verified by code reading, untested against data** | Reviewed; not exercised against a live Bronze run. |
 | A healthy run's gate correctly PASSES with conserved, accurate evidence | **Verified live, post-fix, twice** | Milestone-4 re-run and the replay stage (below) both show `gate_status` conserved=true for all three sources, with directly-queried `_clean`/`_quarantine` counts matching exactly (490/10, 1954/46, 357/8) both times. |
 | **A failing gate actually withholds the Gold refresh, leaving prior content intact** | **Verified live** | Fault stage (`bedoux_lead_invalid_rate=0.30`, run `330174171866992`): `leads` quarantine rate 32.8% (predicted 32.80%, exact match), `gate_passed=false`, **`conserved=true`** — a genuine high-but-conserved rate, not a conservation false-positive. `bedoux_gate_task` FAILED, `bedoux_gold_task` SKIPPED (`UPSTREAM_FAILED`). Gold's three digests were unchanged and `updated_at` predated the run entirely — not merely "unchanged since last checked," proof it was never touched. |
 | `notebook_task` with `base_parameters` runs on Free Edition serverless | **Verified, five times** | Executed successfully across the baseline, Milestone-4 re-run, fault, restore, and replay runs, including raising an exception correctly on the fault run and exiting cleanly on the others. |

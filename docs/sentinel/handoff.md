@@ -7,13 +7,58 @@ before continuing. Detailed session-by-session history lives in Git log and
 
 ## Current state
 
-- **Chapter 02 is merged and integrated into `main`.** PR #3 merged via a
-  merge commit (`f8ae89d`, `series/02-quality-gate` at `8c10bbf` is an
-  ancestor of `main`). The remote chapter branch is retained; the local
-  branch was deleted (`git branch -d`, all branch-workflow.md checks
-  passed: clean tree, remote branch exists, local tip == remote tip,
-  ancestor of both local and `origin/main`). Working checkout is now on
-  `main`, up to date with `origin/main`, 98 tests passing.
+- **Chapter 02 is merged and integrated into `main`** (PR #3, merge commit
+  `f8ae89d`). **A follow-on external review then found five more issues**
+  against the merged code; four are fixed on a new branch
+  `series/02-quality-gate-fixes` (created from `main`, per
+  `branch-workflow.md`'s "make later fixes on a new branch from main, treat
+  a published branch as a snapshot" — `series/02-quality-gate` itself is
+  not reopened). The fifth was already fixed by `8c10bbf` before this
+  round — verified directly against the file contents, not assumed.
+  **Not yet merged; verification run (Milestone 5) and merge are the next
+  task**, see below.
+  1. **Fixed — campaign-reference gap (real, was latent):**
+     `leads_flagged`/`web_events_flagged` checked campaign existence against
+     `campaigns_raw` (Bronze), not `campaigns_clean` (the eligible,
+     publishable Silver dimension). A campaign `campaigns_clean` itself
+     rejects (its own `expect_or_drop`: `client_id IS NOT NULL`, `budget >=
+     0`) would still count as "known," so a lead referencing it passed
+     Silver, conserved, passed the gate, and vanished from
+     `gold_client_funnel`'s inner join with no record — contradicting this
+     chapter's own "nothing vanishes without a record" claim. Fixed: both
+     views now read `dlt.read("campaigns_clean")`. Latent on the seeded
+     generator's data (budget always `uniform(200, 5000)`, `client_id`
+     always set) — an adversarial fixture (`quality.eligible_campaign_ids`
+     + two new tests) pins it closed without changing the generator.
+  2. **Fixed — batch-identity terminology (wording only, no behavior
+     change):** `_row_id` was called "batch identity" in `bronze.py`'s
+     docstring and two spots in the chapter doc. It restarts at 0 every run
+     and resolves duplicate ordering *within* one run's recompute — it is
+     not a batch or run identifier, and real batch/run identity is not
+     implemented anywhere in this pipeline. Retitled to "row-order
+     identity" everywhere the imprecise term appeared (`bronze.py`, the
+     chapter doc, `roadmap.md`, chapter 01's doc); left alone everywhere it
+     already correctly stated the *absence* of batch identity.
+  3. **Captured — durable evidence:** the demonstration's per-stage
+     evidence (run IDs, `gate_status` rows, persisted counts, full Gold
+     digests, exact commands) only survived in session transcripts; the
+     fault-stage quarantine contents are already gone from the live
+     workspace (recomputed since). Committed
+     [chapter-02-evidence.md](chapter-02-evidence.md), sourced from
+     transcripts and prior chapter-doc/handoff records — no jobs re-run to
+     produce it. Values never separately captured (the incident run's
+     broken Gold digest; persisted-table counts for the fault/restore
+     stages specifically) are marked "not captured," not reconstructed.
+  4. **Noted, not fixed:** [known-gaps.md](known-gaps.md) is a new durable
+     cross-chapter register (linked from this file and
+     `docs/sentinel/README.md`) — local tests don't execute Spark (the
+     exact boundary the `array_remove` defect escaped through, narrower
+     now that the live fault run cross-validated one code path by
+     execution, but not closed); incident evidence capture is manual, no
+     append-only mechanism exists (belongs to chapter 03); `expect_or_fail`
+     and `conserved=false` have still never fired/been observed live.
+- Working checkout was on `main`, up to date with `origin/main`, 98 tests
+  passing, before this round's branch was created.
 - This merge was CI's **first-ever deployment** to the workspace. Watched
   it: `Unit tests` and `Validate bundle` green, `Deploy bundle` ran
   `databricks bundle deploy --target dev` and succeeded; `run_job` correctly
@@ -64,22 +109,21 @@ before continuing. Detailed session-by-session history lives in Git log and
 
 ## Checks and results
 
-- `uv run --locked python -m pytest -q`: **98 passed** (was 92 before this
-  chapter's incident/fix; +6 tests: 5 conservation-policy tests, 1 AST-based
-  regression test pinning that `silver.py` no longer calls `array_remove`).
-  No Spark/DLT runtime is exercised — these are policy/pure-Python/AST-source
-  checks. That gap is exactly what let the original defect ship; see the
-  chapter doc for what the new tests do and don't close.
+- `uv run --locked python -m pytest -q`: **101 passed** (98 before this
+  review-fix round; +3: `eligible_campaign_ids` unit test, adversarial
+  lead/web-event tests pinning the campaign-reference fix). No Spark/DLT
+  runtime is exercised — see `known-gaps.md`.
 - `uv lock --check`, `git diff --check`: clean.
-- Live, this chapter: `bundle validate`/`bundle plan`/`bundle deploy`/
+- Prior chapter-02 round: `bundle validate`/`bundle plan`/`bundle deploy`/
   `bundle run` all succeeded across five full job runs in `dev` (healthy
-  baseline, healthy re-run post-fix, fault, restore, replay). Deployed
-  source diffed byte-for-byte against the checkout after each deploy.
-- CI on `main` (post-merge): `Unit tests`, `Validate bundle`, and — for the
-  first time ever on this project — `Deploy bundle` all succeeded. Verified
-  the deploy's actual effect directly against the workspace: same resource
-  IDs (no duplicates), correct job graph, correct Bronze config, Gold
-  content unchanged (deploy doesn't run anything).
+  baseline, healthy re-run post-fix, fault, restore, replay) — see
+  `chapter-02-evidence.md` for the full per-stage record.
+- CI on `main` (post-merge of PR #3): `Unit tests`, `Validate bundle`, and
+  `Deploy bundle` all succeeded — the project's first-ever CI deployment,
+  verified directly against the workspace (no duplicate resources, correct
+  job graph/config, Gold unchanged).
+- This round's verification run (Milestone 5) is the next task, not yet
+  done — see below.
 
 ## Limitations
 
@@ -109,26 +153,33 @@ path is not.
 
 ## Exact next task
 
-Chapter 02 is merged, integrated, CI-deployed and verified, and locally
-tidied up — nothing left outstanding from this chapter's implementation or
-demonstration. Two independent next steps, not mutually exclusive:
+**Milestone 5, immediately:** on `series/02-quality-gate-fixes`, run the
+local suite (done, 101 passed), then `bundle validate`/`plan`/`deploy` at
+the default `0.02` and run `bedoux_analytics_job` **once**. Prediction: since
+no seeded campaign is droppable, the campaign-reference fix is a behavioral
+no-op on current data — expect leads 490 clean / 10 quarantined,
+`conserved=true`, gate passes, Gold digests matching
+`chapter-02-evidence.md`'s reference values exactly. **Any deviation means
+the reference-check change altered behavior unexpectedly — investigate
+before merging, do not proceed to merge.**
+
+Then: open a new PR from `series/02-quality-gate-fixes` into `main` (PR #3
+is closed/merged, so this is a new PR, not a reopen), merge with a **merge
+commit** (never squash/rebase), watch the CI deployment on `main`, verify
+the workspace afterward (job graph, Bronze config, no duplicate resources),
+and clean up the local branch only if every `branch-workflow.md` check
+passes.
+
+**After that**, chapter 02 is merged, integrated, review-closed, and
+verified for a second time — nothing outstanding. Two independent next
+steps, not mutually exclusive:
 
 - **Draft the chapter 02 post** (`sentinel-story`, when asked). Publication
-  status is still "Not drafted" in `roadmap.md`, tracked separately from
-  implementation — the incident-then-fix arc (a gate that initially passed a
-  100% row-loss run, found and closed with a live demonstration) is
+  status is still "Not drafted" in `roadmap.md` — the incident-then-fix arc,
+  now including a real external-review round closed the same way, is
   unusually strong, honest material for this series' actual premise.
-  Publishing itself (tag, register row, posting) needs its own authorization
-  when that's the task.
-- **Start chapter 03** from integrated `main` (`git switch -c
-  series/03-... main` once the next chapter's scope is authorized), per
-  `branch-workflow.md`'s chapter lifecycle.
-
-Neither is more urgent than the other from the repo's perspective — both
-are clean starting points now. Recommend deciding based on which serves the
-series' momentum better: a post while the fault→restore→replay evidence is
-freshest, or continuing the implementation arc into chapter 03's scope
-(`docs/sentinel/roadmap.md` — "Protect what matters").
+- **Start chapter 03** from integrated `main`, per `branch-workflow.md`'s
+  chapter lifecycle, once its scope is authorized.
 
 Use `sentinel-story` only when asked to draft posts. Jev remains optional;
 AWS is deferred with no budget or deployment authorization.

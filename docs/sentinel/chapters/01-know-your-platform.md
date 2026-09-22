@@ -106,8 +106,9 @@ are out of scope here.
   Gold aggregate that touches `leads_clean` (`count("*")`,
   `sum(when(stage == 'won', ...))` in both `gold_campaign_performance` and
   `gold_client_funnel`).
-- **Expected after chapter 02:** batch identity is added so a duplicate is
-  recognized and excluded from double-counting.
+- **Expected after chapter 02:** deterministic row-order identity (`_row_id`,
+  not batch/run identity) is added so a duplicate is recognized and excluded
+  from double-counting.
 
 ### Scenario C — Missing campaign reference
 

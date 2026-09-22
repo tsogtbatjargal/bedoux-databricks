@@ -53,6 +53,26 @@ def dedup_by_key(rows: list[dict], key: str) -> tuple[list[dict], list[dict]]:
     return kept, dups
 
 
+def eligible_campaign_ids(campaigns: list[dict]) -> set:
+    """Campaign IDs that would survive campaigns_clean's own rules -- the set
+    leads/web_events must be checked against for classify_lead/
+    classify_web_event's `known_campaign_ids`, not the raw Bronze campaign
+    list. Mirrors silver.py:campaigns_clean's two
+    @dlt.expect_or_drop decorators exactly: `client_id IS NOT NULL` and
+    `budget >= 0`. A campaign campaigns_clean itself rejects must not count
+    as "known" -- otherwise a lead referencing it passes Silver as accepted,
+    conserves, passes the gate, and then silently vanishes from Gold's
+    inner join with no record (the review finding this closes).
+    """
+    return {
+        c["campaign_id"]
+        for c in campaigns
+        if c.get("client_id") is not None
+        and c.get("budget") is not None
+        and c["budget"] >= 0
+    }
+
+
 def classify_lead(lead: dict, known_campaign_ids: set) -> list[str]:
     """Quarantine reason codes for a lead row that has already passed dedup;
     empty list means accepted."""

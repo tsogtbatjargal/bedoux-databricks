@@ -99,8 +99,16 @@ Rules:
   on their key fields: not-null/known `campaign_id`, valid funnel stage
   values, non-negative amounts/latency, and a dedup rule on each table's
   natural key (`lead_id`/`event_id`/`ops_event_id`), keyed on Bronze's
-  `_row_id` batch-order identity rather than the tied `_ingest_ts`. Rows that
-  fail any rule are **quarantined, not dropped**: `<source>_quarantine` holds
+  `_row_id` row-order identity rather than the tied `_ingest_ts`. "Known"
+  `campaign_id` means present in `campaigns_clean` (the eligible, publishable
+  Silver dimension), **not** merely present in Bronze's `campaigns_raw`: a
+  campaign `campaigns_clean` itself drops (its own `expect_or_drop` rules —
+  `client_id IS NOT NULL`, `budget >= 0`) must not count as known, or a lead
+  referencing it would pass Silver while later vanishing from Gold's
+  `gold_client_funnel` inner join with no record. `unknown_campaign_id`
+  therefore means "not in the publishable Silver dimension," not "absent
+  from Bronze." Rows that fail any rule are **quarantined, not dropped**:
+  `<source>_quarantine` holds
   the rejected row with its reason code(s) and a `_quarantined_ts` — nothing
   vanishes without a record. `<source>_clean` holds the rest. **Not streaming
   tables**: Track 1's equivalent tables are genuine DLT streaming reads
