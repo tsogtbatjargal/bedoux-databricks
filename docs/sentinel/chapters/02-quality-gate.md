@@ -2,7 +2,14 @@
 
 Status: **Merged and integrated into `main`** (PR #3, merge commit `f8ae89d`;
 first-ever CI deployment to the workspace verified: correct resource IDs, no
-duplicates, correct job graph and config, Gold untouched by the deploy).
+duplicates, correct job graph and config, Gold untouched by the deploy). A
+follow-on external review of the merged code found a real latent gap and
+two wording issues, since fixed and merged (PR #4, merge commit `b62bffa`,
+verified with a second live run showing zero behavioral deviation) — see
+"Review findings, round 2" below. Durable per-stage evidence for the live
+demonstration is in
+[chapter-02-evidence.md](../chapter-02-evidence.md); deferred structural
+gaps are tracked in [known-gaps.md](../known-gaps.md).
 **Demonstrated, not just implemented and locally tested**: a live baseline
 run found a real defect — the gate initially passed a run that lost 100% of
 its fact rows (see "Incident") — which this branch fixed, then proved via a
@@ -434,6 +441,74 @@ per-table withholding, freshness not immutable batch identity, no atomic
 multi-table publication, the untested first-run-failure case, the unfixed
 `clients_clean`/`campaigns_clean` tie bug) are all unchanged by this
 demonstration — see "Verification and limits" and "Related finding" below.
+
+## Review findings, round 2 (after merge, PR #4)
+
+An external review of the merged code (PR #3) found five issues. One
+(architecture diagram missing the gate node; contract wording saying the
+job "runs three pipelines" when it runs four tasks) was already fixed by
+`8c10bbf`, confirmed against the file contents before assuming. The other
+four:
+
+1. **Campaign-reference gap (real, was latent).** `leads_flagged`/
+   `web_events_flagged` validated `campaign_id` against
+   `workspace.bedoux_bronze.campaigns_raw` — Bronze, unfiltered — instead of
+   `campaigns_clean`, the Silver dimension `campaigns_clean`'s own
+   `@dlt.expect_or_drop` rules (`client_id IS NOT NULL`, `budget >= 0`)
+   actually publish from. A campaign that fails those rules is dropped from
+   `campaigns_clean`, but a lead referencing it was still checked against
+   the *unfiltered* Bronze set, found "known," and accepted. That lead then
+   conserves (it really was accepted, correctly counted), passes the gate
+   (a real, conserved rate), and only then vanishes — permanently and
+   silently — from `gold_client_funnel`'s inner join to `campaigns_clean`,
+   since the campaign it references was never published there. Every layer
+   of chapter 02's own machinery (quarantine, conservation, the gate) worked
+   exactly as designed and still let this happen, because the defect was
+   one step upstream of all of them: checking existence against the wrong
+   table. This directly contradicts "nothing vanishes without a record."
+   **Fixed**: both `_flagged` views now call `dlt.read("campaigns_clean")`
+   instead of `spark.read.table(".../campaigns_raw")`. Pinned with
+   `quality.eligible_campaign_ids` (mirrors `campaigns_clean`'s two
+   `expect_or_drop` predicates in pure Python) and two adversarial tests
+   (`test_lead_referencing_a_campaign_campaigns_clean_would_reject_is_quarantined`,
+   the `web_events` equivalent) that construct a campaign with a negative
+   budget and assert a lead referencing it quarantines as
+   `unknown_campaign_id` — and, for contrast, that the *un-filtered* Bronze
+   set would have wrongly accepted it, so the test pins a real behavioral
+   difference, not a vacuous check. The seeded generator never produces a
+   droppable campaign (`budget` is always `uniform(200, 5000)`, `client_id`
+   is always set) — this fixture, not the fixture data, is what keeps the
+   gap closed; the generator's defaults were deliberately left alone.
+2. **Batch-identity terminology (wording only).** `_row_id` was called "the
+   batch identity" in `bronze.py`'s docstring and "Batch identity" as this
+   chapter's own Scope-section heading and a verification-table row. It
+   restarts at `0` every run and only orders duplicates *within* one run's
+   recompute — it establishes nothing across runs, and real batch/run
+   identity is not implemented anywhere in this pipeline (see
+   `docs/contracts-bedoux.md`, which already had this right: "not a
+   globally unique batch or run ID"). Retitled to "row-order identity"
+   everywhere the imprecise term appeared — `bronze.py`, this chapter's
+   Scope section and verification table, `roadmap.md`'s chapter 02
+   description, and chapter 01's "Expected after chapter 02" note. Left
+   alone everywhere the term already correctly stated the absence of batch
+   identity (`live-verification.md`, `quality.py`, two other spots in this
+   chapter).
+3. **Durable evidence.** Recorded in `chapter-02-evidence.md` — see the
+   "Status" note above.
+4. **Deferred gaps.** Recorded in `known-gaps.md` — see the "Status" note
+   above.
+
+**Verification (Milestone 5):** local suite (101 passed, was 98), then one
+live run of `bedoux_analytics_job` at the default `bedoux_lead_invalid_rate
+= 0.02`. Predicted, before running: leads 490 clean / 10 quarantined
+(unchanged from the confirmed baseline), since no seeded campaign is
+droppable — the fix should be a behavioral no-op on current data while
+closing a real structural gap. Observed: exact match, zero deviation —
+`gate_status` leads 490/10/`conserved=true`, persisted Silver counts
+490/10/1954/46/357/8, all three Gold digests identical to the reference
+values in `chapter-02-evidence.md`. Merged (PR #4, `b62bffa`); the
+resulting CI deployment to `main` was verified the same way as PR #3's:
+same resource IDs, no duplicates, correct job graph and Bronze config.
 
 ## Verification and limits
 

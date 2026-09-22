@@ -9,14 +9,15 @@ before continuing. Detailed session-by-session history lives in Git log and
 
 - **Chapter 02 is merged and integrated into `main`** (PR #3, merge commit
   `f8ae89d`). **A follow-on external review then found five more issues**
-  against the merged code; four are fixed on a new branch
-  `series/02-quality-gate-fixes` (created from `main`, per
-  `branch-workflow.md`'s "make later fixes on a new branch from main, treat
-  a published branch as a snapshot" — `series/02-quality-gate` itself is
-  not reopened). The fifth was already fixed by `8c10bbf` before this
-  round — verified directly against the file contents, not assumed.
-  **Not yet merged; verification run (Milestone 5) and merge are the next
-  task**, see below.
+  against the merged code; four are fixed and **merged** (PR #4, merge
+  commit `b62bffa`, branch `series/02-quality-gate-fixes` — created from
+  `main`, per `branch-workflow.md`'s "make later fixes on a new branch from
+  main, treat a published branch as a snapshot"; `series/02-quality-gate`
+  itself was not reopened, since PR #3 was already closed/merged). The
+  fifth was already fixed by `8c10bbf` before this round — verified
+  directly against the file contents, not assumed. **This is now fully
+  closed out**: verified with one live run (no deviation from the
+  prediction), merged, CI-deployed a second time, and cleaned up.
   1. **Fixed — campaign-reference gap (real, was latent):**
      `leads_flagged`/`web_events_flagged` checked campaign existence against
      `campaigns_raw` (Bronze), not `campaigns_clean` (the eligible,
@@ -57,17 +58,23 @@ before continuing. Detailed session-by-session history lives in Git log and
      execution, but not closed); incident evidence capture is manual, no
      append-only mechanism exists (belongs to chapter 03); `expect_or_fail`
      and `conserved=false` have still never fired/been observed live.
-- Working checkout was on `main`, up to date with `origin/main`, 98 tests
-  passing, before this round's branch was created.
-- This merge was CI's **first-ever deployment** to the workspace. Watched
-  it: `Unit tests` and `Validate bundle` green, `Deploy bundle` ran
-  `databricks bundle deploy --target dev` and succeeded; `run_job` correctly
-  stayed skipped (manual opt-in only). Verified afterward by querying the
-  workspace directly: `bedoux_analytics_job` (same `job_id`, no duplicate),
-  all three `bedoux_*_pipeline`s (same `pipeline_id`s, no duplicates), job
-  graph still Bronze → Silver → gate → Gold, Bronze's config still reads
-  `bedoux.lead_invalid_rate: "0.02"`, and Gold's three digests unchanged —
-  deploy doesn't run anything, and it didn't.
+- Working checkout is on `main`, up to date with `origin/main`, 101 tests
+  passing. Both `series/02-quality-gate` and `series/02-quality-gate-fixes`
+  local branches were deleted after merging (`git branch -d`, all
+  `branch-workflow.md` checks passed both times); both remote branches are
+  retained.
+- **Both merges triggered a CI deployment** to the workspace (PR #3's merge
+  was the project's first-ever; PR #4's merge was the second). Both
+  verified afterward by querying the workspace directly: same `job_id`/
+  `pipeline_id`s both times (no duplicates), job graph still Bronze →
+  Silver → gate → Gold, Bronze's config still reads
+  `bedoux.lead_invalid_rate: "0.02"`, Gold's three digests unchanged by the
+  deploy step itself (a deploy doesn't run anything). The live verification
+  run for PR #4's changes (one `bedoux_analytics_job` run before merging,
+  not the CI deploy) showed **zero deviation** from the predicted 490
+  clean / 10 quarantined, `conserved=true`, matching Gold digests — the
+  campaign-reference fix is confirmed behaviorally inert on the current
+  seeded data, exactly as expected, while closing a real structural gap.
 - **Chapter 02 is demonstrated**, not just implemented and locally tested.
   A live baseline run found a real defect (`silver.py` built `_reasons` with
   `array_remove(array(...), None)`, which is null-intolerant in Spark on its
@@ -114,16 +121,19 @@ before continuing. Detailed session-by-session history lives in Git log and
   lead/web-event tests pinning the campaign-reference fix). No Spark/DLT
   runtime is exercised — see `known-gaps.md`.
 - `uv lock --check`, `git diff --check`: clean.
-- Prior chapter-02 round: `bundle validate`/`bundle plan`/`bundle deploy`/
-  `bundle run` all succeeded across five full job runs in `dev` (healthy
-  baseline, healthy re-run post-fix, fault, restore, replay) — see
-  `chapter-02-evidence.md` for the full per-stage record.
-- CI on `main` (post-merge of PR #3): `Unit tests`, `Validate bundle`, and
-  `Deploy bundle` all succeeded — the project's first-ever CI deployment,
-  verified directly against the workspace (no duplicate resources, correct
-  job graph/config, Gold unchanged).
-- This round's verification run (Milestone 5) is the next task, not yet
-  done — see below.
+- Chapter-02 demonstration round: `bundle validate`/`bundle plan`/
+  `bundle deploy`/`bundle run` all succeeded across five full job runs in
+  `dev` (healthy baseline, healthy re-run post-fix, fault, restore, replay)
+  — see `chapter-02-evidence.md` for the full per-stage record.
+- Review-fix round: deployed source diffed byte-for-byte against the
+  checkout; one live run confirmed zero deviation from the prediction
+  (`gate_status`, persisted Silver counts, and all three Gold digests
+  matched exactly).
+- CI: PR #3's merge (project's first-ever deployment) and PR #4's merge
+  (second) both succeeded — `Unit tests`, `Validate bundle`, `Deploy
+  bundle` all green — and both were verified directly against the
+  workspace afterward (no duplicate resources, correct job graph/config,
+  Gold unchanged by the deploy step itself).
 
 ## Limitations
 
@@ -153,26 +163,10 @@ path is not.
 
 ## Exact next task
 
-**Milestone 5, immediately:** on `series/02-quality-gate-fixes`, run the
-local suite (done, 101 passed), then `bundle validate`/`plan`/`deploy` at
-the default `0.02` and run `bedoux_analytics_job` **once**. Prediction: since
-no seeded campaign is droppable, the campaign-reference fix is a behavioral
-no-op on current data — expect leads 490 clean / 10 quarantined,
-`conserved=true`, gate passes, Gold digests matching
-`chapter-02-evidence.md`'s reference values exactly. **Any deviation means
-the reference-check change altered behavior unexpectedly — investigate
-before merging, do not proceed to merge.**
-
-Then: open a new PR from `series/02-quality-gate-fixes` into `main` (PR #3
-is closed/merged, so this is a new PR, not a reopen), merge with a **merge
-commit** (never squash/rebase), watch the CI deployment on `main`, verify
-the workspace afterward (job graph, Bronze config, no duplicate resources),
-and clean up the local branch only if every `branch-workflow.md` check
-passes.
-
-**After that**, chapter 02 is merged, integrated, review-closed, and
-verified for a second time — nothing outstanding. Two independent next
-steps, not mutually exclusive:
+Chapter 02 is merged, integrated, review-closed, CI-deployed and verified
+twice, and locally tidied up — nothing outstanding from implementation,
+demonstration, or the external review. Two independent next steps, not
+mutually exclusive:
 
 - **Draft the chapter 02 post** (`sentinel-story`, when asked). Publication
   status is still "Not drafted" in `roadmap.md` — the incident-then-fix arc,
