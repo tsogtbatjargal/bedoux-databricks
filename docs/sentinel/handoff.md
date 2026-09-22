@@ -1,165 +1,106 @@
 # Session handoff
 
-This file records current state and the next task, not permission to merge,
-deploy, run jobs, change secrets, bind resources, or publish. Inspect Git
-before continuing. Detailed session-by-session history lives in Git log and
-each chapter's own doc, not here.
+Read this for current state; follow links only when the task needs them.
+This records context, not authority to merge, deploy, run jobs, change secrets,
+bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-- **Chapter 02 is fully closed out**: implemented, demonstrated live (fault →
-  restore → replay, one uninterrupted `dev` session), review-closed (a real
-  campaign-reference gap and terminology fixes, PR #4), and has a
-  drafted-not-published post (PR #5, merge commit `1b0694f` — the project's
-  third CI deployment, verified directly against the workspace). Full
-  history in [chapters/02-quality-gate.md](chapters/02-quality-gate.md);
-  durable per-stage evidence in
-  [chapter-02-evidence.md](chapter-02-evidence.md); deferred structural gaps
-  in [known-gaps.md](known-gaps.md). **Not published**: no
-  `post/02-quality-gate` tag, no publication-register row.
-- **Chapter 03 ("Protect what matters") is merged and integrated into
-  `main`, but not acceptance-complete.** PR #6, merge commit `569c03d` —
-  the project's **fourth** CI deployment, verified directly against the
-  workspace: `job_id` `133273744478391` present exactly once (no
-  duplicate), all three `bedoux_*_pipeline` IDs unchanged, job graph still
-  Bronze → Silver → gate → Gold, Bronze's config still
-  `bedoux.lead_invalid_rate: 0.02`, all three Gold digests byte-for-byte
-  unchanged from the reference values (a deploy runs nothing, so this
-  confirms nothing ran). Full design and scope in
-  [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md).
-  - Built pure Python, no Spark/`dlt`/network (same pattern as
-    `quality.py`): `src/bedoux/evidence.py` — `FICTIONAL_SENSITIVE_LEAD`
-    (an isolated fixture, not wired into `generator.py` or any real table),
-    `CANARY_MARKER` planted in a non-sensitive-looking field (`notes`),
-    `redact_evidence_packet` (recursively strips known sensitive field
-    names through dicts/lists/tuples), `contains_canary` (recursive scan of
-    keys and values), and `evaluate_evidence_gate` (fail-closed: a
-    sensitive-value leak check against the original pre-redaction input,
-    plus a canary scan of the redacted result).
-  - **Three pre-merge review rounds, each reproduced by execution before
-    fixing, each pinned by a test that failed first:**
-    - **Round 1** (3 confirmed defects): (1) redaction was shallow while
-      canary detection was already recursive, so a sensitive field nested
-      under the realistic `{"rows": [row, ...]}` packet shape was neither
-      redacted nor blocked — the same shape as chapter 02's first review
-      finding, a correct control pointed at the wrong input scope; (2) the
-      canary scan checked values but not keys; (3) the "sensitive field
-      survived redaction" check validated `redact_evidence_packet`'s own
-      output against itself and could never fire — the same shape as
-      chapter 02's original incident, a check deriving its verdict from the
-      same source as the thing it checks.
-    - **Round 2** (over-blocking regression from round 1's fix): the
-      independent sensitive-value check from finding 3 matched too
-      broadly. `{"ssn": None, "stage": None}` blocked because `None ==
-      None`; `{"password": "a", "stage": "qualified"}` blocked because `"a"`
-      substring-matched ordinary text; `{"api_key": 9001, "lead_id": 9001}`
-      blocked because two unrelated fields coincidentally shared a value.
-      The `None` case mattered most: evidence packets come from quarantined
-      rows, quarantined largely *because* a field is null, so this blocked
-      nearly every realistic packet. Fixed: `_collect_sensitive_values`
-      skips `None`/`""` (nothing to leak); `_value_leaked` only
-      substring-matches strings of at least 8 characters (every fictional
-      sensitive format here is 11+; 8 excludes short tokens without
-      excluding any real one) and only checks string values at all — a
-      non-string sensitive value matching another field by bare equality is
-      common coincidence in small fixtures, not evidence of a copy, and
-      every `SENSITIVE_FIELDS` value in this project's fixture is
-      string-shaped, so this scoping costs nothing real. The genuine leak
-      case (`ssn` copied into `notes`) and the canary fixture both still
-      block, unchanged.
-    - Full writeups with reproduction commands: chapter doc's "Review
-      findings, round 1" and "Review findings, round 2" sections. Severity
-      stated plainly in both: caught pre-merge, in code nothing calls yet —
-      not a live incident like chapter 02's.
-  - `tests/test_evidence.py`: **121 tests** (9 first pass, +6 round 1, +5
-    round 2). None of the prior tests were weakened at any point; the depth
-    and key-scanning fixes from round 1 were untouched by round 2.
-  - **A further gap noticed, not fixed**: `evidence.py` can only recognize
-    sensitive content under a known field name, carrying the literal
-    canary, or copied from a recognized field elsewhere in the same
-    packet. Freeform sensitive text with none of those properties is
-    invisible to it — inherent to the rule-based approach.
-  - **Decision made and recorded**: `evidence.py` stays at
-    `src/bedoux/evidence.py`. `quality.py` is also pure Python there and is
-    imported by pipeline code; keeping the package together preserves the
-    import path, and shipping an unimported module to the workspace on
-    deploy costs nothing. Not restructured.
-  - **Not acceptance-complete — stated honestly, not marked done.** Of
-    `roadmap.md`'s four chapter-03 acceptance criteria: "blocked or
-    redacted" and "non-sensitive evidence survives" are met, proven by unit
-    tests; "document the inspected boundary" is met. **"A failed check
-    prevents the external call" is structurally blocked, not just
-    undemonstrated** — no caller of `evaluate_evidence_gate` exists
-    anywhere in this project, and building one is chapter 04's job runtime,
-    not more chapter-03 pure-Python work. The append-only
-    durable-evidence-log mechanism (`known-gaps.md`'s chapter-03
-    cross-reference — not actually part of `roadmap.md`'s own acceptance
-    criteria for this chapter) is deferred by choice, not blocked; nothing
-    prevents building it within chapter 03's scope, it just wasn't this
-    session's focus. Full mapping: chapter doc's "Roadmap acceptance
-    mapping" section. `roadmap.md`'s chapter 03 row updated to match.
-- `dev` is deployed at the normal `bedoux_lead_invalid_rate=0.02`. `main`,
-  `series/02-quality-gate`, `series/02-quality-gate-fixes`,
-  `series/02-post-draft`, and `series/03-protect-evidence` were all
-  merged/cleaned up per `branch-workflow.md` (local branches deleted with
-  `git branch -d` only after remote-tip-match/ancestor checks; all remote
-  branches retained).
-- **An observed anomaly, not a repo defect**: during this session, one push
-  to `series/03-protect-evidence` had its CI trigger and PR head-SHA sync
-  delayed by several minutes (no check-runs existed for the commit for a
-  while, then resolved on its own). The next push synced and triggered CI
-  within seconds, as normal. Before merging PR #6, `gh pr view 6 --json
-  headRefOid,mergeStateStatus` was checked against `git ls-remote` and
-  confirmed matching, with CI green on that exact SHA, before merging —
-  worth repeating that check rather than assuming sync is instant.
+- Chapter 02 is integrated, demonstrated live, and review-closed. Its post
+  is drafted, not published. See [evidence](chapter-02-evidence.md) and
+  [chapter doc](chapters/02-quality-gate.md).
+- Chapter 03 is integrated (PR #6, merge `569c03d`), **not acceptance-complete**.
+  `src/bedoux/evidence.py` implements recursive redaction, sensitive-copy checks,
+  and canary checks. No production caller or model transport exists. Tests
+  establish fixture behavior, not prevention of a real external call.
+  See [acceptance mapping](chapters/03-protect-evidence.md#roadmap-acceptance-mapping).
+- Last recorded workspace verification: fourth CI deployment, normal
+  `bedoux_lead_invalid_rate=0.02`, unchanged pipeline IDs, one analytics job,
+  Bronze → Silver → gate → Gold, unchanged Gold digests. This session did
+  not recheck the workspace. Prior checks and review history are preserved in
+  [the archived handoff](handoff-2026-09-22-archive.md).
+- Chapters 04–07 remain planned. Jev is optional; no provider/budget has been
+  selected for runtime calls. AWS remains deferred.
 
-## Checks and results
+## Workflow preparation — 2026-09-22
 
-- `uv run --locked python -m pytest -q`: **121 passed** (101 before chapter
-  03; +9, +6, +5 across the three build/review rounds). `uv lock --check`
-  and `git diff --check` clean throughout.
-- PR #5's CI and resulting `main` deploy (project's third): all green,
-  verified against the workspace.
-- PR #6's CI (three pushes, one per round) and resulting `main` deploy
-  (project's **fourth**): all green; deploy verified directly against the
-  workspace (see above) — no drift, no duplicates, all three Gold digests
-  unchanged.
-- The post-merge `roadmap.md`/chapter-doc status-honesty commit (`66315a1`,
-  direct to `main`, docs-only) correctly triggered `Unit tests` only —
-  `Validate`/`Deploy bundle` both skipped, as expected for a non-bundle-path
-  change.
+The user requested project analysis and help making Claude implementation
+token-efficient, including evaluating Jev. Work is on local branch
+`series/00-claude-efficiency`, based on `main` at `25e1784`; inspect actual Git
+state rather than assuming the branch or uncommitted state remains unchanged.
 
-## Limitations
+- Added [Claude implementation brief](claude-implementation.md): bounded next
+  task, completion sequence, context discipline, and Jev evaluation criteria.
+- Kept existing chapter/story skills; no extra skill or routing hook needed yet.
+- Shortened this startup file; preserved the previous handoff in the archive
+  apart from its archival heading and navigation link.
+- Added Claude compaction guidance and linked the brief from agent setup.
+- Code inspection found a future logging hazard: `evaluate_evidence_gate`
+  interpolates leaked values into its returned problem strings. Nothing calls
+  it in production yet. The next runtime increment must use safe reason codes
+  and test logs, reports, and exceptions as well as outbound requests.
+- No runtime code, dependency, credential, model routing, or workspace changes.
+  Documentation remains uncommitted; no push or paid model call occurred.
 
-Structural/deferred gaps (whole-Gold not per-table withholding, freshness
-not immutable batch identity, the `clients_clean`/`campaigns_clean`
-dedup-tie bug, `expect_or_fail`/`conserved=false` never observed live, local
-tests not executing Spark, manual incident-evidence capture — still open,
-see chapter 03's "Roadmap acceptance mapping" for why — and CI's PAT
-expiring 2026-12-20) are consolidated in [known-gaps.md](known-gaps.md).
-Chapter 03 adds one more, specific to `evidence.py`: it can only recognize
-sensitive content under a known field name, the canary, or a copy of a
-recognized field's value — freeform sensitive text with none of those
-properties is invisible to it.
+## Checks and remaining limits
 
-## Exact next task
+On 2026-09-22, local Linux checkout at `25e1784`, locked project environment:
+`uv sync --locked` succeeded; `uv run --locked python -m pytest -q` reported
+**121 passed in 0.11s**, using repository synthetic fixtures. Claude Code
+`2.1.263` is installed; account/billing access was not inspected.
 
-Three independent paths, not mutually exclusive; **do not start chapter 04
-without explicit authorization**, even though it's the dependency the
-"external call" criterion above is blocked on:
+Documentation checks: `git diff --check` passed; 16 local file links resolved;
+the archived handoff body matched `HEAD:docs/sentinel/handoff.md` exactly.
+A synthetic copied-secret check reproduced the diagnostic-string hazard without
+printing the value. No live service was involved.
 
-- **Publish the chapter 02 post**, when requested: tag
-  `post/02-quality-gate`, add the publication-register row in
-  `branch-workflow.md`, post the draft, record the public URL.
-- **Close chapter 03's remaining acceptance criterion**, when authorized:
-  requires chapter 04's job runtime to exist first (a call site to wire
-  `evaluate_evidence_gate` into) — this is a dependency, not something
-  chapter 03 can finish alone.
-- **Build the append-only durable-evidence-log mechanism**, when
-  authorized and scoped: still open, deferred by choice; worth deciding
-  first whether it belongs in chapter 03 or as its own future chapter,
-  per the chapter doc's "Roadmap acceptance mapping."
+These tests do not execute Spark or prove IAM, live replay, or provider behavior.
+Remaining [known gaps](known-gaps.md): manual durable incident evidence,
+client/campaign dedup ties, unexercised conservation failure paths, and CI
+credential expiry. Redaction also misses unrecognized freeform sensitive text,
+short copied strings, and non-string copied values; it is not general DLP.
 
-Use `sentinel-story` only when asked to draft/revise posts;
-`sentinel-chapter` for chapter implementation/review. Jev remains optional;
-AWS is deferred with no budget or deployment authorization.
+## Architecture SVG update — 2026-09-22
+
+Updated `docs/architecture-context.svg` for the user's introduction image.
+The user's final clarification was to restore the detailed diagram and remove
+only the TPC-H section. The SVG retains GitHub Actions CI/CD, Asset Bundle,
+Unity Catalog, full Bedoux pipeline/schema labels, the notebook publication
+gate, SQL Warehouse and Genie. The layout closes the gap left by TPC-H.
+Underlying pipelines/resources are unchanged. The direct-Gold bypass limitation
+and planned agent/routing/recovery status remain explicit. No workspace IDs
+appear. The separate `.drawio` remains the broader two-track map.
+
+Checked against `resources/bedoux_jobs.yml`, `quality.py`, `gate_check.py` and
+the Track 2 contract. SVG XML/unique IDs/gate edges and `git diff --check` passed.
+Rendered with ImageMagick and inspected visually. The SVG is 900×800; the
+refreshed 1800×1600 PNG export is in the user's
+external content folder at
+`/var/home/tsogtb/src/github.com/bedoux-tech/bedoux-sentinel-content/2026-09-22/architecture-context.png`.
+No runtime files changed or live jobs ran. SVG and handoff remain uncommitted
+alongside the pre-existing workflow edits. Next for the post: author review of
+the updated image; no publication or remote update has occurred.
+
+## Exact next useful task
+
+Chapter 04 is deferred; [the implementation brief](claude-implementation.md)
+stays as a prepared plan, not an active task -- do not act on its invocation
+without separate authorization. Two things are authorized and outstanding
+first:
+
+1. **Fix the leak `claude-implementation.md`'s assessment found**:
+   `evaluate_evidence_gate`'s sensitive-copy problem string embeds the
+   leaked value verbatim (`src/bedoux/evidence.py`) -- a gate that blocks a
+   packet and then hands the secret to whoever reads the rejection defeats
+   its own purpose. Fix on a new branch from `main`; this touches
+   `src/**`, so merging deploys.
+2. **Align the docs with what has actually shipped**: `live-verification.md`
+   still reads as pre-chapter-02, `README.md`'s "planned, not current
+   deployment" framing predates chapter 02's integration, `known-gaps.md`
+   has zero chapter 03 entries, and chapter 01 has no post draft. Docs-only,
+   no deploy.
+
+No API account is needed for either. Chapter 04's first increment (guarded
+provider boundary, offline incident persistence, failure-path tests) waits
+until it is explicitly authorized. Publishing chapter 02 remains separate
+and unrequested.
