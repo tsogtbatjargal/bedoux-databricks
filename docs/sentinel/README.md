@@ -51,6 +51,22 @@ The final video brings those pieces together.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
 - [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic, not acceptance-complete.
 
+## Docs lifecycle
+
+- **`handoff.md` is the single live handoff.** It gets overwritten in place
+  at the end of each session, not archived — Git history already holds
+  every prior version, so a separate snapshot file duplicates what `git log
+  -p -- docs/sentinel/handoff.md` already gives you. An earlier session
+  created a one-off `handoff-2026-09-22-archive.md` before this policy was
+  written; it has been removed now that the policy is explicit, since
+  keeping it around would read as a pattern to repeat rather than the
+  exception it was.
+- **`claude-implementation.md` is a dated, expiring working brief, not
+  reference documentation.** It says so at its own top. Re-derive chapter
+  04's actual first increment from the current codebase when that chapter
+  starts, rather than trusting that file's specifics — then delete or
+  archive it.
+
 ## Inspiration
 
 [IBM Technology's video](https://www.youtube.com/watch?v=kjoQPn--F7A) connects eight
@@ -76,6 +92,37 @@ measure whether that extra step helps on our incidents.
 | Maintain visibility and separation | Parts 01 and 06: dependency map, audit trail, permissions |
 | Establish responsibility | Part 06: ownership, approvals, incident review |
 | Use resources carefully | Part 05: measured Jev routing and escalation |
+
+## Diagrams
+
+Two hand-maintained diagrams exist, and they are not duplicates of each
+other despite both depicting parts of this system — checked directly:
+`architecture-context.svg` embeds no `mxfile` data, so it is not exported
+from the `.drawio` file; each is authored and updated independently.
+
+- **`../architecture.drawio`** is the canonical technical architecture
+  source, documented in [`../architecture.md`](../architecture.md). It
+  covers **both** tracks (Track 1 TPC-H and Track 2 Bedoux) at full
+  technical detail — every pipeline, table, job, and Free Edition
+  constraint. Edit it in draw.io desktop or diagrams.net; regenerate any
+  exported PNG per `architecture.md`'s instructions. This is the source of
+  truth for the platform's actual architecture.
+- **`../architecture-context.svg`** is a separate, deliberately narrower
+  illustration: Track 2 (Bedoux) only, styled as a single system-context
+  image for external use (the chapter 00 introduction post), not an
+  attempt at technical completeness. It is hand-authored SVG, not derived
+  from the `.drawio` file, and is updated by hand when the introduction
+  narrative changes — most recently to drop a stray TPC-H reference and
+  restore full Bedoux pipeline/gate detail. It currently has no rendered
+  PNG checked into this repo; an exported copy lives in the author's
+  external content folder for the post itself.
+
+**Neither diagram shows chapter 03's evidence-redaction boundary.** That is
+deliberate, not an oversight: `src/bedoux/evidence.py` is not wired into
+the job or any pipeline task yet (see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md)), so it
+has no architectural edge to draw. Add it to both diagrams once chapter 04
+gives it a real call site — not before.
 
 ## Scope
 

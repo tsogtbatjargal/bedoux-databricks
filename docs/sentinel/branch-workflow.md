@@ -9,6 +9,39 @@ Post tags such as `post/00-introduction` identify the exact demonstrated commit.
 Published tags never move. Create future branches when their chapters start, not
 all at once from today's baseline.
 
+## Branch namespace: chapters vs. working branches
+
+The `series/` prefix is shared by two different kinds of branch, and only one
+of them is covered by "retain the remote branch" above:
+
+- **Chapter branches** — exactly one per chapter, named `series/NN-name`
+  matching the row in [roadmap.md](roadmap.md)'s table (`series/00-introduction`,
+  `series/01-know-your-platform`, `series/02-quality-gate`,
+  `series/03-protect-evidence`, and so on as later chapters start). These are
+  **archival and retained unconditionally, remote, forever** — they're what the
+  "Reference patterns" section below gives a citable URL for, and what a
+  published post or a future reader might browse directly.
+- **Working branches** — everything else in the `series/` namespace: fix
+  rounds (`series/02-quality-gate-fixes`, `series/03-evidence-leak-fix`),
+  draft/housekeeping rounds (`series/02-post-draft`), and cross-cutting prep
+  work (`series/00-claude-efficiency`, `series/docs-alignment`). These exist
+  because a chapter branch is a published snapshot per "Corrections and
+  references" below — later fixes get their own branch rather than reopening
+  or rebasing an already-retained one. They are **ordinary and safe to delete
+  after merging**, the same as any feature branch: every commit on them
+  remains permanently reachable through its merge commit on `main` and through
+  its (immutable) PR page on GitHub, so deleting the source branch loses no
+  evidence and breaks no citation. This project's citations are commit SHAs
+  and PR numbers (see every chapter doc's "Status" line and "Before posting"
+  checklist), never a working-branch name or URL.
+
+The one exception, stated so it's not a surprise later: if a fix branch's
+commit ever becomes *the* demonstrated commit cited in the [publication
+register](#publication-register) below — i.e. the branch itself, not just its
+already-merged SHA, is what a live publication points a reader at — treat that
+one branch as archival from that point on. Nothing currently published makes
+this apply to any existing branch; the publication register is still empty.
+
 ## Chapter lifecycle
 
 1. Inspect the checkout and preserve unfinished changes. Start the next chapter
