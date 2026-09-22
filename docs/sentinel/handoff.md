@@ -1,5 +1,12 @@
 # Session handoff
 
+> **⚠ TEMPORARY, REMOVE ONCE RESTORED:** `dev`'s `bedoux_bronze_pipeline` is
+> currently deployed with `bedoux_lead_invalid_rate=0.30` (Stage 1 FAULT of
+> the fault→restore→replay demonstration, confirmed working as intended —
+> `leads` quarantine rate 32.8%, gate correctly withheld, Gold untouched).
+> Restore to `0.02` is the very next step in progress. If this banner is
+> still here, **restore has not happened yet — do that before anything else.**
+
 Updated: 2026-09-22. **The blocking defect from the live baseline run
 (below) is root-caused, fixed, unit-tested, confirmed live, and pushed —
 PR #3 now reflects it and CI is green on the fixed code.** Root cause:
