@@ -16,7 +16,9 @@ its fact rows (see "Incident") — which this branch fixed, then proved via a
 full live fault → restore → replay sequence: the withhold path correctly
 stopped Gold on a genuine 32.8% quarantine rate, restoration was explicit
 and verified, and a literal back-to-back replay showed no duplication. See
-"Fault → restore → replay demonstration" below. No post draft yet.
+"Fault → restore → replay demonstration" below. **A post draft exists**
+(below); not published — publication status is tracked separately in
+`docs/sentinel/roadmap.md`.
 Chapter 01 mapped the platform and found the gap
 this chapter closes: `expect_or_drop` silently drops rows with no record of
 what was dropped or why, no dedup exists on the fact tables, and an orphaned
@@ -25,6 +27,76 @@ code (`src/bedoux/bronze.py`, `silver.py`, `gold.py`) for the first time in
 the series — see [branch workflow](../branch-workflow.md) and `AGENTS.md`:
 merging this to `main` attempts validation and deploys only if checks succeed.
 Integration remains a deployment decision for the user.
+
+## LinkedIn draft
+
+A job can report success while destroying what it's supposed to protect.
+
+That's what the first live test of Bedoux Sentinel's new publication gate
+showed. Bronze, Silver, and the gate task all reported success. But every
+Silver table meant to hold accepted and rejected leads was empty, on both
+sides. The gate itself reported a clean pass: 0% quarantined, nothing
+rejected. Gold refreshed on that pass — and the damage wasn't uniform.
+`gold_client_funnel` went from 132 rows to 0, `gold_ogi_ops_health` from
+183 to 0. But `gold_campaign_performance` kept all 30 rows, still there,
+still looking like a normal table — just with `lead_count` at 0 and
+`cost_per_lead` at NULL on every one of them. A dashboard reading that
+table wouldn't see it vanish. It would see every campaign go quietly to
+zero.
+
+The cause was one function: `array_remove(array(...), None)`. Spark's
+`array_remove` is null-intolerant on its *element* argument — a NULL
+element nulls the whole array instead of stripping it out. Every quality
+check evaluates to NULL when it passes, so every row's reason list was
+NULL, everywhere, with no exception anywhere in the log.
+
+I only found it by querying the persisted tables directly instead of
+trusting the gate's own report. Fixed with `array_compact`, plus a new
+independent check: the gate now confirms accepted + quarantined rows sum to
+the total, read from the tables themselves rather than recomputed from the
+logic that broke. Verified live under an injected 30% fault: 336 accepted,
+164 quarantined of 500 leads, a 32.80% rate, gate correctly refused to
+publish, Gold's data confirmed untouched afterward. Healthy runs land at
+490 clean, 10 quarantined.
+
+A second review pass, run independently from the one that wrote the fix,
+then found something subtler: the reference check validated against raw
+Bronze data, but Gold only publishes campaigns that passed Silver's own
+validation. A lead could reference a campaign Bronze had but Silver
+rejected — pass every check correctly, get counted correctly, and still
+vanish from the published table, because the check pointed at the wrong
+input, not because any control failed.
+
+Sun Tzu's theme of preventing damage early usually reads as speed. Here it
+meant something narrower: making sure the gate checks the data readers will
+actually see, not a proxy for it.
+
+Stated limits: this withholds all of Gold together, not table by table. It
+checks timestamp freshness, not an immutable batch ID. Running the
+pipeline directly skips the gate entirely. And the failure paths inside the
+gate itself — the NULL guard, the check that would catch an unconserved
+batch — have never fired on a live run, only in tests.
+
+Next: what happens when the evidence itself needs protecting.
+
+## Before posting
+
+- Have the author edit any sentence that doesn't sound like them.
+- Suggested visual: a before/after table of the fault-run `gate_status` row
+  (`quarantine_rate 32.80%`, `gate_passed false`, `conserved true`) next to
+  the healthy row, from `chapter-02-evidence.md` — makes the "correct
+  control, real number" point without a screenshot of raw logs.
+- Evidence backing every claim in the draft is in
+  [chapter-02-evidence.md](../chapter-02-evidence.md) (run IDs, exact
+  `gate_status` rows, Gold digests) and this file's "Incident" and "Review
+  findings, round 2" sections. No cost, incident, or quote is claimed.
+- No `post/02-quality-gate` tag exists yet — tagging is a separate,
+  authorized publication step. Until then, the verifiable public references
+  are PR #3 (`f8ae89d`) and PR #4 (`b62bffa`), both merged into this public
+  repository, and this chapter doc on `main`. Add the tag and update this
+  note with the permalink before publishing.
+- Mark this draft unpublished until the user requests publication; no
+  assistant posts it automatically.
 
 ## Scope
 
@@ -546,17 +618,13 @@ end to end. Only a live pipeline run does that.
 
 ## Related finding, not fixed this chapter
 
-`clients_clean`/`campaigns_clean` dedup by a window ordered on `_ingest_ts`
-(`silver.py`, unchanged this chapter). Since `_ingest_ts` is
-`current_timestamp()`, it's constant across every row of a single table
-computation and ties whenever the same `client_id`/`campaign_id` appears more
-than once in one run — `row_number()` over a tied window is not guaranteed
-deterministic. This is the same class of bug `_row_id` was added to fix for
-leads/web_events/ops_events, but touching `clients_clean`/`campaigns_clean`
-was out of this chapter's stated scope (only "malformed values, duplicate
-leads, and missing campaign references" were named) and neither table has
-test coverage today to catch a regression. Left as a flagged, not fixed,
-finding for a future chapter or a dedicated fix.
+`clients_clean`/`campaigns_clean` dedup by a window ordered on the
+constant-per-run `_ingest_ts`, the same class of bug `_row_id` was added to
+fix for the fact tables, but touching those two dimension tables was out of
+this chapter's stated scope. Moved to
+[known-gaps.md](../known-gaps.md#clients_cleancampaigns_clean-dedup-ties-on-a-constant-timestamp)
+so the register is the single home for cross-chapter gaps rather than
+duplicating the writeup here.
 
 ## Roadmap acceptance mapping
 

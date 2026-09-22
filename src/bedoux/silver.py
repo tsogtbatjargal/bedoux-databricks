@@ -68,7 +68,7 @@ def _duplicate_reason(key_column_name):
 # Deliberately plain materialized tables, not Auto CDC -- see contracts doc for
 # why CDC isn't the right tool here. Unchanged in chapter 02: dedup ties on
 # clients_raw/campaigns_raw are a known, separately-tracked issue (see
-# docs/sentinel/chapters/02-quality-gate.md), not part of this chapter's scope.
+# docs/sentinel/known-gaps.md), not part of this chapter's scope.
 # =============================================================================
 
 

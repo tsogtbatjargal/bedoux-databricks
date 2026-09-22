@@ -68,3 +68,44 @@ Both are real, working code paths backed by tests — this is not a claim
 they're broken. It's a claim that "tested" and "observed live" are
 different levels of evidence, and only the first is currently true for
 these two.
+
+## CI credential expiry will look like a bundle defect
+
+The `github-actions-ci` PAT backing `DATABRICKS_TOKEN` in this repo's GitHub
+Actions secrets **expires 2026-12-20**. No token value is recorded here or
+anywhere in this project — this is a durability note about the expiry date
+only.
+
+**When it expires, `Validate bundle`/`Deploy bundle` will fail on
+authentication** (`default auth: cannot configure default credentials` or
+similar), on a PR or a `main` push that otherwise contains no bundle
+problem at all. This is not a hypothetical: the very first time this
+project's CI attempted `Validate bundle`, before any CI credential existed,
+it failed exactly this way, and diagnosing "is this a real bundle defect or
+a missing-credential problem" consumed a full session before `gh secret
+list` confirmed the repo had zero secrets configured. A future expiry will
+produce the identical symptom on a repo that otherwise has working
+credentials — check the token's expiry and the secret's presence *before*
+assuming the bundle itself broke.
+
+**For the user, not acted on here:** three PATs currently exist in the
+workspace — `github-actions-ci` (in use by CI), `bedoux-databricks-project`
+(expires 2027-07-30, appears unused since CI got its own dedicated token),
+and `CLI Access Token` (expires 2027-09-21, never specifically accounted
+for in this project's records). Whether to revoke either of the unused ones
+is the user's decision; this file only records that they exist and when
+they expire.
+
+## `clients_clean`/`campaigns_clean` dedup ties on a constant timestamp
+
+`clients_clean` and `campaigns_clean` (`silver.py`) dedup by a window
+ordered on `_ingest_ts`. Since `_ingest_ts` is `current_timestamp()`, it's
+constant across every row of a single table computation and ties whenever
+the same `client_id`/`campaign_id` appears more than once in one run —
+`row_number()` over a tied window is not guaranteed deterministic. This is
+the same class of bug `_row_id` was added to fix for `leads`/`web_events`/
+`ops_events` in chapter 02, but touching `clients_clean`/`campaigns_clean`
+was out of that chapter's stated scope (only "malformed values, duplicate
+leads, and missing campaign references" were named), and neither table has
+test coverage today to catch a regression if this silently misbehaves.
+Flagged, not fixed; a candidate for a future chapter or a dedicated fix.
