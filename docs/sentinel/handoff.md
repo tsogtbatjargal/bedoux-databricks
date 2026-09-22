@@ -389,9 +389,9 @@ the workspace to read, and changed nothing.
    above. `gate_status`'s `conserved` field now matches the persisted tables
    exactly for all three sources; Gold's content digests matched the
    pre-incident baseline byte-for-byte.
-5. **Not pushed. Two local commits ahead of `origin/series/02-quality-gate`
-   (`26b9d99`, `9d3ca54`) — flagging per instruction, not pushing
-   unilaterally.** PR #3's current green CI predates both; it would need a
+5. **Not pushed. Three local commits ahead of `origin/series/02-quality-gate`
+   (`26b9d99`, `9d3ca54`, `a80c914`) — flagging per instruction, not pushing
+   unilaterally.** PR #3's current green CI predates all three; it would need a
    push to reflect the incident/fix history and re-run `Unit tests`/
    `Validate bundle` against the fixed code.
 
