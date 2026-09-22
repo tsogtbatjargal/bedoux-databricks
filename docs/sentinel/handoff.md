@@ -9,98 +9,103 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 - Chapter 02 is integrated, demonstrated live, and review-closed. Its post
   is drafted, not published. See [evidence](chapter-02-evidence.md) and
   [chapter doc](chapters/02-quality-gate.md).
+- Chapter 01's post is now also drafted, not published. See
+  [chapter doc](chapters/01-know-your-platform.md)'s "LinkedIn draft"
+  section.
 - Chapter 03 is integrated (PR #6, merge `569c03d`), **not acceptance-complete**.
   `src/bedoux/evidence.py` implements recursive redaction, sensitive-copy checks,
   and canary checks. No production caller or model transport exists. Tests
   establish fixture behavior, not prevention of a real external call.
   See [acceptance mapping](chapters/03-protect-evidence.md#roadmap-acceptance-mapping).
+  Its post is deliberately not drafted — the doc's own "Post draft" section
+  says why (not acceptance-complete; the material reads better once a call
+  site exists).
 - Last recorded workspace verification: fourth CI deployment, normal
   `bedoux_lead_invalid_rate=0.02`, unchanged pipeline IDs, one analytics job,
-  Bronze → Silver → gate → Gold, unchanged Gold digests. This session did
-  not recheck the workspace. Prior checks and review history are preserved in
+  Bronze → Silver → gate → Gold, unchanged Gold digests, plus a fresh
+  read-only re-observation this session confirming the same (see
+  [live-verification.md](live-verification.md), section 3). Prior checks and
+  review history are preserved in
   [the archived handoff](handoff-2026-09-22-archive.md).
-- Chapters 04–07 remain planned. Jev is optional; no provider/budget has been
+- Chapters 04–07 remain planned; **chapter 04 was not started this
+  session**, per instruction. Jev is optional; no provider/budget has been
   selected for runtime calls. AWS remains deferred.
 
-## Workflow preparation — 2026-09-22
+## This session: three PRs, in order, none merged
 
-The user requested project analysis and help making Claude implementation
-token-efficient, including evaluating Jev. Work is on local branch
-`series/00-claude-efficiency`, based on `main` at `25e1784`; inspect actual Git
-state rather than assuming the branch or uncommitted state remains unchanged.
+1. **PR #7** (`series/00-claude-efficiency` → `main`): commits the
+   in-flight workflow-prep work found at session start — this compact
+   handoff format, [the implementation brief](claude-implementation.md),
+   the Jev/TypeSafe evaluation, `agent-setup.md`'s pointer, and the
+   restored architecture SVG. One correction made before committing: the
+   brief's chapter-04 invocation was deferred out of "exact next task" per
+   the user's decision to defer chapter 04.
+2. **PR #8** (`series/03-evidence-leak-fix` → `main`): fixes the leak the
+   brief's assessment found — `evaluate_evidence_gate`'s problem strings
+   embedded the leaked secret verbatim. Recorded as "Review findings,
+   round 3" in [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md) —
+   the third time in this chapter that a control checked itself or leaked
+   through its own reporting. 125 tests on that branch (121 + 4). **Touches
+   `src/bedoux/evidence.py`; merging deploys — the project's fifth
+   deployment.**
+3. **PR #9** (`series/docs-alignment` → `series/00-claude-efficiency`,
+   since PR #7 hadn't merged when this round started — confirmed with the
+   user before branching): aligns `live-verification.md` (stale
+   "not demonstrated" header and starting-state section corrected, with a
+   fresh re-observation), `README.md` (per-chapter build status replacing
+   the stale "all planned" framing), `known-gaps.md` (three new chapter 03
+   entries), and drafts chapter 01's post. **Docs only, no code, no bundle
+   path** — 121 tests unchanged on this branch (round 2's leak fix isn't
+   present here; it lives on PR #8's separate branch from `main`).
 
-- Added [Claude implementation brief](claude-implementation.md): bounded next
-  task, completion sequence, context discipline, and Jev evaluation criteria.
-- Kept existing chapter/story skills; no extra skill or routing hook needed yet.
-- Shortened this startup file; preserved the previous handoff in the archive
-  apart from its archival heading and navigation link.
-- Added Claude compaction guidance and linked the brief from agent setup.
-- Code inspection found a future logging hazard: `evaluate_evidence_gate`
-  interpolates leaked values into its returned problem strings. Nothing calls
-  it in production yet. The next runtime increment must use safe reason codes
-  and test logs, reports, and exceptions as well as outbound requests.
-- No runtime code, dependency, credential, model routing, or workspace changes.
-  Documentation remains uncommitted; no push or paid model call occurred.
+None of the three are merged. Merge order isn't fixed by dependency except
+that PR #9 targets PR #7's branch, so PR #7 should land (or be rebased
+around) before PR #9 can merge to `main` cleanly; PR #8 is independent
+(based on `main`) and can merge on its own schedule.
+
+## Prior work folded into PR #7 (full detail in Git log, not repeated here)
+
+Workflow-prep round (2026-09-22): the Claude implementation brief, Jev/
+TypeSafe evaluation, this compact handoff format, and CLAUDE.md's
+compaction guidance. The same inspection that produced the brief is what
+found the problem-string leak PR #8 fixes.
+
+Architecture SVG round (2026-09-22): `docs/architecture-context.svg`
+restored to the detailed diagram with the TPC-H section removed, per prior
+user direction; checked against `resources/bedoux_jobs.yml`/`quality.py`/
+`gate_check.py`/the Track 2 contract, rendered and visually inspected. A
+refreshed 1800×1600 PNG export exists in the user's external content
+folder (not this repo).
 
 ## Checks and remaining limits
 
-On 2026-09-22, local Linux checkout at `25e1784`, locked project environment:
-`uv sync --locked` succeeded; `uv run --locked python -m pytest -q` reported
-**121 passed in 0.11s**, using repository synthetic fixtures. Claude Code
-`2.1.263` is installed; account/billing access was not inspected.
+`uv run --locked python -m pytest -q`: **121 passed** on this branch
+(`series/docs-alignment`, based on PR #7's branch — round 2's leak fix
+lives on PR #8's separate branch and isn't present here). `git diff
+--check` clean; every markdown link added or edited this session resolves
+(checked programmatically against actual headings, not by eye).
 
-Documentation checks: `git diff --check` passed; 16 local file links resolved;
-the archived handoff body matched `HEAD:docs/sentinel/handoff.md` exactly.
-A synthetic copied-secret check reproduced the diagnostic-string hazard without
-printing the value. No live service was involved.
-
-These tests do not execute Spark or prove IAM, live replay, or provider behavior.
-Remaining [known gaps](known-gaps.md): manual durable incident evidence,
-client/campaign dedup ties, unexercised conservation failure paths, and CI
-credential expiry. Redaction also misses unrecognized freeform sensitive text,
-short copied strings, and non-string copied values; it is not general DLP.
-
-## Architecture SVG update — 2026-09-22
-
-Updated `docs/architecture-context.svg` for the user's introduction image.
-The user's final clarification was to restore the detailed diagram and remove
-only the TPC-H section. The SVG retains GitHub Actions CI/CD, Asset Bundle,
-Unity Catalog, full Bedoux pipeline/schema labels, the notebook publication
-gate, SQL Warehouse and Genie. The layout closes the gap left by TPC-H.
-Underlying pipelines/resources are unchanged. The direct-Gold bypass limitation
-and planned agent/routing/recovery status remain explicit. No workspace IDs
-appear. The separate `.drawio` remains the broader two-track map.
-
-Checked against `resources/bedoux_jobs.yml`, `quality.py`, `gate_check.py` and
-the Track 2 contract. SVG XML/unique IDs/gate edges and `git diff --check` passed.
-Rendered with ImageMagick and inspected visually. The SVG is 900×800; the
-refreshed 1800×1600 PNG export is in the user's
-external content folder at
-`/var/home/tsogtb/src/github.com/bedoux-tech/bedoux-sentinel-content/2026-09-22/architecture-context.png`.
-No runtime files changed or live jobs ran. SVG and handoff remain uncommitted
-alongside the pre-existing workflow edits. Next for the post: author review of
-the updated image; no publication or remote update has occurred.
+These tests do not execute Spark or prove IAM, live replay, or provider
+behavior. [known-gaps.md](known-gaps.md) is current as of this session:
+manual durable incident evidence, client/campaign dedup ties, unexercised
+conservation failure paths, CI credential expiry, no caller of
+`evaluate_evidence_gate` exists, the sensitive-value check's 8-character/
+string-only narrowing (concrete miss: a 7-character password copied
+verbatim), and freeform sensitive text being inherently invisible to
+`evidence.py`.
 
 ## Exact next useful task
 
-Chapter 04 is deferred; [the implementation brief](claude-implementation.md)
-stays as a prepared plan, not an active task -- do not act on its invocation
-without separate authorization. Two things are authorized and outstanding
-first:
+Three PRs are open (see above); **none should be merged without the user's
+go-ahead**, per this session's constraints. In rough dependency order:
 
-1. **Fix the leak `claude-implementation.md`'s assessment found**:
-   `evaluate_evidence_gate`'s sensitive-copy problem string embeds the
-   leaked value verbatim (`src/bedoux/evidence.py`) -- a gate that blocks a
-   packet and then hands the secret to whoever reads the rejection defeats
-   its own purpose. Fix on a new branch from `main`; this touches
-   `src/**`, so merging deploys.
-2. **Align the docs with what has actually shipped**: `live-verification.md`
-   still reads as pre-chapter-02, `README.md`'s "planned, not current
-   deployment" framing predates chapter 02's integration, `known-gaps.md`
-   has zero chapter 03 entries, and chapter 01 has no post draft. Docs-only,
-   no deploy.
+1. Decide PR #7's fate — it's the base PR #9 branches from.
+2. Merge PR #8 (leak fix) whenever convenient — independent of the other
+   two, deploys on merge (project's fifth).
+3. Merge PR #9 (docs alignment) once its base (PR #7) has landed.
 
-No API account is needed for either. Chapter 04's first increment (guarded
-provider boundary, offline incident persistence, failure-path tests) waits
-until it is explicitly authorized. Publishing chapter 02 remains separate
-and unrequested.
+After all three: chapter 04 remains the only substantive open door, and it
+still needs its own explicit authorization — [the implementation
+brief](claude-implementation.md) is a prepared plan, not standing
+permission. No API account is needed before that authorization. Publishing
+chapters 01 or 02 remains separate and unrequested.
