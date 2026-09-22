@@ -1,9 +1,10 @@
 # Part 02 — Defend before damage spreads
 
 Status: PR #3 open on `series/02-quality-gate`; follow-up fixes are local and
-not merged. A live baseline run found and this branch fixed a real defect —
-**the gate initially passed a run that lost 100% of its fact rows** — see
-"Incident" below. No post draft yet. Chapter 01 mapped the platform and found the gap
+not merged. A live baseline run found a real defect — **the gate initially
+passed a run that lost 100% of its fact rows** — which this branch has since
+fixed and re-verified with a second live run. See "Incident" below. No post
+draft yet. Chapter 01 mapped the platform and found the gap
 this chapter closes: `expect_or_drop` silently drops rows with no record of
 what was dropped or why, no dedup exists on the fact tables, and an orphaned
 `campaign_id` vanishes from Gold with no error. This chapter changes pipeline
@@ -345,6 +346,27 @@ misclassification that quarantines the right *count* of rows for the wrong
 *reason* would still conserve). It closes the most severe failure mode —
 total, silent data loss passing as healthy — not every possible one.
 
+**Re-run result (2026-09-21, same day, post-fix):** all four tasks succeeded
+again — but this time verified against the actual persisted tables, not just
+job status, the same way the incident itself was found. `gate_status`:
+`leads` total=500/quarantined=10/`conserved=true`, `web_events`
+total=2000/quarantined=46/`conserved=true`, `ops_events`
+total=365/quarantined=8/`conserved=true` — quarantine rates 2.0%/2.3%/2.2%,
+all comfortably under the 10% threshold and close to the generator's ~2%
+baseline. Directly queried `leads_clean`/`leads_quarantine` = 490/10,
+`web_events_clean`/`quarantine` = 1954/46, `ops_events_clean`/`quarantine` =
+357/8 — **exact matches to `gate_status`'s own numbers this time.**
+`quality_metrics` shows a sane per-reason breakdown (`leads`:
+`null_campaign_id` × 10; `web_events`: `invalid_duration` × 46; `ops_events`:
+`invalid_latency` × 8). Gold refreshed: `gold_campaign_performance` 30 rows
+with real non-zero `lead_count`/`won_count`/`conversion_rate` and non-NULL
+`cost_per_lead`; `gold_client_funnel` 132 rows; `gold_ogi_ops_health` 183
+rows. **All three Gold tables' order-independent content digests matched the
+pre-incident 2026-07-30 baseline exactly**, confirming the handoff's
+corrected claim: the destroyed baseline was fully recoverable because every
+business row is deterministic from `SEED=42` and Gold carries no audit
+timestamp column. See the handoff for run/update IDs.
+
 ## Live verification
 
 The credential options, what deploys automatically once secrets exist, and
@@ -379,13 +401,14 @@ end to end. Only a live pipeline run does that.
 | Row-conservation check (`accepted_rows + quarantined_rows == total`) is what would have caught the incident | **Verified against the incident's own numbers** | `test_unconserved_source_withholds_even_though_gate_passed_and_rate_look_clean` reproduces `gate_passed=True, rate=0.0, accepted_rows=0, quarantined_rows=0, total=500` and asserts the gate now withholds. |
 | `silver.py`/`gold.py` native Spark *logic* (joins, windows, control flow) matching `quality.py`'s semantics | **Verified by code reading, untested against data — this is exactly the category the incident came from** | Reviewed side by side; no automated check of the Spark expression structure itself exists (same precedent as `gold.py` vs. `transforms.py`). The array_remove defect survived this same kind of review once already. |
 | `bronze.py`'s `_row_id` batch identity | **Verified by code reading, untested against data** | Reviewed; not exercised against a live Bronze run. |
-| **A gate failure actually withholds the Gold refresh** | **Live-tested once, initially failed (the incident); fix not yet re-verified live** | First attempt: gate passed when it should have withheld (see Incident). Fix applied and unit-tested; a second live run is Milestone 4, pending at the time of writing — see the handoff for the outcome once run. |
+| A healthy run's gate correctly PASSES with conserved, accurate evidence | **Verified live, post-fix** | Second live run (2026-09-21): `gate_status` conserved=true for all three sources; directly queried `_clean`/`_quarantine` table counts matched `gate_status`'s own numbers exactly (490/10, 1954/46, 357/8) — the specific thing that was wrong the first time. |
+| **A failing gate actually withholds the Gold refresh, leaving prior content intact** | **Still untested live** | The only live run so far where the gate *should* have failed (the incident) instead wrongly passed. A genuine fault-injection run (Milestone 5, not yet authorized) is what would exercise the withhold path for real. |
 | `notebook_task` with `base_parameters` runs on Free Edition serverless | **Verified** | The 2026-09-21 baseline run executed `bedoux_gate_task` successfully as a notebook task; it read and evaluated `gate_status` correctly given its (then-wrong) inputs — the task mechanics worked, only the upstream data was wrong. |
 | `{{job.start_time.timestamp_ms}}` resolves in the workspace | **Verified** | Same run: `run_start_ms` resolved and `min_computed_ts` was computed without error. |
 | Spark `unix_millis(_computed_ts)` feeds UTC comparison | **Verified** | Same run: `_computed_ts` values were fresh and compared correctly against the run boundary — this part of the freshness mechanism was never the problem. |
 | Whether Gold tables genuinely retain prior content when their pipeline does not run | **Untested** | The incident run had the gate *wrongly pass*, so Gold ran and overwrote the baseline — it did not exercise the withhold path. Still needs a genuine fault-injection run. |
 | `databricks bundle validate --target dev` | **Verified, repeatedly** | Local Databricks CLI access set up this session; `bundle validate`/`bundle plan`/`bundle deploy` all executed successfully against `dev`. See the handoff for the CLI/profile setup. |
-| A live rerun demonstrating "replay does not duplicate" | **Untested** | Still requires a second successful healthy run compared against the first; not yet attempted post-fix. |
+| A live rerun demonstrating "replay does not duplicate" | **Suggestive, not conclusive** | The post-fix re-run's three Gold digests matched the pre-incident 2026-07-30 baseline exactly, byte-for-byte — strong evidence the deterministic-seed/full-recompute design doesn't duplicate across two genuinely different runs (old ungated pipeline vs. new gated one). That is not the same claim as "running this exact healthy job twice in a row produces identical output," which needs a literal back-to-back rerun and has not been done — only one post-fix run was authorized this session. |
 
 ## Related finding, not fixed this chapter
 

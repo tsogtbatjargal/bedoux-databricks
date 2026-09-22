@@ -25,40 +25,41 @@ change secrets, bind resources, or publish. Inspect Git before continuing.
 
 ## Current checkpoint
 
-- Branch: `series/02-quality-gate`, **pushed and in sync with origin**.
-  PR #3 is open, unmerged, `MERGEABLE`, and now **green**.
-- Local HEAD: `b8d630f`, matching PR #3's head. The five chapter-02 commits
-  are `8e4cf6a` gate redesign, `46e8d1f` live-verification runbook,
-  `01e7972` run-boundary hardening + fault-injection knob, `6ec7b37`
-  Databricks CLI pin, `b8d630f` credential determination.
-- Working tree clean. No merge, deploy, or job run has occurred.
+- Branch: `series/02-quality-gate`. Local HEAD `9d3ca54`, **two commits ahead
+  of `origin/series/02-quality-gate`** (`26b9d99` incident record, `9d3ca54`
+  the fix). **Not pushed — flagging per instruction, not pushing
+  unilaterally.** PR #3 (currently showing green CI from before the incident
+  was found) does not yet reflect either commit.
+- Working tree clean. No merge, push, or deploy has occurred this session.
+  Two authorized job runs occurred (see below): the first found the incident,
+  the second confirmed the fix.
 - Track 1 source/resources and CI policy are unchanged.
-- No credential value was read, printed, or configured. Read-only workspace
-  API calls were made (see "Credential capability" below). No deployment, job
-  run, merge, tag, push, paid model call, or publication occurred.
 - Chapters 00/01 are integrated into main; remote chapter branches retained.
-  Their local branches were previously removed after preservation/ancestry
-  checks. Detailed history remains in Git and chapter documents.
 
 ## Implementation now in the checkout
 
-- Bronze/Silver generate fictional data, quarantine rejected facts with reasons,
-  and count rows without double-counting multi-reason records.
+- Bronze/Silver generate fictional data, quarantine rejected facts with
+  reasons, and count rows without double-counting multi-reason records.
 - The ordinary `bedoux_gate_task` notebook runs after Silver and before Gold.
   Gold has no imperative gate or self-referencing fallback. Failed gate means
   the whole Gold pipeline should not run, including a first-ever run.
-- `quality.evaluate_gate` rejects absent/duplicate sources, false/null pass
-  values, stale/null/invalid timestamps, empty required-source configuration,
-  and missing or timezone-naive run boundaries.
-- The task now requires `{{job.start_time.timestamp_ms}}`. It converts Spark
+- `_flagged` views build `_reasons` with `array_compact(array(...))`
+  (**not** `array_remove(..., None)` — see "Incident" below and the chapter
+  doc) and are guarded by `@dlt.expect_or_fail("reasons_not_null", ...)`.
+- `gate_status` computes `total`/`quarantined`/`quarantine_rate`/`gate_passed`
+  from the `_flagged` views (unchanged since the double-counting fix), **and
+  now also** reads the persisted `<source>_clean`/`<source>_quarantine`
+  tables directly to compute `accepted_rows`/`quarantined_rows`/`conserved`.
+- `quality.evaluate_gate` withholds unless `gate_passed`, `conserved` are both
+  strictly true and `total > 0`, on top of the pre-existing absent/duplicate
+  source, null/stale timestamp, and run-boundary checks.
+- The task requires `{{job.start_time.timestamp_ms}}`. It converts Spark
   timestamps with `unix_millis` before Python collection and uses explicit
   UTC datetimes. Missing/unresolved widgets cannot disable freshness.
 - Bundle variable `bedoux_lead_invalid_rate` feeds pipeline configuration
   `bedoux.lead_invalid_rate`; default 0.02, demo fault 0.30, valid range 0..1.
-  Malformed/nonfinite values fail. Explicit lead schema handles the all-null
-  campaign column at rate 1. Other source rates/seeds remain unchanged.
-- This is a deploy-time override, not a job-run parameter. Restoration requires
-  redeploying 0.02. No live rate setting was changed in this session.
+  This is a deploy-time override, not a job-run parameter. Currently deployed
+  at `0.02` (the normal setting) after this session's two runs.
 
 ## Important limits
 
@@ -68,25 +69,22 @@ change secrets, bind resources, or publish. Inspect Git before continuing.
   not implemented. Direct Gold execution bypasses the gate.
 - Gold withholding is whole-pipeline, not per-table. Successful gate approval
   does not make subsequent multi-table Gold publication atomic.
-- Synthetic business rows are reproducible; audit timestamps are not.
-  Quarantine tables are recomputed, not an append-only incident archive.
-  Capture failed-stage evidence before restoring the normal fixture.
-- CI credentials are configured and **proven working**: the user set
-  `DATABRICKS_HOST` and `DATABRICKS_TOKEN` as repository secrets from a
-  90-day PAT created 2026-09-21 (comment `github-actions-ci`), and run
-  `35667369376` on `b8d630f` validated the bundle in CI. The original
-  `Validate bundle` failure was missing credentials, not a bundle defect.
-  **Consequence:** merging PR #3 to `main` would now deploy, because the
-  bundle-path condition and credentials are both satisfied. Treat merging as
-  a deployment decision.
+- Row conservation catches "the split doesn't add up to the input"; it does
+  not catch every possible Spark-logic defect that still conserves row
+  counts (e.g. a misclassification that quarantines the right count of rows
+  for the wrong reason). See the chapter doc's incident writeup for the exact
+  scope of what this closes.
+- CI credentials are configured and **proven working** (PAT, repo secrets;
+  see "CI verification" below). Merging PR #3 would deploy, since bundle-path
+  changes + working credentials both apply on a `main` push. **Neither
+  unpushed commit is reflected in PR #3 yet** — its current green CI predates
+  both the incident and the fix.
 - Full `bundle deploy` includes both tracks. Do not confuse unchanged Track 1
   source with a Track-2-only deployment.
-- Databricks CLI is now installed locally and OAuth-authenticated (see
-  "Databricks CLI access" below); `bundle validate` has succeeded once
-  against `dev`. Notebook runtime, scheduler withholding, and retained Gold
-  content still require live verification via an actual job run, which has
-  not happened. Serverless notebook configuration is documented; there is no
-  evidence yet requiring a different task type.
+- Databricks CLI is installed locally and OAuth-authenticated (see
+  "Databricks CLI access" below). `bundle validate`/`bundle plan`/
+  `bundle deploy`/`bundle run` have all now executed successfully multiple
+  times against `dev`, across two full job runs.
 
 ## Deployment and baseline run (2026-09-21, this session)
 
@@ -234,6 +232,56 @@ does carry audit columns — `_ingest_ts`, `_quarantined_ts` — so a
 row-for-row Silver digest would differ across runs even when correct; the
 digests above were only taken for Gold, where this doesn't apply.)
 
+## Re-run result: fix confirmed live (2026-09-21, same session)
+
+After Milestones 1–3 (root cause, fix, tests — see `9d3ca54`), ran the exact
+Milestone-4 sequence: `bundle validate` → `bundle plan` (`0 to add, 0 to
+change, 0 to delete, 8 unchanged` — this fix only changes library file
+contents, not resource definitions, so the plan correctly shows no resource
+diff) → confirmed no active runs → `bundle deploy -t dev --var
+bedoux_lead_invalid_rate=0.02 --fail-on-active-runs` (no `--auto-approve`) →
+diffed the deployed `silver.py` byte-for-byte against the checkout
+(identical) → `bundle run bedoux_analytics_job`.
+
+Run `470702296963638`, started 2026-09-21T18:09:32Z, ended 18:15:15Z. **All
+four tasks `SUCCESS`, and this time verified against the actual data, not
+just job status** — the same discipline that caught the incident:
+
+| Source | `gate_status` total/quarantined/conserved/gate_passed | Directly queried `_clean`/`_quarantine` counts | Match? |
+|---|---|---|---|
+| leads | 500 / 10 / true / true | 490 / 10 | **yes, exactly** |
+| web_events | 2000 / 46 / true / true | 1954 / 46 | **yes, exactly** |
+| ops_events | 365 / 8 / true / true | 357 / 8 | **yes, exactly** |
+
+Quarantine rates: leads 2.0%, web_events 2.3%, ops_events 2.2% — all close to
+the generator's ~2% baseline and comfortably under the 10% threshold.
+`quality_metrics` breakdown is sane: `leads`/`null_campaign_id`×10,
+`web_events`/`invalid_duration`×46, `ops_events`/`invalid_latency`×8, plus
+the three `accepted` counts. Gold refreshed: `gold_campaign_performance` 30
+rows with real non-zero `lead_count`/`won_count`/`conversion_rate` and
+non-NULL `cost_per_lead` (e.g. campaign 1: 15 leads, 4 won, 26.7% conversion,
+$236.13/lead); `gold_client_funnel` 132 rows; `gold_ogi_ops_health` 183 rows.
+
+**All three Gold tables' order-independent content digests matched the
+pre-incident 2026-07-30 baseline exactly** (`gold_campaign_performance`
+`72575a78...a805dba`, `gold_client_funnel` `636c7dd0...7df1c2e`,
+`gold_ogi_ops_health` `72aef48d...2083e41d` — same digests recorded in the
+preflight section above). This confirms live the correction made above: the
+destroyed baseline was fully recoverable, byte-for-byte, because of
+`SEED=42` determinism and Gold's lack of audit columns.
+
+Update IDs for the record: bronze/silver/gold pipelines each ran a fresh
+`COMPLETE_RECOMPUTE` update under this run; `gate_status._computed_ts` =
+`2026-09-22T00:12:43.113Z` for all three sources (one shared computation, as
+expected for a single `gate_status` table refresh).
+
+**What this run does and does not establish:** it proves a healthy run now
+correctly passes with self-consistent, conserved evidence, and that the fix
+didn't regress anything Milestone 4's acceptance criteria named. It does
+**not** exercise the withhold path — no fault was injected this session, so
+a failing gate actually stopping Gold and preserving prior content remains
+untested live. See "Exact next task" for the proposed next step.
+
 ## Databricks CLI access
 
 - Installed the official Databricks CLI `v1.17.0` (matched GitHub's `latest`
@@ -312,60 +360,70 @@ the workspace to read, and changed nothing.
 
 ## Checks
 
-- `uv run --locked python -m pytest -q`: **92 passed** (CPython in project
-  `.venv`). Includes actual notebook/Bronze source execution with API stubs,
-  generator baseline/fault/restoration, and policy edge cases. **No Spark/DLT
-  runtime** is exercised.
-- `uv lock --check`: passed.
-- YAML parse plus graph/config assertions: passed. Verified serial job,
-  Silver → gate → Gold, default all-success conditions, dynamic timestamp
-  parameter, and default/routed demo variable. Not CLI bundle validation.
-- All Track 2 Python sources parsed; `git diff --check` passed.
-- Relative Markdown links in changed documents: **17 checked, none broken**.
-- Re-run at commit time: `uv sync --locked` then
-  `uv run --locked python -m pytest -q` — **92 passed**; `git diff --check`
-  clean; `databricks auth describe` and `bundle validate -t dev` re-confirmed.
+- `uv run --locked python -m pytest -q`: **98 passed** after the fix (was
+  92 before this session's incident/fix work — +6: 5 new conservation-policy
+  tests in `test_gate_policy.py`, 1 AST-based `array_remove` regression test
+  in `test_quality.py`). **No Spark/DLT runtime** is exercised — these are
+  policy/pure-Python/AST-source checks; see the chapter doc's explicit note
+  on what this does and doesn't prove, given that's exactly the gap the
+  incident came through.
+- `uv sync --locked`, `uv lock --check`: passed.
+- `git diff --check`: clean, both before committing the fix and now.
+- Live, post-fix (this session): `bundle validate`/`bundle plan`/
+  `bundle deploy`/`bundle run` all succeeded; deployed source diffed
+  byte-for-byte against the checkout; the actual persisted Silver tables and
+  Gold digests were queried and cross-checked, not just job status — see
+  "Re-run result" above.
 
 ## Exact next task
 
-1. Done: the follow-up is reviewed and committed locally (see "Current
-   checkpoint"). Nothing was pushed; PR #3 is untouched and still open.
-2. Done: [live-verification.md](live-verification.md) section 1 is **closed**.
-   Local OAuth works, the credential question is answered (PAT, no workflow
-   edit), the secrets are set, and CI validates the current tree.
-3. Done, but **not clean**: preflight and one healthy-baseline deploy + run
-   executed exactly as scoped (see "Deployment and baseline run" and
-   "Baseline run result: BLOCKING DEFECT found" above). The run did not
-   demonstrate a working gate — it demonstrated a silent data-loss defect
-   that the gate's own passing status did not catch.
-4. **Done: root-caused and fixed, locally.** `array_remove(array(...), None)`
-   is null-intolerant in Spark (a NULL *element* argument nulls the whole
-   result), not the DLT/Lakeflow runtime bug this file previously guessed
-   at — confirmed directly against the source, not by re-investigating live.
-   Fixed with `array_compact` + `expect_or_fail` guards, plus a row-
-   conservation check in `gate_status` (`accepted_rows + quarantined_rows ==
-   total`, read from the persisted `_clean`/`_quarantine` tables, independent
-   of the `_flagged`-view-based rate) that would have caught this incident
-   specifically. See "Incident" in
+1. Done: [live-verification.md](live-verification.md) section 1 is **closed**
+   (local OAuth, credential capability, CI secrets).
+2. Done: preflight + one healthy-baseline deploy + run, which found the
+   incident (see "Baseline run result" above).
+3. Done: root-caused, fixed, unit-tested (98 passing, was 92), and committed
+   locally as `9d3ca54` on top of `26b9d99` — see "Incident" in
    [chapters/02-quality-gate.md](chapters/02-quality-gate.md) for the full
-   writeup and `quality.py`/`silver.py`/`gate_check.py` diffs. 98 tests pass
-   locally (was 92); this is still policy/AST-level testing, not Spark
-   execution — see the chapter doc's note on what that does and doesn't prove.
-5. **Correction:** the destroyed `gold_client_funnel`/`gold_ogi_ops_health`
-   baseline content is not permanently lost. Every business row is
-   deterministic from `SEED = 42`, and none of the three Gold tables carry an
-   audit timestamp column, so a correct healthy re-run should reproduce the
-   2026-07-30 baseline's Gold content exactly — the pre-run digests recorded
-   above are a valid check for that.
-6. **Next: Milestone 4**, one more authorized healthy re-run
-   (`bedoux_lead_invalid_rate=0.02`) to confirm the fix live — see below for
-   the outcome once attempted. Fault injection stays out of scope until a
-   healthy run is confirmed clean.
-7. Only mark demonstrated after real evidence of a *correct* run. Push/
-   integration and remote retention/local-branch cleanup follow
-   [branch-workflow.md](branch-workflow.md) within user authorization. Chapter
-   03 should not start from this branch's current state until this defect is
-   confirmed fixed live, not just locally.
+   writeup.
+4. Done: **Milestone 4 re-run confirmed the fix live** — see "Re-run result"
+   above. `gate_status`'s `conserved` field now matches the persisted tables
+   exactly for all three sources; Gold's content digests matched the
+   pre-incident baseline byte-for-byte.
+5. **Not pushed. Two local commits ahead of `origin/series/02-quality-gate`
+   (`26b9d99`, `9d3ca54`) — flagging per instruction, not pushing
+   unilaterally.** PR #3's current green CI predates both; it would need a
+   push to reflect the incident/fix history and re-run `Unit tests`/
+   `Validate bundle` against the fixed code.
+
+**Proposed authorization block for the fault → restoration → replay
+milestone**, once you've decided on the push:
+
+- **Fault (0.30):** deploy `bedoux_lead_invalid_rate=0.30`, run the job once,
+  and this time actually exercise the withhold path — confirm Bronze/Silver
+  succeed, `leads` quarantine rate exceeds 10%, `conserved` stays true (a
+  high but *conserved* rate should still be distinguishable from an
+  *unconserved* one), `gate_passed=false`, `bedoux_gate_task` fails, Gold
+  never runs, and — the check this session's discipline earns — directly
+  query Gold's digests afterward to confirm they're unchanged from this
+  session's confirmed-good baseline, not just that the job went red.
+- **Restore (0.02):** redeploy `0.02` explicitly and run again; confirm the
+  setting was restored and content matches this session's baseline digests
+  again (business content should be identical; only audit timestamps
+  differ).
+- **Replay:** one more `0.02` run with no config change, to get the literal
+  "run the same healthy job twice in a row" evidence this session's re-run
+  couldn't provide (it compared against a *different*, pre-chapter-02 run,
+  not a back-to-back replay of this exact job).
+- Each stage needs its own confirmation before deploying the next, per
+  [live-verification.md](live-verification.md) — do not chain them
+  unattended. The 0.30 setting must not be left deployed if a session ends
+  mid-sequence; record that prominently if it happens.
+
+Only mark this chapter demonstrated after that sequence completes with real
+evidence. Push/integration and remote retention/local-branch cleanup follow
+[branch-workflow.md](branch-workflow.md) within your authorization. Chapter
+03 should not start from this branch until you're satisfied with where this
+one landed.
 
 Use `sentinel-story` only when asked to draft posts. Jev remains optional;
 AWS is deferred with no budget or deployment authorization. Earlier AWS reuse
