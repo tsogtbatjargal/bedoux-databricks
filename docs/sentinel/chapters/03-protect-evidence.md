@@ -150,15 +150,12 @@ positive case that non-sensitive evidence still survives redaction at
 nesting depth. None of the original 110 were weakened to make this pass.
 
 **A further gap noticed, not fixed:** this module can only recognize
-sensitive content that is either under a `SENSITIVE_FIELDS` key, carries the
-literal `CANARY_MARKER`, or is an exact/substring copy of a value that
-appeared under a recognized key elsewhere in the same packet. Genuinely
-freeform sensitive text — typed directly into an unlabeled field, never
-duplicated from a labeled one, containing no canary — is invisible to it.
-That's inherent to a pattern/rule-based approach rather than a defect in
-this round's fix, and it's the same caveat `known-gaps.md` and the section
-below already carry: proven for what was tested, not proven as a general
-guarantee.
+sensitive content under a known field name, the literal canary, or a copy
+of a recognized field's value — freeform sensitive text with none of those
+properties is invisible to it. Moved to
+[known-gaps.md](../known-gaps.md#freeform-sensitive-text-with-no-recognized-marker-is-invisible-to-evidencepy)
+so the register is the single home for this rather than duplicating it
+here.
 
 ## Review findings, round 2 (pre-merge, over-blocking regression)
 
@@ -310,9 +307,8 @@ honestly rather than marking the chapter complete:
   packet, which is a necessary precondition, but "prevents the call" is a
   claim about a caller's control flow, and there is no caller. This is
   chapter 04's job runtime to build, not something addable within chapter
-  03's own pure-Python scope — the chapter doc's opening section already
-  says this explicitly; repeating it here so it isn't lost in an
-  acceptance-criteria summary.
+  03's own pure-Python scope. Durable register entry:
+  [known-gaps.md](../known-gaps.md#no-caller-of-evaluate_evidence_gate-exists-anywhere).
 - **"Document the inspected boundary" — met.** See "What this chapter is
   protecting, and from what," above: one function's input, explicitly not
   network/IAM/S3-layer enforcement.
@@ -334,3 +330,18 @@ before more chapter-03 work happens, not an assumption either way.
 proven by tests; one criterion is documented; one criterion cannot be met
 until chapter 04 exists. Calling this chapter "done" would overstate what a
 pure-Python spec with no caller can prove.
+
+## Post draft — deliberately not written yet
+
+Chapters 00, 01, and 02 have a "## LinkedIn draft" section; this one does
+not, and that's a decision, not an oversight. Chapter 03 is explicitly not
+acceptance-complete (see above) — a published post implies a finished
+chapter the way this one currently doesn't. The chapter's most interesting
+material so far — two review rounds finding the chapter's own controls
+repeating chapter 02's two core mistakes (a correct control pointed at the
+wrong scope; a check verifying its own output instead of an independent
+source) — also reads better once a real caller exists to show the fix
+actually protecting something, rather than only protecting a fixture
+nothing calls. Draft this once chapter 04 gives the chapter a call site, or
+once the durable-evidence-log half is built and the chapter's own scope is
+genuinely finished — whichever the user decides to close first.

@@ -2,8 +2,28 @@
 
 Bedoux Sentinel is the next part of `bedoux-databricks`: a small project about
 protecting a fictional marketing lakehouse and investigating incidents with agents.
-The existing medallion pipelines are the starting point. The defensive capabilities
-below are planned, not claims about the current deployment.
+The existing medallion pipelines are the starting point.
+
+**Build status, current as of this writing** (full detail and acceptance
+criteria in [roadmap.md](roadmap.md); build status is tracked separately
+from publication status, since a chapter can be fully implemented and
+deployed with its post still unpublished):
+
+- **Deployed and demonstrated live**, not just implemented: chapter 02
+  ("Defend before damage spreads") — five full job runs in `dev`, a complete
+  fault → restore → replay sequence, review-closed against two follow-on
+  findings. See [chapters/02-quality-gate.md](chapters/02-quality-gate.md)
+  and the durable per-stage record in
+  [chapter-02-evidence.md](chapter-02-evidence.md).
+- **Integrated into `main`, not acceptance-complete**: chapter 03 ("Protect
+  what matters") — pure-Python redaction/canary logic is implemented and
+  unit-tested, but the roadmap's "a failed check prevents the external
+  call" criterion is structurally blocked until chapter 04 builds a caller.
+  See [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md).
+- **Integrated, not yet demonstrated live**: chapter 01 ("Know your
+  platform") — the platform/threat map. See
+  [chapters/01-know-your-platform.md](chapters/01-know-your-platform.md).
+- **Planned**: chapters 04–07.
 
 The story follows one campaign batch through validation, evidence handling,
 investigation, and recovery. Each chapter adds something a reader can reproduce.
@@ -17,12 +37,19 @@ The final video brings those pieces together.
 - [Agent setup](agent-setup.md): Codex, Claude Code, and optional Jev development.
 - [Writing guide](writing.md): voice, evidence, and the final video outline.
 - [Live verification](live-verification.md): credential setup, what deploys
-  automatically, and the chapter 02 demonstration plan.
+  automatically, and the demonstration procedure chapter 02 used (and a
+  future chapter will reuse).
+- [Chapter 02 evidence](chapter-02-evidence.md): the durable per-stage
+  record of the live demonstration — run IDs, `gate_status` rows, Gold
+  digests.
 - [Known gaps](known-gaps.md): durable cross-chapter register of deferred,
   not-fixed gaps — testing boundaries, evidence durability, unexercised
   code paths.
 - [Session handoff](handoff.md): where the next session should begin.
-- [Introduction draft](chapters/00-introduction.md): an unpublished launch post.
+- [Chapter 00: The challenge](chapters/00-introduction.md): an unpublished launch post.
+- [Chapter 01: Know your platform](chapters/01-know-your-platform.md): the platform/threat map.
+- [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
+- [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic, not acceptance-complete.
 
 ## Inspiration
 
