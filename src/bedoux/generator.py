@@ -9,11 +9,23 @@ invalid (a null key, a negative duration, a missing latency) so the Silver-layer
 DLT expectations have something real to drop.
 """
 
+import math
 import random
 from datetime import datetime, timedelta
 
 SEED = 42
 INVALID_RATE = 0.02
+
+
+def parse_invalid_rate(value):
+    """Validate a synthetic-fixture setting; malformed config must not look healthy."""
+    try:
+        rate = float(value)
+    except (TypeError, ValueError):
+        raise ValueError("Lead invalid rate must be a finite number between 0 and 1") from None
+    if isinstance(value, bool) or not math.isfinite(rate) or not 0 <= rate <= 1:
+        raise ValueError("Lead invalid rate must be a finite number between 0 and 1")
+    return rate
 
 CLIENT_NAMES = [
     "Northwind Outfitters", "Maple & Co", "Aurora Fitness", "Cobalt Roasters",
@@ -62,6 +74,7 @@ def generate_campaigns(client_ids, n_per_client=3, seed=SEED):
 
 
 def generate_leads(campaign_ids, n=500, invalid_rate=INVALID_RATE, seed=SEED):
+    invalid_rate = parse_invalid_rate(invalid_rate)
     rng = random.Random(seed + 2)
     rows = []
     for i in range(1, n + 1):

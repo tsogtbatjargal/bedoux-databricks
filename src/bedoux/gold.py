@@ -13,6 +13,20 @@ from pyspark.sql.functions import col, sum as _sum, count, when, date_trunc, to_
 # build step disproportionate to three one-line formulas). Native column
 # expressions are also the idiomatic, faster choice over Python UDFs for
 # arithmetic this simple.
+#
+# Chapter 02 publication gate: this file contains NO gate logic. The decision
+# is made before Gold runs at all, by bedoux_gate_task (src/bedoux/gate_check.py)
+# sitting between the Silver and Gold pipeline tasks in bedoux_analytics_job.
+# If the gate fails, that task fails, the Gold task never starts, and these
+# tables keep whatever they last published -- or, on a first-ever run, are
+# never created, so rejected data is never published.
+#
+# An earlier revision checked the gate inside each dataset function below via
+# .count() and read each Gold table while defining it. Both are unsupported in
+# a declarative DLT dataset function, and the fallback published fresh rejected
+# data whenever no previous version existed. See
+# docs/sentinel/chapters/02-quality-gate.md for the redesign and its tradeoff
+# (whole-Gold withholding rather than per-table).
 
 
 @dlt.table(
@@ -28,7 +42,7 @@ def gold_campaign_performance():
         _sum(when(col("stage") == "won", 1).otherwise(0)).alias("won_count"),
     )
 
-    return (
+    fresh = (
         campaigns.join(lead_agg, "campaign_id", "left")
         .fillna({"lead_count": 0, "won_count": 0})
         .withColumn(
@@ -45,6 +59,7 @@ def gold_campaign_performance():
         )
         .orderBy("campaign_id")
     )
+    return fresh
 
 
 @dlt.table(
@@ -61,7 +76,7 @@ def gold_client_funnel():
         "month_date", date_trunc("month", col("created_ts"))
     )
 
-    return (
+    fresh = (
         joined.groupBy("client_id", "month_date")
         .agg(
             _sum(when(col("stage") == "new", 1).otherwise(0)).alias("new_count"),
@@ -72,6 +87,7 @@ def gold_client_funnel():
         )
         .orderBy("client_id", "month_date")
     )
+    return fresh
 
 
 @dlt.table(
@@ -93,7 +109,7 @@ def gold_ogi_ops_health():
         )
     )
 
-    return (
+    fresh = (
         daily.withColumn(
             "success_rate",
             when(col("total_events") > 0, col("success_count") / col("total_events")).otherwise(lit(0.0)),
@@ -104,3 +120,4 @@ def gold_ogi_ops_health():
         )
         .orderBy("event_date")
     )
+    return fresh

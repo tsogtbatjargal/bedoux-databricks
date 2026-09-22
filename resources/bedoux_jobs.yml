@@ -22,9 +22,28 @@ resources:
             pipeline_id: ${resources.pipelines.bedoux_silver_pipeline.id}
             full_refresh: false
 
-        - task_key: bedoux_gold_task
+        # Publication gate (chapter 02). Reads the gate_status table the Silver
+        # task just wrote and fails if any required source is missing, null,
+        # stale, or over the quarantine-rate threshold. Failing here stops the
+        # run before Gold refreshes, so Gold keeps its last published content
+        # -- and on a first-ever run is never created, rather than publishing
+        # rejected data. The gate decision is deliberately NOT inside the Gold
+        # dataset functions: see src/bedoux/gate_check.py for why.
+        - task_key: bedoux_gate_task
           depends_on:
             - task_key: bedoux_silver_task
+          timeout_seconds: 600
+          notebook_task:
+            notebook_path: ../src/bedoux/gate_check.py
+            base_parameters:
+              source_path: ${workspace.file_path}/src
+              # Freshness boundary, not an immutable batch/run identity.
+              # Epoch milliseconds avoid Python/Spark timezone ambiguity.
+              run_start_ms: "{{job.start_time.timestamp_ms}}"
+
+        - task_key: bedoux_gold_task
+          depends_on:
+            - task_key: bedoux_gate_task
           timeout_seconds: 3600
           pipeline_task:
             pipeline_id: ${resources.pipelines.bedoux_gold_pipeline.id}

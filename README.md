@@ -74,8 +74,8 @@ which is serverless-only, non-commercial, and quota-limited. Concretely, that sh
 | Constraint | How this project handles it |
 |---|---|
 | One SQL warehouse, fixed 2X-Small | Both Genie spaces share it |
-| Max 5 concurrent job tasks; one active Lakeflow pipeline per type | Both jobs are strictly sequential (bronze → silver → gold), never triggered concurrently |
-| No account console / service principals | CI/CD uses a personal access token as a GitHub secret — in a paid workspace this would be OIDC + a service principal |
+| Max 5 concurrent job tasks; one active Lakeflow pipeline per type | Sequential jobs; Track 2 adds a publication gate between Silver and Gold. Operators must avoid concurrent pipeline/job runs |
+| No account console; service principals unproven | Personal access tokens are available and verified in this workspace, so CI stays on a PAT (`DATABRICKS_HOST` + `DATABRICKS_TOKEN`). No service principal exists; in a paid workspace this would be OIDC + a service principal. See the [live verification runbook](docs/sentinel/live-verification.md) |
 | Non-commercial use only | Track 2 is explicitly fictional/synthetic data, never Bedoux's real business data |
 | Compute-quota shutdown risk | No auto-schedule on either job — manual trigger or `workflow_dispatch` only |
 
@@ -102,7 +102,8 @@ docs/
   architecture.md, architecture.drawio  # diagram + design rationale
   ai_rules.md                       # pointer to AGENTS.md (superseded)
   genie.md                          # Genie CLI usage + space setup
-  sentinel/                         # Art of Data Defense: roadmap, workflow, handoff
+  sentinel/                         # Art of Data Defense: roadmap, workflow, handoff,
+                                   #   live-verification runbook, chapters
 .agents/skills/                    # shared chapter/story skill bodies
 .claude/skills/                    # Claude Code adapters onto those same bodies
 .codex/config.toml                 # Codex project settings (reasoning effort only)

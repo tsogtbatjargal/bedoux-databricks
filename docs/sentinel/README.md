@@ -16,6 +16,8 @@ The final video brings those pieces together.
 - [Local development](../development.md): isolated uv environment and dependency updates.
 - [Agent setup](agent-setup.md): Codex, Claude Code, and optional Jev development.
 - [Writing guide](writing.md): voice, evidence, and the final video outline.
+- [Live verification](live-verification.md): credential setup, what deploys
+  automatically, and the chapter 02 demonstration plan.
 - [Session handoff](handoff.md): where the next session should begin.
 - [Introduction draft](chapters/00-introduction.md): an unpublished launch post.
 

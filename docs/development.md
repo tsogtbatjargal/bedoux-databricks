@@ -49,6 +49,42 @@ Code, and the Databricks CLI as separate tools; their credentials do not belong
 in the Python environment. Add runtime agent dependencies only when the runtime
 chapter needs them. A deployment environment should exclude development groups.
 
+## Databricks CLI
+
+The official Databricks CLI is pinned in `mise.toml` under the explicit
+`github:databricks/cli` backend (not `aqua:databricks/cli`, and not the
+unrelated legacy `databricks-cli` PyPI package):
+
+```bash
+mise install               # installs the pinned version into mise's own
+                            # per-user install dir; verifies GitHub artifact
+                            # attestation, no sudo, not a global tool selection
+mise exec -- databricks --version
+```
+
+Authenticate with a named profile (OAuth user login, browser-based):
+
+```bash
+mise exec -- databricks auth login \
+  --host https://dbc-3f70aae3-11d5.cloud.databricks.com \
+  --profile bedoux-databricks
+```
+
+This writes to `~/.databrickscfg` (outside the repo; never commit it) and
+stores the token in the OS keyring, not in a plaintext file. Do not request or
+paste a token, password, or callback URL into an agent session — complete the
+browser step yourself. Verify without dumping credentials:
+
+```bash
+mise exec -- databricks auth describe --profile bedoux-databricks   # no --sensitive
+mise exec -- databricks bundle validate --target dev --profile bedoux-databricks
+```
+
+`bundle validate` reads the checkout's current working tree, including
+uncommitted changes, not just the last commit. See
+[live-verification.md](sentinel/live-verification.md) for the full read-only
+verification checklist and the (separate, further-authorized) deploy/run steps.
+
 ## Repository hygiene
 
 Keep both portfolio tracks and their supporting docs. Remove a file only after

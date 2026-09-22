@@ -45,13 +45,16 @@
         <mxCell id="bronze2" value="bedoux_bronze_pipeline&#xa;workspace.bedoux_bronze&#xa;seeded synthetic generator (5 entities)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="780" y="190" width="260" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="silver2" value="bedoux_silver_pipeline&#xa;workspace.bedoux_silver&#xa;DQ expectations (drops ~2% invalid rows)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="silver2" value="bedoux_silver_pipeline&#xa;workspace.bedoux_silver&#xa;quarantine with reasons, not drop (~2% invalid rows)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="780" y="290" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="gate2" value="bedoux_gate_task (notebook) &#8212; publication gate: withholds Gold unless quarantine rate &#8804; 10% and row-conserved" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="780" y="353" width="260" height="34" as="geometry" />
         </mxCell>
         <mxCell id="gold2" value="bedoux_gold_pipeline&#xa;workspace.bedoux_gold&#xa;3 business tables" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="780" y="390" width="260" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="caption2" value="orchestrated by bedoux_analytics_job&#xa;(sequential, manual / workflow_dispatch trigger)" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#666666;fontStyle=2;" vertex="1" parent="1">
+        <mxCell id="caption2" value="orchestrated by bedoux_analytics_job&#xa;(sequential: bronze &#8594; silver &#8594; gate &#8594; gold; manual / workflow_dispatch trigger)" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#666666;fontStyle=2;" vertex="1" parent="1">
           <mxGeometry x="780" y="490" width="260" height="40" as="geometry" />
         </mxCell>
 
@@ -69,7 +72,7 @@
         </mxCell>
 
         <!-- Free Edition constraints note -->
-        <mxCell id="note" value="Databricks Free Edition constraints that shaped this design:&#xa;&#8226; Serverless-only compute, one SQL warehouse fixed at 2X-Small&#xa;&#8226; Max 5 concurrent job tasks &#8212; both jobs run sequentially, never at once&#xa;&#8226; One active Lakeflow pipeline per pipeline type &#8212; no concurrent DLT runs&#xa;&#8226; No account console / service principals &#8212; CI/CD uses a personal access token (a paid workspace would use OIDC + a service principal instead)&#xa;&#8226; Non-commercial use only &#8212; Track 2's data is clearly fictional, not Bedoux's real business data&#xa;&#8226; No auto-schedule on either job &#8212; manual or workflow_dispatch trigger only, to protect the compute quota" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
+        <mxCell id="note" value="Databricks Free Edition constraints that shaped this design:&#xa;&#8226; Serverless-only compute, one SQL warehouse fixed at 2X-Small&#xa;&#8226; Max 5 concurrent job tasks &#8212; both jobs run sequentially, never at once&#xa;&#8226; One active Lakeflow pipeline per pipeline type &#8212; no concurrent DLT runs&#xa;&#8226; No account console; service principals unproven &#8212; CI/CD uses a verified-working personal access token; no service principal exists here and creating one was never tested (a paid workspace would use OIDC + a service principal instead)&#xa;&#8226; Non-commercial use only &#8212; Track 2's data is clearly fictional, not Bedoux's real business data&#xa;&#8226; No auto-schedule on either job &#8212; manual or workflow_dispatch trigger only, to protect the compute quota" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;align=left;verticalAlign=top;fontSize=12;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
           <mxGeometry x="30" y="770" width="1300" height="170" as="geometry" />
         </mxCell>
 
@@ -89,7 +92,10 @@
         <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="bronze2" target="silver2">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="silver2" target="gold2">
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="silver2" target="gate2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate2" target="gold2">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gold1" target="warehouse">
