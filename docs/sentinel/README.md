@@ -18,6 +18,9 @@ The final video brings those pieces together.
 - [Writing guide](writing.md): voice, evidence, and the final video outline.
 - [Live verification](live-verification.md): credential setup, what deploys
   automatically, and the chapter 02 demonstration plan.
+- [Known gaps](known-gaps.md): durable cross-chapter register of deferred,
+  not-fixed gaps — testing boundaries, evidence durability, unexercised
+  code paths.
 - [Session handoff](handoff.md): where the next session should begin.
 - [Introduction draft](chapters/00-introduction.md): an unpublished launch post.
 

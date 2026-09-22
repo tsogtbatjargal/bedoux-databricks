@@ -25,10 +25,13 @@ def _with_row_id(rows):
     """Stamp each generated row with its position in this run's Python list,
     before it becomes a Spark DataFrame. `current_timestamp()` (`_ingest_ts`)
     is constant across every row of a single table computation, so it ties
-    and can't order duplicates deterministically. `_row_id` is the batch
-    identity chapter 02's dedup keys off of: Silver keeps the lowest `_row_id`
-    for a given natural key and quarantines the rest as
-    `duplicate_<key>` (see quality.py:dedup_by_key)."""
+    and can't order duplicates deterministically. `_row_id` is deterministic
+    ROW-ORDER identity within one run's recompute -- what chapter 02's dedup
+    keys off of (Silver keeps the lowest `_row_id` for a given natural key
+    and quarantines the rest as `duplicate_<key>`, see
+    quality.py:dedup_by_key) -- **not** batch or run identity. It restarts at
+    0 every run; there is no globally unique batch/run ID anywhere in this
+    pipeline. Real batch identity is not implemented."""
     return [{**row, "_row_id": i} for i, row in enumerate(rows)]
 
 

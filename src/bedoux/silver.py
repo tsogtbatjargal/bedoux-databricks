@@ -118,8 +118,16 @@ def campaigns_clean():
 @dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")
 def leads_flagged():
     leads = spark.read.table("workspace.bedoux_bronze.leads_raw")
+    # Validated against campaigns_clean (the eligible, publishable Silver
+    # dimension), not campaigns_raw. A campaign that campaigns_clean itself
+    # rejects (its own expect_or_drop rules: client_id IS NOT NULL,
+    # budget >= 0) must not count as "known" here -- Gold's gold_client_funnel
+    # inner-joins leads to campaigns_clean, so a lead referencing a
+    # Bronze-only campaign would otherwise pass Silver as accepted, conserve,
+    # pass the gate, then silently vanish from Gold with no record. See the
+    # chapter doc's review-findings section.
     known_campaigns = (
-        spark.read.table("workspace.bedoux_bronze.campaigns_raw")
+        dlt.read("campaigns_clean")
         .select(col("campaign_id").alias("_known_campaign_id"))
         .distinct()
     )
@@ -194,8 +202,10 @@ def leads_quarantine():
 @dlt.expect_or_fail("reasons_not_null", "_reasons IS NOT NULL")
 def web_events_flagged():
     events = spark.read.table("workspace.bedoux_bronze.web_events_raw")
+    # Validated against campaigns_clean, not campaigns_raw -- see
+    # leads_flagged above for why.
     known_campaigns = (
-        spark.read.table("workspace.bedoux_bronze.campaigns_raw")
+        dlt.read("campaigns_clean")
         .select(col("campaign_id").alias("_known_campaign_id"))
         .distinct()
     )

@@ -36,10 +36,12 @@ live behavior explicitly unverified and continue the local work.
 
 ## 02 — Defend before damage spreads
 
-Add batch identity, persistent quarantine with reasons, quality metrics, and a
-publication gate. Cover malformed values, duplicate leads, and missing campaign
-references. Decide whether to reject individual records or withhold the affected
-Gold refresh, and document the threshold and business reason.
+Add deterministic row-order identity for dedup (not batch/run identity, which
+this chapter does not implement), persistent quarantine with reasons, quality
+metrics, and a publication gate. Cover malformed values, duplicate leads, and
+missing campaign references. Decide whether to reject individual records or
+withhold the affected Gold refresh, and document the threshold and business
+reason.
 
 Acceptance: account for accepted, quarantined, and duplicate records without
 double-counting; a failed gate preserves the previously published data; normal
