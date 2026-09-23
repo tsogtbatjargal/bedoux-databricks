@@ -50,18 +50,29 @@ chapter 03 ("Protect what matters"), not this chapter. Chapter 02's gate
 decides whether to publish; it was never scoped to also preserve evidence
 of what it rejected beyond one run's `_quarantine` tables.
 
-**Built, not yet verified live.** Chapter 03's first session built the
-redaction/canary half of its scope (`src/bedoux/evidence.py`) but
-explicitly did not build this mechanism. A later session built it:
-`src/bedoux/evidence_log.py` plus a thin writer in `gate_check.py` append
-one row per job run to `workspace.bedoux_silver.gate_evidence_log`, pass
-or fail, created with a real `delta.appendOnly = true` table property. It
-was deployed at `7856b78` (`Files: 66 uploaded`), but has not yet been run,
-so the property's actual enforcement and the row content have not been
-observed against a live table — see
+**Built and run live; the property's negative-test enforcement is still
+unobserved.** Chapter 03's first session built the redaction/canary half
+of its scope (`src/bedoux/evidence.py`) but explicitly did not build this
+mechanism. A later session built it: `src/bedoux/evidence_log.py` plus a
+thin writer in `gate_check.py` append one row per job run to
+`workspace.bedoux_silver.gate_evidence_log`, pass or fail, created with a
+real `delta.appendOnly = true` table property. Deployed at `7856b78`
+(`Files: 66 uploaded`); a further session ran `bedoux_analytics_job` twice
+against it. Confirmed live: a row was written on both runs with content
+matching `gate_status` from the same run, `SHOW TBLPROPERTIES` shows
+`delta.appendOnly` genuinely set on the created table (not just requested
+in the creation code), and the second run appended a second row rather
+than replacing the first. **Not yet confirmed:** that the property
+actually rejects a mutation attempt (`UPDATE`/`DELETE`/`MERGE`) — that
+would be a negative test needing destructive SQL, out of scope for the run
+that confirmed the rest. A `gate_evidence_log` row from a failing run is
+also still unobserved (both runs used the default, passing
+`bedoux_lead_invalid_rate=0.02`). See
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
-for the full design and [live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-not-yet-run)
-for the exact commands the live demonstration still needs.
+for the full design, [chapter-03-evidence.md](chapter-03-evidence.md) for
+the raw run evidence, and
+[live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-partially-run)
+for the exact commands, including the still-outstanding negative test.
 
 ## Two conservation-check paths have never fired live
 
