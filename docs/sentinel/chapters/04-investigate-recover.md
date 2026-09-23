@@ -8,8 +8,11 @@ deleted, 8 unchanged`, `Files: 70 uploaded, 0 deleted`). It builds the
 guarded model-call path with an injected fake provider. **Second increment
 (local incident log) integrated too** (PR #20, merge `27e20c1`, the ninth
 CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`,
-`Files: 72 uploaded, 0 deleted`) — see "Incident log," below. There is no real provider, agent,
-tool set, or recovery executor yet, and nothing in `bedoux_analytics_job`
+`Files: 72 uploaded, 0 deleted`) — see "Incident log," below. **Third
+increment (report citations) is on `feat/04-report-citations`, PR open,
+not merged** — see "Report citations," below. There is no real provider,
+agent, tool set, or recovery executor yet, and nothing in
+`bedoux_analytics_job`
 calls this code.
 
 ## Why this increment first
@@ -50,8 +53,10 @@ provider.
    `provider_error`, with the exception text discarded (it could echo the
    payload). A response that isn't a JSON object with non-empty string
    `summary`, `uncertainty`, and `proposed_recovery` → `pending` /
-   `malformed_response`. Otherwise `reported`, keeping only those three
-   fields.
+   `malformed_response`. Since the third increment, the report must also
+   carry citations that check out, and must not echo the canary or a
+   secret (see "Report citations"). Otherwise `reported`, keeping only
+   those four fields.
 
 Outcomes carry fixed reason codes (`canary_present`,
 `sensitive_value_leak`, `evidence_gate_failed`, `provider_timeout`,
@@ -111,9 +116,10 @@ is called, then records the outcome against it:
    store: it doesn't remove the canary.
 3. Only if the payload exists: `send_payload` calls the provider once.
 4. `log.record_outcome(...)` appends an `outcome` event with the status
-   (`blocked` / `pending` / `reported`) and fixed reason codes. The
-   provider's report text is **not** stored — it isn't validated against
-   its evidence yet.
+   (`blocked` / `pending` / `reported`) and fixed reason codes. Since the
+   third increment it also stores the report, for `reported` outcomes
+   only — after its citations and the leak screen have passed. Before
+   that, report text wasn't stored at all.
 
 **Storage: a local append-only JSON Lines file.** The chapter's
 investigation service is local (`sentinel/README.md`, "Scope"; the
@@ -163,11 +169,75 @@ provider only):
   deduplicates them yet.
 - Anything live: no real provider, and nothing in the job writes here.
 
+## Report citations (third increment)
+
+A report is only `reported` if it points at evidence the provider was
+actually sent.
+
+**Format.** A required `citations` field: a non-empty list of path
+strings in the format `evidence.py` already uses for its problem
+strings — `source`, `quarantine_rate`, `rows[0].stage`, or a container
+like `rows[0]`. Each one is resolved against the JSON of the payload the
+provider received (`CheckedPayload.text`), not the original fields.
+
+**Outcomes** (all `pending`, never `reported`):
+- `no_citations`: the field is missing, `null`, or an empty list.
+- `malformed_response`: it isn't a list of non-empty strings.
+- `unresolved_citation`: any citation names a key, index, or step that
+  doesn't exist in the payload — for example `rows[5].stage`, or
+  `rows.stage` on a list. One bad citation refuses the whole report.
+- `redacted_citation`: any citation lands on the `[REDACTED]` marker.
+- `report_leak`: the report text contains the canary or a sensitive value
+  from the original fields (`screen_report`, the same two checks as the
+  final payload check).
+
+**Redacted citations refuse the report, not just the citation.** The
+provider never saw a redacted value, so a claim that rests on it has no
+basis in the evidence. Dropping the citation quietly would leave that
+claim standing with its basis hidden. The cost: a report can't cite a
+redacted field even to say "this was withheld" — it has to say that in
+`uncertainty` instead. Citing a container that holds redacted fields
+(`rows[0]`) is allowed, since it also holds values the provider did see.
+
+**Leaks are refused before they reach anyone.** `screen_report` runs in
+`call_model` as well as on the way to the incident log, so neither the
+in-process caller nor the log receives a report carrying the canary or a
+secret. Only a `reported` outcome's report is stored.
+
+**What the tests prove** (23 new; 219 repo-wide; fake provider only):
+- Citations that resolve — leaf values and a container — are reported
+  and kept.
+- Missing, empty, or `null` citations → `no_citations`; badly typed ones
+  → `malformed_response`.
+- Seven kinds of citation that don't resolve in the payload are refused
+  as `unresolved_citation`, even though the provider was called and
+  answered.
+- Citations are checked against what was sent: `ssn` exists in both the
+  fields and the payload, but citing it is refused because the payload
+  holds the redaction marker.
+- A report echoing the canary or a copied secret is refused, never
+  returned, and never stored; a report with a bad citation isn't stored
+  either; a report that passes is stored with its citations.
+- Checked by mutation: removing the citation check fails 9 tests (all
+  seven unresolved cases, the redacted case, and the incident-log case);
+  allowing redacted citations fails the redacted test; dropping the leak
+  screen from the storage path fails both log-leak tests.
+
+**What citation checking does not prove:** that the cited evidence
+supports the claim. It checks that each citation *exists* in what was
+sent and isn't redacted — nothing more. A report can cite `source` and
+then say anything. It doesn't check that the summary is true, that the
+uncertainty is honest, that the most relevant evidence was cited, or
+that a proposed recovery is safe. Judging support needs a reader — a
+person, or a later evaluation step — not a path lookup. Other limits: key
+names containing `.`, `[`, or `]` can't be cited; a real value that
+happens to be the string `[REDACTED]` is treated as redacted.
+
 ## Chapter 04 acceptance, mapped
 
 | Roadmap criterion | Status |
 | --- | --- |
-| Reports identify evidence and uncertainty | Partly: `uncertainty` is required. Evidence citations aren't validated yet. |
+| Reports identify evidence and uncertainty | Implemented locally (third increment, not merged): `uncertainty` and `citations` are required, and every citation must resolve to non-redacted evidence in the sent payload. Checks that citations exist, not that they support the claim. |
 | Sensitive raw rows do not enter prompts | Implemented for this call site: gate + final payload check, tested with a fake. |
 | Recovery requires the defined approval | Not started. `proposed_recovery` is text only; nothing executes it. |
 | Replay does not duplicate accepted records | Not started. |
@@ -175,6 +245,5 @@ provider only):
 | Before/after business metric | Not started. |
 | Offline fixtures separate from live model runs | Holds trivially: there are no live runs. |
 
-Next increments, not authorized yet: validate report evidence citations
-(and only then store report text), and a bounded read-only tool set with
+Next increment, not authorized yet: a bounded read-only tool set with
 recovery denied by code.

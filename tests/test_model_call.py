@@ -10,6 +10,7 @@ VALID_REPORT = json.dumps({
     "summary": "leads quarantine rate 32.8% exceeded the 10% threshold",
     "uncertainty": "cause of the malformed leads is not visible in this evidence",
     "proposed_recovery": "restore bedoux_lead_invalid_rate to 0.02 and rerun the job",
+    "citations": ["source"],
 })
 
 # Healthy evidence: gate_status-shaped, nothing sensitive, no canary.
@@ -131,7 +132,7 @@ def test_healthy_evidence_reaches_the_provider_once_and_reports():
     outcome = model_call.call_model(HEALTHY, provider, timeout_s=5.0)
     assert outcome.status == REPORTED
     assert outcome.reason_codes == ()
-    assert set(outcome.report) == set(model_call.REPORT_FIELDS)
+    assert set(outcome.report) == set(model_call.REPORT_FIELDS) | {"citations"}
     assert len(provider.calls) == 1
     assert provider.calls[0]["timeout_s"] == 5.0
 
@@ -206,6 +207,7 @@ def test_malformed_response_is_pending(raw):
 def test_unexpected_response_fields_are_dropped():
     raw = json.dumps({
         "summary": "s", "uncertainty": "u", "proposed_recovery": "r",
+        "citations": ["source"],
         "execute": "DELETE FROM workspace.bedoux_gold.gold_campaign_performance",
     })
     outcome = model_call.call_model(HEALTHY, FakeProvider(behavior=raw))
@@ -243,3 +245,96 @@ def test_checked_payload_is_only_made_by_prepare_payload():
     assert isinstance(checked, model_call.CheckedPayload) and codes == ()
     with pytest.raises(AttributeError):
         checked._text = "swapped"
+
+
+# ---------------------------------------------------------------------------
+# A report only counts if it cites evidence that was actually sent
+# ---------------------------------------------------------------------------
+
+
+def _report(citations, summary="leads quarantine rate exceeded the threshold"):
+    body = {"summary": summary, "uncertainty": "cause not visible",
+            "proposed_recovery": "rerun after fixing the generator"}
+    if citations is not _OMIT:
+        body["citations"] = citations
+    return json.dumps(body)
+
+
+_OMIT = object()
+
+
+def test_citations_that_resolve_in_the_sent_payload_are_reported():
+    citations = ["source", "quarantine_rate", "rows[0].stage", "rows[0]"]
+    outcome = model_call.call_model(HEALTHY, FakeProvider(behavior=_report(citations)))
+    assert outcome.status == REPORTED
+    assert outcome.report["citations"] == citations
+
+
+@pytest.mark.parametrize("citations", [_OMIT, [], None])
+def test_a_report_without_citations_is_pending(citations):
+    provider = FakeProvider(behavior=_report(citations))
+    outcome = model_call.call_model(HEALTHY, provider)
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("no_citations",))
+    assert outcome.report is None
+
+
+@pytest.mark.parametrize("citations", ["source", [3], ["source", ""], [["source"]]])
+def test_badly_typed_citations_are_malformed(citations):
+    outcome = model_call.call_model(HEALTHY, FakeProvider(behavior=_report(citations)))
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("malformed_response",))
+
+
+@pytest.mark.parametrize("bad", [
+    "lead_owner",          # no such key
+    "rows[0].ssn",         # key never in this evidence
+    "rows[5].stage",       # index out of range
+    "rows.stage",          # key access on a list
+    "source[0]",           # index into a string
+    "rows[0].stage.x",     # past a leaf
+    "rows[0]..stage",      # empty segment
+])
+def test_a_citation_that_does_not_resolve_in_the_payload_is_refused(bad):
+    """The provider was called and answered; the report still doesn't
+    count, because one citation points at something it was never sent."""
+    provider = FakeProvider(behavior=_report(["source", bad]))
+    outcome = model_call.call_model(HEALTHY, provider)
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("unresolved_citation",))
+    assert outcome.report is None
+    assert len(provider.calls) == 1
+
+
+def test_citations_resolve_against_what_was_sent_not_the_original_fields():
+    """`ssn` exists in both, but in the payload it's the redaction marker --
+    the provider never saw the value, so citing it is refused."""
+    fields = {"source": "leads", "ssn": "123-45-6789", "stage": "qualified"}
+    outcome = model_call.call_model(fields, FakeProvider(behavior=_report(["stage", "ssn"])))
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("redacted_citation",))
+
+
+def test_citing_a_container_that_holds_a_redacted_field_is_allowed():
+    fields = {"rows": [{"ssn": "123-45-6789", "stage": "qualified"}]}
+    outcome = model_call.call_model(fields, FakeProvider(behavior=_report(["rows[0]"])))
+    assert outcome.status == REPORTED
+
+
+def test_resolve_citation_handles_a_list_at_the_root():
+    assert model_call.resolve_citation([{"a": 1}], "[0].a") == 1
+    assert model_call.resolve_citation({"a": 1}, "[0]") is model_call._MISSING
+
+
+# ---------------------------------------------------------------------------
+# A report that echoes the canary or a secret is never handed back
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("echo", [f"ref {CANARY_MARKER}", "caller id 123-45-6789"])
+def test_a_report_that_echoes_the_canary_or_a_secret_is_refused(echo):
+    """The provider only saw the redacted payload. A secret from the
+    original fields turning up in its report means something is wrong --
+    and it must not come back to the caller."""
+    fields = {"source": "leads", "ssn": "123-45-6789", "stage": "qualified"}
+    provider = FakeProvider(behavior=_report(["stage"], summary=echo))
+    outcome = model_call.call_model(fields, provider)
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("report_leak",))
+    assert outcome.report is None
+    assert "123-45-6789" not in repr(outcome) and CANARY_MARKER not in repr(outcome)

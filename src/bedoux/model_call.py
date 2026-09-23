@@ -16,6 +16,7 @@ caller can log or persist an outcome without re-checking it.
 """
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -25,9 +26,14 @@ BLOCKED = "blocked"   # the gate refused; the provider was never called
 PENDING = "pending"   # the provider was called but gave no usable report
 REPORTED = "reported"  # the provider returned a report that validated
 
-# Required report fields and their types. Anything else in a response is
-# dropped rather than passed through unchecked.
+# Required text fields of a report. `citations` is required too and checked
+# separately. Anything else in a response is dropped rather than passed
+# through unchecked.
 REPORT_FIELDS = {"summary": str, "uncertainty": str, "proposed_recovery": str}
+
+# One segment of a citation path: a key name, then any number of [n]
+# indices. Same format evidence._format_path writes: "rows[0].stage".
+_SEGMENT = re.compile(r"^([^.\[\]]*)((?:\[\d+\])*)$")
 
 
 class ProviderTimeout(Exception):
@@ -100,7 +106,61 @@ def _parse_report(raw):
         if not isinstance(value, kind) or not value.strip():
             return None, "malformed_response"
         report[name] = value
+    citations = parsed.get("citations")
+    if citations is None or citations == []:
+        return None, "no_citations"
+    if not isinstance(citations, list) or not all(
+            isinstance(c, str) and c.strip() for c in citations):
+        return None, "malformed_response"
+    report["citations"] = list(citations)
     return report, None
+
+
+_MISSING = object()
+
+
+def resolve_citation(packet, citation):
+    """Follow a dotted path like "rows[0].stage" through `packet`. Returns
+    the value there, or _MISSING if any step doesn't exist. Key names
+    containing ".", "[" or "]" can't be cited -- a known limit of the
+    format."""
+    node = packet
+    for position, segment in enumerate(citation.split(".")):
+        match = _SEGMENT.match(segment)
+        if not match:
+            return _MISSING
+        key, indices = match.groups()
+        if key:
+            if not isinstance(node, dict) or key not in node:
+                return _MISSING
+            node = node[key]
+        elif position > 0 or not indices:
+            return _MISSING  # an empty key only makes sense as "[0]" at the root
+        for index in re.findall(r"\[(\d+)\]", indices):
+            index = int(index)
+            if not isinstance(node, list) or index >= len(node):
+                return _MISSING
+            node = node[index]
+    return node
+
+
+def _check_citations(report, payload_text):
+    """None if every citation resolves in the payload the provider was sent
+    and none lands on a redacted value; otherwise a reason code.
+
+    A citation of a redacted value refuses the whole report rather than
+    being dropped: the provider never saw that value, so whatever the
+    report claims from it has no basis in the evidence. Citing a container
+    (e.g. "rows[0]") that holds some redacted fields is allowed -- it also
+    holds values the provider did see."""
+    packet = json.loads(payload_text)
+    for citation in report["citations"]:
+        value = resolve_citation(packet, citation)
+        if value is _MISSING:
+            return "unresolved_citation"
+        if value == evidence.REDACTED:
+            return "redacted_citation"
+    return None
 
 
 _PREPARED = object()
@@ -175,7 +235,23 @@ def send_payload(payload, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     report, code = _parse_report(raw)
     if report is None:
         return CallOutcome(PENDING, (code,))
+    code = _check_citations(report, payload.text)
+    if code is not None:
+        return CallOutcome(PENDING, (code,))
     return CallOutcome(REPORTED, (), report)
+
+
+def screen_report(fields, outcome):
+    """Refuse a report that carries the canary or a sensitive value from
+    the original `fields`. The provider only saw redacted evidence, so
+    either one in its reply means something is wrong -- and the report
+    must not reach a caller or the incident log. Same two checks as the
+    final payload check, run on the report's serialized text."""
+    if outcome.status != REPORTED:
+        return outcome
+    if _final_payload_problems(fields, serialize_packet(outcome.report)):
+        return CallOutcome(PENDING, ("report_leak",))
+    return outcome
 
 
 def call_model(fields, provider, *, timeout_s: float = 30.0) -> CallOutcome:
@@ -187,8 +263,13 @@ def call_model(fields, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     - Provider times out or raises: PENDING, with a fixed code. The
       exception text is discarded, since it could echo the payload.
     - Response isn't a JSON object with non-empty string `summary`,
-      `uncertainty`, and `proposed_recovery`: PENDING.
-    - Otherwise REPORTED, with only those three fields kept.
+      `uncertainty`, and `proposed_recovery`: PENDING (malformed_response).
+    - `citations` missing or empty (no_citations), or any citation doesn't
+      resolve in the payload that was sent (unresolved_citation) or lands
+      on a redacted value (redacted_citation): PENDING.
+    - The report carries the canary or a copied secret: PENDING
+      (report_leak).
+    - Otherwise REPORTED, with only those four fields kept.
 
     No retries: one attempt per call. A PENDING outcome is meant to be
     visible and retried deliberately, not looped on here.
@@ -196,4 +277,4 @@ def call_model(fields, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     payload, codes = prepare_payload(fields)
     if payload is None:
         return CallOutcome(BLOCKED, codes)
-    return send_payload(payload, provider, timeout_s=timeout_s)
+    return screen_report(fields, send_payload(payload, provider, timeout_s=timeout_s))

@@ -179,8 +179,10 @@ def test_log_file_never_contains_secrets_or_the_canary(log):
     # Provider output that carries the canary: an error message and a valid
     # report. Only status and codes are stored, so neither reaches the file.
     investigate(HEALTHY, FakeProvider(behavior=RuntimeError(CANARY_MARKER)), log)
+    # Valid citation, so the report gets past citation checks and it is the
+    # leak screen that has to stop it.
     report_with_canary = json.dumps({"summary": CANARY_MARKER, "uncertainty": "u",
-                                     "proposed_recovery": "r"})
+                                     "proposed_recovery": "r", "citations": ["source"]})
     investigate(HEALTHY, FakeProvider(behavior=report_with_canary), log)
 
     raw = Path(log.path).read_text(encoding="utf-8")
@@ -195,3 +197,37 @@ def test_stored_evidence_is_redacted_not_raw(log):
     assert stored["ssn"] == "[REDACTED]"
     assert stored["stage"] == "qualified"
 
+
+
+# ---------------------------------------------------------------------------
+# A checked report is stored; one that leaks is not
+# ---------------------------------------------------------------------------
+
+
+def test_a_checked_report_is_stored_with_its_citations(log):
+    incident_id, outcome = investigate(HEALTHY, FakeProvider(), log)
+    stored = IncidentLog(log.path).load()[incident_id]
+    assert outcome.status == REPORTED
+    assert stored.report == outcome.report
+    assert stored.report["citations"] == ["source"]
+
+
+def test_a_report_echoing_a_secret_is_not_stored(log):
+    fields = {"source": "leads", "ssn": "123-45-6789", "stage": "qualified"}
+    echo = json.dumps({"summary": "caller id 123-45-6789", "uncertainty": "u",
+                       "proposed_recovery": "r", "citations": ["stage"]})
+    incident_id, outcome = investigate(fields, FakeProvider(behavior=echo), log)
+    stored = IncidentLog(log.path).load()[incident_id]
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("report_leak",))
+    assert (stored.status, stored.reason_codes, stored.report) == (
+        PENDING, ("report_leak",), None)
+    assert "123-45-6789" not in Path(log.path).read_text(encoding="utf-8")
+
+
+def test_a_report_with_unresolved_citations_is_not_stored(log):
+    bad = json.dumps({"summary": "s", "uncertainty": "u", "proposed_recovery": "r",
+                      "citations": ["rows[0].lead_owner"]})
+    incident_id, _ = investigate(HEALTHY, FakeProvider(behavior=bad), log)
+    stored = IncidentLog(log.path).load()[incident_id]
+    assert (stored.status, stored.reason_codes, stored.report) == (
+        PENDING, ("unresolved_citation",), None)
