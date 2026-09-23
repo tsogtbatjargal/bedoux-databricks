@@ -48,14 +48,14 @@
         <mxCell id="silver2" value="bedoux_silver_pipeline&#xa;workspace.bedoux_silver&#xa;quarantine with reasons, not drop (~2% invalid rows)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="780" y="290" width="260" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="gate2" value="bedoux_gate_task (notebook) &#8212; publication gate: withholds Gold unless quarantine rate &#8804; 10% and row-conserved" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
-          <mxGeometry x="780" y="353" width="260" height="34" as="geometry" />
+        <mxCell id="gate2" value="bedoux_gate_task (notebook) &#8212; publication gate&#xa;withholds Gold unless quarantine rate &#8804; 10% and row-conserved&#xa;sub-step: evaluate_evidence_gate + redact_evidence_packet &#8594; append-only write to gate_evidence_log" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="780" y="353" width="260" height="55" as="geometry" />
         </mxCell>
         <mxCell id="gold2" value="bedoux_gold_pipeline&#xa;workspace.bedoux_gold&#xa;3 business tables" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="780" y="390" width="260" height="60" as="geometry" />
+          <mxGeometry x="780" y="413" width="260" height="60" as="geometry" />
         </mxCell>
         <mxCell id="caption2" value="orchestrated by bedoux_analytics_job&#xa;(sequential: bronze &#8594; silver &#8594; gate &#8594; gold; manual / workflow_dispatch trigger)" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#666666;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="780" y="490" width="260" height="40" as="geometry" />
+          <mxGeometry x="780" y="513" width="260" height="40" as="geometry" />
         </mxCell>
 
         <!-- Shared SQL Warehouse -->

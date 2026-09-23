@@ -128,14 +128,18 @@ from the `.drawio` file; each is authored and updated independently.
   PNG checked into this repo; an exported copy lives in the author's
   external content folder for the post itself.
 
-**Neither diagram shows chapter 03's evidence-redaction boundary yet.**
-`src/bedoux/evidence.py` now has a real call site — `gate_check.py` calls
-into it via `evidence_log.py` as a sub-step inside `bedoux_gate_task`,
-deployed at `7856b78` and run live twice (see
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md)). The
-diagram update to show that sub-step is still outstanding, tracked
-separately from this doc pass — this is now a drawing task, not something
-blocked on a missing call site.
+**Both diagrams now show chapter 03's evidence-redaction boundary.**
+`src/bedoux/evidence.py` has a real call site — `gate_check.py` calls into
+it via `evidence_log.py` as a sub-step inside `bedoux_gate_task`, deployed
+at `7856b78` and run live twice (see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md)).
+`architecture.drawio`'s `gate2` cell names that sub-step in its label
+rather than drawing it as a peer box, matching `architecture.md`'s
+argument that it's a sub-step, not a new task.
+`architecture-context.svg`'s `bedoux-publication-gate` group and its
+accessibility `<desc>` do the same at that diagram's coarser detail.
+Neither diagram draws or implies a model-call arrow — no such call site
+exists anywhere in this project yet.
 
 ## Scope
 
