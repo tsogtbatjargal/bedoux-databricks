@@ -21,41 +21,40 @@ builds an actual model-call site. See
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping).
 Its post is deliberately not drafted, for the same reason.
 
-**Chapter 03's append-only evidence log is merged and partially
-demonstrated live** (PR #11, merge commit `7856b78`, the project's sixth
-CI deployment): `src/bedoux/evidence_log.py` (pure, no Spark) plus a thin
-writer in `gate_check.py` append one row to
-`workspace.bedoux_silver.gate_evidence_log` every run, pass or fail, before
-the gate's own raise, so a logging bug can never withhold a healthy Gold
-refresh or swallow a real failure. A later session ran
-`bedoux_analytics_job` twice (default `bedoux_lead_invalid_rate=0.02`, both
-passing) and confirmed live: a row is written each run with content
-matching `gate_status` from the same run, `SHOW TBLPROPERTIES` shows
-`delta.appendOnly = true` genuinely set on the created table (not just
-requested in the creation code), and the second run appended a second row
-rather than replacing the first — see
-[chapter-03-evidence.md](chapter-03-evidence.md) for the raw run IDs,
-timestamps, and row content. **Still not observed live:** the property
-actually rejecting a mutation (`UPDATE`/`DELETE`/`MERGE` — a negative test
-needing destructive SQL, not run), and a `gate_evidence_log` row from a
-failing run (would need a fault-rate deploy, not run). Design, schema, and
-exact commands are in
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
-and [live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-partially-run).
+**Chapter 03's append-only evidence log is merged, deployed, and partially
+demonstrated live** (`src/bedoux/evidence_log.py`, pure, no Spark, plus a
+thin writer in `gate_check.py`; PR #11, merge `7856b78`, the sixth CI
+deployment). It appends one row to `workspace.bedoux_silver.gate_evidence_log`
+every run, pass or fail, before the gate's own raise, so a logging bug can
+never withhold a healthy Gold refresh or swallow a real failure. Two `dev`
+runs (`649621694823474`, `102698121895581`, default
+`bedoux_lead_invalid_rate=0.02`, both passing) confirmed live: a row is
+written each run with content matching `gate_status` from the same run,
+`SHOW TBLPROPERTIES` shows `delta.appendOnly = true` genuinely set on the
+created table, and the second run appended a second row rather than
+replacing the first. Raw evidence in
+[chapter-03-evidence.md](chapter-03-evidence.md). Docs across the repo
+(`architecture.md`, `sentinel/README.md`, `roadmap.md`, `known-gaps.md`,
+`live-verification.md`) were swept and corrected to match — none still
+say "no call site" or "not deployed."
 
-**Docs-currency pass merged** (PR #12, merge commit `e5545ce`, docs only, no
-deploy): records the Track 1 keep decision (README.md,
-[contracts.md#track-1-stays](../contracts.md#track-1-stays) — kept for its
-Auto CDC comparison point, flagged as an extraction candidate later, with
-the `databricks.yml`-includes-`resources/*.yml` constraint that makes
-removing its resource files a workspace-destroying operation, not a code
-move); brings `architecture.md` current; rewrites README's Sentinel section
-to present tense; fixed `roadmap.md`'s stale test count and PR references.
-Merging PR #11 afterward reopened some of those same numbers (see below).
+**Two chapter-03 items remain unobserved live, and both need authorization
+beyond a docs session:**
+1. A negative test that `delta.appendOnly` actually rejects a mutation —
+   an `UPDATE`/`DELETE`/`MERGE` against `gate_evidence_log`, expected to
+   fail. This is destructive SQL; running it is the user's decision, not
+   a default next step.
+2. A `gate_evidence_log` row from a **failing** run — both runs so far
+   used the default, passing `bedoux_lead_invalid_rate=0.02`. Observing
+   this needs a fault-rate deploy (`bedoux_lead_invalid_rate` above 0.02),
+   the same kind of live change chapter 02's fault/restore sequence used.
+
+Exact commands for both are in
+[live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-partially-run).
 
 `main` is clean, **149 tests pass**, no bundle-path drift from the sixth CI
 deployment. [known-gaps.md](known-gaps.md) is current, including an updated
-entry for the evidence log (built and run live; the negative
+entry for the evidence log (built and partially run live; the negative
 mutation-rejection test is the one part still unobserved) and a new entry
 recording that chapter 04's runtime model provider is a deliberate scope
 decision, deferred to the post/video, not an oversight.
@@ -63,24 +62,20 @@ decision, deferred to the post/video, not an oversight.
 chapter 04, not authorization to start it — and is itself marked as a
 dated, expiring artifact (see [README.md](README.md)'s "Docs lifecycle").
 
-Pre-chapter-04 branch cleanup (PR #10) is done: `git branch -r` shows
-`origin/main` plus the four retained chapter branches
-(`series/00-introduction`, `series/01-know-your-platform`,
-`series/02-quality-gate`, `series/03-protect-evidence`) — see
+Branch cleanup is current: `git branch -r` shows `origin/main` plus the
+four retained chapter branches (`series/00-introduction`,
+`series/01-know-your-platform`, `series/02-quality-gate`,
+`series/03-protect-evidence`) and nothing else — see
 [branch-workflow.md](branch-workflow.md) for the archival-vs-working-branch
-policy this now follows.
+policy this follows. `chore/docs-currency`, `series/03-evidence-log`, and
+`chore/evidence-log-demo` were all working branches, merged and deleted.
 
-One open PR: `chore/evidence-log-demo` (docs only — two residual stale-doc
-lines fixed, plus this session's live-demonstration evidence and doc
-updates).
+**No open PRs.**
 
 ## Exact next useful task
 
-Two pieces of chapter 03's live demonstration remain, both requiring
-explicit authorization beyond what this session had: a negative test that
-`delta.appendOnly` actually rejects a mutation (destructive SQL against
-`gate_evidence_log`), and a `gate_evidence_log` row from a failing run
-(needs a fault-rate deploy, `bedoux_lead_invalid_rate` above 0.02).
-`live-verification.md` section 6 has the exact commands for both. After
-that, chapter 04 is the next substantive work and needs its own explicit
-authorization before any of it starts.
+Either of the two chapter-03 items above (mutation-rejection test or a
+failing-run log row), each needing its own explicit authorization for the
+destructive SQL or fault-rate deploy it requires — see "Current state."
+After those, chapter 04 is the next substantive work and needs its own
+explicit authorization before any of it starts.
