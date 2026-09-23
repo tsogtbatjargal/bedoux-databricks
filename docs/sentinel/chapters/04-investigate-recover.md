@@ -6,8 +6,9 @@ Status: **first increment integrated into `main`** (PR #18, merge
 `b347a1c`, the eighth CI deployment: `Resources: 0 created, 0 changed, 0
 deleted, 8 unchanged`, `Files: 70 uploaded, 0 deleted`). It builds the
 guarded model-call path with an injected fake provider. **Second increment
-(local incident log) is on branch `feat/04-incident-log`, PR open, not
-merged** — see "Incident log," below. There is no real provider, agent,
+(local incident log) integrated too** (PR #20, merge `27e20c1`, the ninth
+CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`,
+`Files: 72 uploaded, 0 deleted`) — see "Incident log," below. There is no real provider, agent,
 tool set, or recovery executor yet, and nothing in `bedoux_analytics_job`
 calls this code.
 
@@ -170,7 +171,7 @@ provider only):
 | Sensitive raw rows do not enter prompts | Implemented for this call site: gate + final payload check, tested with a fake. |
 | Recovery requires the defined approval | Not started. `proposed_recovery` is text only; nothing executes it. |
 | Replay does not duplicate accepted records | Not started. |
-| Model failure leaves a visible pending incident | Implemented locally (second increment, not merged): the incident is saved before the call and stays `pending` through timeouts, errors, malformed responses, and process death. Fake provider only. |
+| Model failure leaves a visible pending incident | Implemented locally (second increment): the incident is saved before the call and stays `pending` through timeouts, errors, malformed responses, and process death. Fake provider only. |
 | Before/after business metric | Not started. |
 | Offline fixtures separate from live model runs | Holds trivially: there are no live runs. |
 
