@@ -40,7 +40,8 @@ deployed with its post still unpublished):
   increment integrated: the guarded model-call path with a fake provider.
   Second increment integrated too: a local incident log saved before each
   model call. Third increment integrated too: report citations checked
-  against what was sent.
+  against what was sent. Fourth increment (read-only tools, recovery
+  refused in code) is in review, not merged.
   See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 - **Planned**: chapters 05–07.
 

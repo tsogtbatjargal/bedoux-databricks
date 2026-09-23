@@ -7,7 +7,8 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 ## Current state
 
 Chapters 00–03 are integrated into `main`, and so are chapter 04's first
-three increments. **224 tests pass on `main`.** Posts for chapters 00–03 are drafted,
+three increments; the fourth is an open PR. **224 tests pass on `main`,
+244 on `feat/04-read-only-tools`.** Posts for chapters 00–03 are drafted,
 none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -56,6 +57,18 @@ none published, no tags.
   `CheckedPayload`, so no caller gets an unscreened report. A checked
   report is now stored in the incident log. 28 new tests. Citation checks prove a
   citation *exists* in what was sent, not that it supports the claim.
+- **Chapter 04, fourth increment: open PR from `feat/04-read-only-tools`,
+  not merged** (merging deploys). `src/bedoux/tools.py`: three read-only
+  tools over in-memory synthetic fixtures (`read_gate_status`,
+  `read_quarantine_sample`, `read_evidence_log`). A fixed `ALLOWED_TOOLS`
+  frozenset decides what runs, and anything else, recovery included, is
+  refused (`tool_not_allowed`), never executed, and recorded. Each tool
+  result goes back through `prepare_payload` before it's sent, so a
+  result carrying the canary or a secret is blocked
+  (`tool_result_blocked`). The loop allows at most 3 tool calls, then
+  stops `pending` (`tool_limit_reached`). Each call is a `tool_call` event
+  in the incident log, holding only the checked payload. 20 new tests.
+  No real model has ever chosen a tool.
 
 **Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s
 `<desc>` still says "no such call site exists yet in this project" — out of
@@ -74,20 +87,27 @@ brief — delete or archive it when the next chapter-04 increment starts
 Remote branches: `main`; the five retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
-`series/04-investigate-recover`); and `feat/04-report-citations`, merged
-as PR #21 and not yet deleted (its removal needs authorization). See
+`series/04-investigate-recover`); and the working branch
+`feat/04-read-only-tools` (the open PR). `feat/04-report-citations` was
+deleted after confirming it was merged into `origin/main`. See
 [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main` and `series/04-investigate-recover`. The local
-`feat/04-report-citations` was deleted with `git branch -d` after
-confirming its tip equalled the remote's and was an ancestor of `main`
-and `origin/main`.
+Local branches: `main`, `series/04-investigate-recover`, and
+`feat/04-read-only-tools`.
 
-**No open PRs.**
+**One open PR:** chapter 04's fourth increment, from
+`feat/04-read-only-tools`. Not merged — merging deploys.
 
 ## Exact next useful task
 
-Chapter 04's next step, which needs its own authorization: a bounded
-read-only tool set with recovery denied by code. Optionally, first delete
-the merged remote `feat/04-report-citations` (also needs authorization).
-The runtime model provider stays deliberately unbuilt.
+Review the read-only-tools PR, then decide whether to merge it (a
+deployment). After that, chapter 04 still needs the following, and none
+of it is authorized:
+- A live run. It needs a real provider, which stays deliberately
+  deferred, so no real model has produced a report or chosen a tool.
+- Tools that read the real tables under a read-only identity.
+- An approval path for recovery.
+- Replay without duplicates.
+- The before/after business metric.
+
+See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md#chapter-04-acceptance-mapped).
