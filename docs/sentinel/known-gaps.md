@@ -147,22 +147,21 @@ History: for most of chapter 03 this entry was titled "No caller of
 `evidence_log.gate_and_redact`, guards a Delta append, which is not the
 external call the roadmap's chapter 03 criterion names.
 
-Chapter 04's first increment (branch `series/04-investigate-recover`) adds
-the model-call site: `src/bedoux/model_call.call_model` runs the gate and
-returns before touching its provider when the gate fails, then re-checks
-the exact serialized payload before sending. Unit tests show zero provider
-calls on a failed gate, including a test that the gate's verdict alone is
-enough (see
-[chapters/04-investigate-recover.md](chapters/04-investigate-recover.md)).
+**Closed at code level.** Chapter 04's first increment (PR #18, merge
+`b347a1c`) added the model-call site: `src/bedoux/model_call.call_model`
+runs the gate and returns before touching its provider when the gate
+fails. `test_evaluate_evidence_gate_verdict_alone_stops_the_call` forces
+the gate to refuse clean evidence and asserts zero provider calls;
+removing the gate line from `call_model` makes exactly that test fail.
+The user decided this meets chapter 03's criterion as implemented and
+unit-tested, not demonstrated live (see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping)).
 
-**What's still open:** the only provider is a test fake. No evidence has
-left the process, so the control flow is proven for the local call path,
-not for a real network egress. That's by design (see the next entry for
-why the provider is deliberately never built). Nothing in the job calls
-`model_call` either. Whether this closes chapter 03's criterion is the
-user's call; see
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping)
-for the original mapping.
+**Why the entry stays:** the only provider is a test fake. No evidence
+has left the process, so this is proven for the local call path's control
+flow, not for a real network egress. A live proof needs a real provider,
+deliberately deferred (next entry). Nothing in the job calls `model_call`
+either.
 
 ## The sensitive-value leak check misses short and non-string secrets
 

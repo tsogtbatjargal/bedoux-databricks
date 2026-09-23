@@ -15,7 +15,8 @@ deployed with its post still unpublished):
   findings. See [chapters/02-quality-gate.md](chapters/02-quality-gate.md)
   and the durable per-stage record in
   [chapter-02-evidence.md](chapter-02-evidence.md).
-- **Integrated into `main`, not acceptance-complete**: chapter 03 ("Protect
+- **Integrated into `main`, acceptance-complete at code level, not
+  demonstrated live against a model**: chapter 03 ("Protect
   what matters") — pure-Python redaction/canary logic is implemented and
   unit-tested, and the append-only evidence log built on top of it
   (`evidence_log.py`) is deployed at `7856b78` and confirmed live across
@@ -25,16 +26,18 @@ deployed with its post still unpublished):
   test confirming `UPDATE`/`DELETE` are actually rejected against real
   rows. A predicted limitation was confirmed in that testing: a retried
   failing run writes a duplicate evidence row (see `known-gaps.md`). The
-  roadmap's "a failed check prevents the external call" criterion now has
-  a call site — chapter 04's `model_call.py`, not merged, tested against a
-  fake provider only; no evidence has left the process. See
+  last criterion, "a failed check prevents the external call", is met as
+  implemented and unit-tested: chapter 04's `model_call.py` (merged)
+  returns before calling its provider when the gate fails. Its provider is
+  a test fake, deliberately — no evidence has left the process, and a live
+  proof would need a real provider. See
   [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md) and
   [chapter-03-evidence.md](chapter-03-evidence.md).
 - **Integrated, not yet demonstrated live**: chapter 01 ("Know your
   platform") — the platform/threat map. See
   [chapters/01-know-your-platform.md](chapters/01-know-your-platform.md).
-- **In progress, not merged**: chapter 04 ("Investigate and recover") —
-  first increment only: the guarded model-call path with a fake provider.
+- **In progress**: chapter 04 ("Investigate and recover") — first
+  increment integrated: the guarded model-call path with a fake provider.
   See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 - **Planned**: chapters 05–07.
 
@@ -66,8 +69,8 @@ The final video brings those pieces together.
 - [Chapter 00: The challenge](chapters/00-introduction.md): an unpublished launch post.
 - [Chapter 01: Know your platform](chapters/01-know-your-platform.md): the platform/threat map.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
-- [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test, not acceptance-complete.
-- [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): in progress — the guarded model-call path, fake provider only.
+- [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test; acceptance-complete at code level.
+- [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): in progress — the guarded model-call path (fake provider only) is integrated.
 
 ## Docs lifecycle
 

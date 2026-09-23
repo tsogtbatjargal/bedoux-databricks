@@ -1,6 +1,7 @@
 # Part 03 — Protect what matters
 
-Status: **Merged and integrated into `main`, but not complete** (PR #6,
+Status: **Merged, integrated, and acceptance-complete at code level** —
+see "Roadmap acceptance mapping" for what that does and doesn't cover (PR #6,
 merge commit `569c03d` — the project's fourth CI deployment, verified
 directly against the workspace: correct `job_id`, no duplicate resources,
 unchanged job graph and Bronze config, all three Gold digests unchanged).
@@ -398,23 +399,22 @@ honestly rather than marking the chapter complete:
   false-positive fixes specifically restoring this for null/short/
   coincidental-value fields that a real quarantined-row packet actually
   contains.
-- **"A failed check prevents the external call" — not met, structurally
-  blocked, not merely undemonstrated.** This requires an external call
-  *site* that calls `evaluate_evidence_gate` and branches on its result —
-  no such *external-call* site exists anywhere in this project, even
-  though a durable-write caller now does (see "Append-only evidence log,"
-  below). `evaluate_evidence_gate` correctly computes `allowed=False` on a
-  bad packet, which is a necessary precondition, but "prevents the call"
-  is a claim about a caller's control flow at *that* boundary, and there
-  is still no caller with that specific control flow. This is chapter 04's
-  job runtime to build, not something addable within chapter 03's own
-  pure-Python scope. **Update: chapter 04 has since built that caller**
-  (`model_call.call_model`, on `series/04-investigate-recover`) and
-  unit-tested the control flow against a fake provider — see
-  [chapters/04-investigate-recover.md](04-investigate-recover.md). No real
-  provider exists, so no evidence has left the process. Durable register
-  entry:
-  [known-gaps.md](../known-gaps.md#evaluate_evidence_gate-prevents-the-call-only-against-a-fake-provider).
+- **"A failed check prevents the external call" — met, implemented and
+  unit-tested, not demonstrated live.** Decided by the user after chapter
+  04's first increment merged (PR #18, `b347a1c`). For most of this
+  chapter's history the criterion was structurally blocked: it's a claim
+  about a caller's control flow, and the only caller, the evidence-log
+  write, guards a Delta append rather than an external call. Chapter 04
+  built the caller: `model_call.call_model` runs `evaluate_evidence_gate`
+  and returns before touching its provider when the gate fails. The proof
+  is `test_evaluate_evidence_gate_verdict_alone_stops_the_call`, which
+  forces the gate to refuse otherwise-clean evidence and asserts zero
+  provider calls; removing the gate line from `call_model` makes exactly
+  that test fail. **Closed at code level only.** The provider is a test
+  fake, so no evidence has ever left the process; a live proof would need
+  a real provider, which is deliberately deferred (see
+  [known-gaps.md](../known-gaps.md#chapter-04s-runtime-model-provider-is-deliberately-not-built)).
+  Details: [chapters/04-investigate-recover.md](04-investigate-recover.md).
 - **"Document the inspected boundary" — met.** See "What this chapter is
   protecting, and from what," above: one function's input, explicitly not
   network/IAM/S3-layer enforcement.
@@ -432,12 +432,12 @@ nothing prevented building it within chapter 03's own scope, and a later
 session did; that does not change any bullet above, since none of them
 were about this mechanism.
 
-**Chapter 03 is not complete.** Two of four roadmap criteria are met and
-proven by tests; one criterion is documented; one criterion cannot be met
-until chapter 04 exists. Calling this chapter "done" would overstate what
-a pure-Python spec with no *external-call* caller can prove — a durable-write
-caller existing since does not change that; see "Append-only evidence log,"
-below.
+**Chapter 03 is acceptance-complete at code level.** All four roadmap
+criteria are met: three by tests, one by documentation. None is
+demonstrated against a real model call, because none exists by design.
+Earlier versions of this section said the chapter was not complete while
+the external-call criterion had no caller; that changed when chapter 04's
+call site merged.
 
 ## Append-only evidence log (design, this session)
 
@@ -604,17 +604,13 @@ all live.
 ## Draft status
 
 Earlier in this chapter's history, this section argued the post should
-wait: chapter 03 is explicitly not acceptance-complete, and a published
-post implies a finished chapter the way this one currently doesn't. That
-reasoning about *publishing* still holds — see "Roadmap acceptance
-mapping," above; the external-call criterion remains open. But drafting is
-not publishing, the same distinction chapters 01 and 02 already draw (both
-drafted, neither published, per `roadmap.md`'s publication column). With
-the append-only evidence log now built, deployed, and confirmed live
-end-to-end — including the negative mutation test — there is enough real,
-observed material to draft honestly without waiting on chapter 04. The
-draft below is explicit about what's still open, the same way the rest of
-this chapter has been throughout.
+wait, because the chapter wasn't acceptance-complete and a published post
+implies a finished chapter. The draft was written anyway on the
+distinction chapters 01 and 02 already draw: drafting is not publishing.
+Since then, chapter 04's model-call site closed the last criterion at code
+level (see "Roadmap acceptance mapping," above), so the draft now
+describes a chapter that is complete at that level, and says plainly that
+nothing is demonstrated against a real provider.
 
 ## LinkedIn draft
 
@@ -627,14 +623,16 @@ rounds. For several rounds after that, its own docstring still said the
 truth plainly: no caller of this function exists yet in this project. Not
 implied, not glossed over — a gate nobody calls is not yet a gate.
 
-Closing that was not chapter 04 work — no model-call site exists yet. It
-came from something else this project already needed: an append-only
-evidence log. Every `bedoux_analytics_job` run now appends one row to
-`gate_evidence_log`, pass or fail, before the gate raises, and that write
-goes through `evaluate_evidence_gate` first. The function has a real
-caller.
+Closing that took two steps. First, something this project already
+needed: an append-only evidence log. Every `bedoux_analytics_job` run now
+appends one row to `gate_evidence_log`, pass or fail, before the gate
+raises, and that write goes through `evaluate_evidence_gate` first. Then
+chapter 04 added the call it was really written for: a model-call site
+that runs the gate and returns before the provider is ever touched when
+it fails. A test forces the gate to refuse clean evidence and checks the
+provider was never called. Delete the gate line and that test fails.
 
-Then the append-only property got tested instead of trusted. An `UPDATE`
+The append-only property also got tested instead of trusted. An `UPDATE`
 and a `DELETE` against real, existing rows, live: both rejected with
 `[DELTA_CANNOT_MODIFY_APPEND_ONLY]`. A separately authorized fault deploy
 pushed the leads quarantine rate to 32.8% and confirmed two things at
@@ -645,9 +643,9 @@ One gap the design doc had already named on paper showed up for real on
 the first try: a retried failing run wrote two rows for one run, not one.
 Append-only stops mutation. It does not stop duplication.
 
-What is still open: this guards a durable write, not a model-API call.
-Chapter 03's own acceptance criterion — a failed check prevents the
-external call — stays unmet until chapter 04 gives it something to call.
+What is still open: the model provider is a test fake, on purpose. The
+gate provably stops the call in code; no evidence has ever actually left
+the process, so nothing here shows what a real provider would do with it.
 
 ## Before posting
 
@@ -663,10 +661,10 @@ external call — stays unmet until chapter 04 gives it something to call.
   is claimed.
 - No `post/03-protect-evidence` tag exists yet — tagging is a separate,
   authorized publication step. Until then, the verifiable public
-  references are PR #11 (`7856b78`) and this chapter doc on `main`. Add
-  the tag and update this note with the permalink before publishing.
+  references are PR #11 (`7856b78`), PR #18 (`b347a1c`, the
+  model-call site and its test), and this chapter doc on `main`. Add the
+  tag and update this note with the permalink before publishing.
 - Mark this draft unpublished until the user requests publication; no
-  assistant posts it automatically. Publishing still requires chapter 03
-  to be reconsidered against acceptance-complete status, or an explicit
-  decision to publish an honestly-scoped partial chapter — that decision
-  is the user's, not assumed by drafting this post.
+  assistant posts it automatically. Chapter 03 is acceptance-complete at
+  code level only; the post must keep saying that no real provider has
+  been called.

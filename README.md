@@ -47,13 +47,13 @@ modern data platform.
 damage spreads," the publication gate) is deployed and demonstrated live —
 a full fault → restore → replay sequence against the real workspace, review-
 closed against two follow-on findings. Chapter 03 ("Protect what matters")
-is integrated but not acceptance-complete: its redaction/canary logic is
-implemented and unit-tested, and now guards a real caller — an append-only
-evidence log written by the publication gate task — but that's a durable
-Delta write, not the network egress the roadmap criterion means. "A failed
-check prevents the external call" still can't be demonstrated until
-chapter 04 builds an actual model-call site. Chapters 04–07 are planned,
-not started. Build status is tracked
+is acceptance-complete at code level: its redaction/canary logic is
+implemented and unit-tested, guards an append-only evidence log confirmed
+live, and — since chapter 04's first increment — a model-call site that
+refuses to call its provider when the check fails. That last part is unit-
+tested against a fake provider only; no evidence has been sent to a real
+model, by design. Chapter 04 ("Investigate and recover") is in progress;
+chapters 05–07 are planned. Build status is tracked
 separately from publication status: **no chapter's post has been published
 yet**, including chapter 02's, even though it's fully demonstrated. Each
 chapter keeps its own retained remote branch as a stable reference; working/
