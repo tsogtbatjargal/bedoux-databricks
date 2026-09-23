@@ -17,9 +17,16 @@ deployed with its post still unpublished):
   [chapter-02-evidence.md](chapter-02-evidence.md).
 - **Integrated into `main`, not acceptance-complete**: chapter 03 ("Protect
   what matters") — pure-Python redaction/canary logic is implemented and
-  unit-tested, but the roadmap's "a failed check prevents the external
-  call" criterion is structurally blocked until chapter 04 builds a caller.
-  See [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md).
+  unit-tested, and the append-only evidence log built on top of it
+  (`evidence_log.py`) is deployed at `7856b78` and partially demonstrated
+  live, across two `dev` runs: a row written each run matching `gate_status`,
+  and `delta.appendOnly` confirmed genuinely set. Still unobserved live: the
+  property rejecting a mutation, and a row from a failing run. None of this
+  closes the roadmap's "a failed check prevents the external call"
+  criterion, which is structurally blocked until chapter 04 builds a
+  model-call site — a durable Delta write is not that call. See
+  [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md) and
+  [chapter-03-evidence.md](chapter-03-evidence.md).
 - **Integrated, not yet demonstrated live**: chapter 01 ("Know your
   platform") — the platform/threat map. See
   [chapters/01-know-your-platform.md](chapters/01-know-your-platform.md).
@@ -42,6 +49,10 @@ The final video brings those pieces together.
 - [Chapter 02 evidence](chapter-02-evidence.md): the durable per-stage
   record of the live demonstration — run IDs, `gate_status` rows, Gold
   digests.
+- [Chapter 03 evidence](chapter-03-evidence.md): the durable per-run
+  record of the evidence log's live demonstration — run IDs,
+  `gate_evidence_log` row content, and the confirmed `delta.appendOnly`
+  table property.
 - [Known gaps](known-gaps.md): durable cross-chapter register of deferred,
   not-fixed gaps — testing boundaries, evidence durability, unexercised
   code paths.
@@ -49,7 +60,7 @@ The final video brings those pieces together.
 - [Chapter 00: The challenge](chapters/00-introduction.md): an unpublished launch post.
 - [Chapter 01: Know your platform](chapters/01-know-your-platform.md): the platform/threat map.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
-- [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic, not acceptance-complete.
+- [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and partially demonstrated live, not acceptance-complete.
 
 ## Docs lifecycle
 
@@ -117,12 +128,14 @@ from the `.drawio` file; each is authored and updated independently.
   PNG checked into this repo; an exported copy lives in the author's
   external content folder for the post itself.
 
-**Neither diagram shows chapter 03's evidence-redaction boundary.** That is
-deliberate, not an oversight: `src/bedoux/evidence.py` is not wired into
-the job or any pipeline task yet (see
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md)), so it
-has no architectural edge to draw. Add it to both diagrams once chapter 04
-gives it a real call site — not before.
+**Neither diagram shows chapter 03's evidence-redaction boundary yet.**
+`src/bedoux/evidence.py` now has a real call site — `gate_check.py` calls
+into it via `evidence_log.py` as a sub-step inside `bedoux_gate_task`,
+deployed at `7856b78` and run live twice (see
+[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md)). The
+diagram update to show that sub-step is still outstanding, tracked
+separately from this doc pass — this is now a drawing task, not something
+blocked on a missing call site.
 
 ## Scope
 
