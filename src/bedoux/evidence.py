@@ -184,12 +184,12 @@ def _format_path(path) -> str:
 def evaluate_evidence_gate(fields) -> tuple[bool, list[str]]:
     """Fail-closed pre-flight check an outbound model call must pass before
     it may send `fields` anywhere. Mirrors quality.evaluate_gate's shape: an
-    empty problems list is the only way `allowed` is True. This has a real
-    caller today -- evidence_log.gate_and_redact, wired into
-    bedoux_gate_task -- but that caller guards a durable Delta append, not
-    an outbound model call. No model-call site exists anywhere in this
-    project yet, so the "prevents the external call" criterion this
-    function is meant to gate is still open.
+    empty problems list is the only way `allowed` is True. Two callers:
+    evidence_log.gate_and_redact (wired into bedoux_gate_task, guarding a
+    durable Delta append) and model_call.call_model (chapter 04's model-call
+    site, which returns before calling its provider when this fails). The
+    only provider model_call has is a test fake, so no evidence actually
+    leaves the process yet.
 
     Two independent checks against the redacted result, not one check
     validating itself:

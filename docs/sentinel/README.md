@@ -24,16 +24,19 @@ deployed with its post still unpublished):
   `problems`), `delta.appendOnly` confirmed genuinely set, and a negative
   test confirming `UPDATE`/`DELETE` are actually rejected against real
   rows. A predicted limitation was confirmed in that testing: a retried
-  failing run writes a duplicate evidence row (see `known-gaps.md`). None of this closes the
-  roadmap's "a failed check prevents the external call" criterion, which
-  is structurally blocked until chapter 04 builds a model-call site — a
-  durable Delta write is not that call. See
+  failing run writes a duplicate evidence row (see `known-gaps.md`). The
+  roadmap's "a failed check prevents the external call" criterion now has
+  a call site — chapter 04's `model_call.py`, not merged, tested against a
+  fake provider only; no evidence has left the process. See
   [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md) and
   [chapter-03-evidence.md](chapter-03-evidence.md).
 - **Integrated, not yet demonstrated live**: chapter 01 ("Know your
   platform") — the platform/threat map. See
   [chapters/01-know-your-platform.md](chapters/01-know-your-platform.md).
-- **Planned**: chapters 04–07.
+- **In progress, not merged**: chapter 04 ("Investigate and recover") —
+  first increment only: the guarded model-call path with a fake provider.
+  See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
+- **Planned**: chapters 05–07.
 
 The story follows one campaign batch through validation, evidence handling,
 investigation, and recovery. Each chapter adds something a reader can reproduce.
@@ -64,6 +67,7 @@ The final video brings those pieces together.
 - [Chapter 01: Know your platform](chapters/01-know-your-platform.md): the platform/threat map.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
 - [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test, not acceptance-complete.
+- [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): in progress — the guarded model-call path, fake provider only.
 
 ## Docs lifecycle
 
@@ -141,8 +145,9 @@ rather than drawing it as a peer box, matching `architecture.md`'s
 argument that it's a sub-step, not a new task.
 `architecture-context.svg`'s `bedoux-publication-gate` group and its
 accessibility `<desc>` do the same at that diagram's coarser detail.
-Neither diagram draws or implies a model-call arrow — no such call site
-exists anywhere in this project yet.
+Neither diagram draws or implies a model-call arrow. Chapter 04's
+`model_call.py` is a call site, but its only provider is a test fake and
+nothing in the job calls it, so there is still no model call to draw.
 
 ## Scope
 

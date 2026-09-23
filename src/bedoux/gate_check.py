@@ -83,8 +83,10 @@ passed, problems = quality.evaluate_gate(rows, min_computed_ts=min_computed_ts)
 
 # Append-only evidence log (chapter 03 design; see
 # docs/sentinel/chapters/03-protect-evidence.md's "Append-only evidence log"
-# sections). Writes one row every run, pass or fail -- a log that only
-# records failures can't show the healthy case was actually healthy.
+# sections). Writes one row each time this notebook runs, pass or fail -- so
+# at least one row per job run, and a task retry writes a duplicate sharing
+# the same run_start_ms (see docs/contracts-bedoux.md, gate_evidence_log). A
+# log that only records failures can't show the healthy case was healthy.
 #
 # The whole block is wrapped in one try/except: verdict propagation is
 # prioritized over the write, on purpose. If appending this row throws, the
