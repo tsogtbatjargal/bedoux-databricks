@@ -24,9 +24,10 @@ builds an actual model-call site. See
 confirmed live**, including the negative mutation test
 (`src/bedoux/evidence_log.py`, pure, no Spark, plus a thin writer in
 `gate_check.py`; PR #11, merge `7856b78`, sixth CI deployment; PR #14,
-merge `028b27e`, seventh, a docstring-only fix). It appends one row to
-`workspace.bedoux_silver.gate_evidence_log` every run, pass or fail,
-before the gate's own raise. Four `dev` runs confirmed it live:
+merge `028b27e`, seventh, a docstring-only fix). It appends at least one
+row to `workspace.bedoux_silver.gate_evidence_log` every run, pass or
+fail, before the gate's own raise (a retry appends more than one — see
+below). Four `dev` runs confirmed it live:
 `649621694823474` and `102698121895581` (passing, default
 `bedoux_lead_invalid_rate=0.02`), `180753859499836` (failing, under a
 separately authorized fault deploy at `0.30` — leads breached at 32.8%
@@ -52,10 +53,12 @@ disagreement remains (PR #15, merge `663e280`).
 
 Docs across the repo (`architecture.md`, `sentinel/README.md`,
 `roadmap.md`, `known-gaps.md`, `live-verification.md`,
-`chapters/03-protect-evidence.md`) were swept and corrected to match the
-live results — none still say "not yet confirmed," "still unobserved," or
-similar about the evidence log or its negative test. Chapter 03's
-LinkedIn post is now drafted (not published) in
+`contracts-bedoux.md`, `chapters/03-protect-evidence.md`) were swept and
+corrected to match the live results — none still say "not yet confirmed,"
+"still unobserved," or claim `gate_evidence_log`'s grain is exactly one
+row per job run (`contracts-bedoux.md` said so; PR #16 corrected it to
+"at least one," matching the confirmed retry-duplicate behavior). Chapter
+03's LinkedIn post is now drafted (not published) in
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#linkedin-draft).
 
 `main` is clean, **149 tests pass**. [known-gaps.md](known-gaps.md) is
@@ -70,20 +73,19 @@ timeouts and malformed responses, not to prove a real vendor's API works.
 for chapter 04, not authorization to start it — and is itself marked as a
 dated, expiring artifact (see [README.md](README.md)'s "Docs lifecycle").
 
-Branch cleanup is current: the only branches besides `origin/main` are the
-four retained chapter branches (`series/00-introduction`,
-`series/01-know-your-platform`, `series/02-quality-gate`,
-`series/03-protect-evidence`) and this session's open PR branch (below) —
-see [branch-workflow.md](branch-workflow.md) for the policy this follows.
+Branches besides `origin/main`: the four retained chapter branches
+(`series/00-introduction`, `series/01-know-your-platform`,
+`series/02-quality-gate`, `series/03-protect-evidence`), plus
+`docs/chapter-03-live-close-out` — this session's PR branch (PR #16,
+merge `92e6d15`), kept per policy after merging, deletable once verified
+merged — see [branch-workflow.md](branch-workflow.md).
 
-**One open PR:** docs recording the Phase A/B live results above, the
-diagram/doc sweep confirmation, and the chapter 03 LinkedIn draft —
-docs-only, no bundle path, not merged; needs review before merging.
+**No open PRs.**
 
 ## Exact next useful task
 
-Review and merge the open PR above. After that, chapter 04 ("Investigate
-and recover") is the next substantive chapter and needs its own explicit
-authorization before any of it starts — including the scope decision,
-already recorded in `known-gaps.md`, to keep its runtime model provider
-out of live implementation and cover it in the post/video instead.
+Chapter 04 ("Investigate and recover") is the next substantive chapter
+and needs its own explicit authorization before any of it starts —
+including the scope decision, already recorded in `known-gaps.md`, to
+keep its runtime model provider out of live implementation and cover it
+in the post/video instead.
