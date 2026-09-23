@@ -103,6 +103,43 @@ def _parse_report(raw):
     return report, None
 
 
+def prepare_payload(fields):
+    """Gate `fields` and build the exact string a provider would receive.
+
+    Returns `(payload, ())` when both the gate and the final serialized
+    check pass, or `(None, reason_codes)` when either refuses. `payload` is
+    the only form of the evidence that is ever safe to send or store: it is
+    redacted, and it has been checked for the canary and copied secrets
+    after serialization. Redaction alone is not enough -- it doesn't remove
+    the canary.
+    """
+    allowed, problems = evidence.evaluate_evidence_gate(fields)
+    if not allowed:
+        return None, _gate_reason_codes(problems)
+
+    payload = serialize_packet(evidence.redact_evidence_packet(fields))
+    final_problems = _final_payload_problems(fields, payload)
+    if final_problems:
+        return None, final_problems
+    return payload, ()
+
+
+def send_payload(payload, provider, *, timeout_s: float = 30.0) -> CallOutcome:
+    """Send an already-prepared payload once and classify the result.
+    Only call this with a payload returned by prepare_payload."""
+    try:
+        raw = provider.complete(payload, timeout_s=timeout_s)
+    except (ProviderTimeout, TimeoutError):
+        return CallOutcome(PENDING, ("provider_timeout",))
+    except Exception:
+        return CallOutcome(PENDING, ("provider_error",))
+
+    report, code = _parse_report(raw)
+    if report is None:
+        return CallOutcome(PENDING, (code,))
+    return CallOutcome(REPORTED, (), report)
+
+
 def call_model(fields, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     """Gate `fields`, then (only if the gate passes) send the redacted,
     serialized packet to `provider` exactly once.
@@ -118,23 +155,7 @@ def call_model(fields, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     No retries: one attempt per call. A PENDING outcome is meant to be
     visible and retried deliberately, not looped on here.
     """
-    allowed, problems = evidence.evaluate_evidence_gate(fields)
-    if not allowed:
-        return CallOutcome(BLOCKED, _gate_reason_codes(problems))
-
-    payload = serialize_packet(evidence.redact_evidence_packet(fields))
-    final_problems = _final_payload_problems(fields, payload)
-    if final_problems:
-        return CallOutcome(BLOCKED, final_problems)
-
-    try:
-        raw = provider.complete(payload, timeout_s=timeout_s)
-    except (ProviderTimeout, TimeoutError):
-        return CallOutcome(PENDING, ("provider_timeout",))
-    except Exception:
-        return CallOutcome(PENDING, ("provider_error",))
-
-    report, code = _parse_report(raw)
-    if report is None:
-        return CallOutcome(PENDING, (code,))
-    return CallOutcome(REPORTED, (), report)
+    payload, codes = prepare_payload(fields)
+    if payload is None:
+        return CallOutcome(BLOCKED, codes)
+    return send_payload(payload, provider, timeout_s=timeout_s)

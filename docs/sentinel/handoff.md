@@ -7,7 +7,7 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 ## Current state
 
 Chapters 00–03 are integrated into `main`, and so is chapter 04's first
-increment. **171 tests pass.** Posts for chapters 00–03 are drafted, none
+increment. **171 tests pass on `main`; 190 on `feat/04-incident-log`.** Posts for chapters 00–03 are drafted, none
 published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -37,6 +37,15 @@ published, no tags.
   responses to `pending` with fixed reason codes. The only provider is a
   test fake, and nothing in `bedoux_analytics_job` calls this module. See
   [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
+- **Chapter 04, second increment: open PR from `feat/04-incident-log`, not
+  merged** (merging deploys). `src/bedoux/incidents.py` adds a local
+  append-only JSON Lines incident log: `investigate()` saves an incident
+  (the checked payload, or no evidence if blocked) and fsyncs it *before*
+  calling the provider, then records the outcome (status + reason codes;
+  report text isn't stored). 19 tests, including a real subprocess dying
+  mid-call and a check that the file never holds raw secrets or the
+  canary. Unproven: durability through a machine crash, concurrent
+  writers, retry deduplication, anything live.
 
 **Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s
 `<desc>` still says "no such call site exists yet in this project" — out of
@@ -53,22 +62,28 @@ lifecycle").
 
 ## Branches and PRs
 
-Retained chapter branches: `series/00-introduction`,
-`series/01-know-your-platform`, `series/02-quality-gate`,
-`series/03-protect-evidence`, `series/04-investigate-recover`.
-Merged working branches kept after their PRs, deletable once verified
-merged: `chore/evidence-docstring-fix` (PR #14),
-`docs/evidence-log-diagrams` (PR #15), `docs/chapter-03-live-close-out`
-(PR #16), `docs/grain-alignment` (PR #17), and
-`docs/chapter-03-criterion-closed` (the docs PR recording the chapter 03
-decision). See [branch-workflow.md](branch-workflow.md).
+Remote branches: `main`, the five retained chapter branches
+(`series/00-introduction`, `series/01-know-your-platform`,
+`series/02-quality-gate`, `series/03-protect-evidence`,
+`series/04-investigate-recover`), and the working branch
+`feat/04-incident-log` (the open PR). The five merged working branches
+from PRs #14–#17 and #19 were deleted after confirming each was merged
+into `origin/main`. See [branch-workflow.md](branch-workflow.md).
 
-**No open PRs.**
+Stale **local** copies of four deleted branches remain in the original
+checkout (`docs/chapter-03-criterion-closed`,
+`docs/chapter-03-live-close-out`, `docs/evidence-log-diagrams`,
+`docs/grain-alignment`), plus a local `series/04-investigate-recover`.
+Their deletion wasn't in scope; they're safe to remove with `git branch
+-d` (all merged).
+
+**One open PR:** chapter 04's second increment, from
+`feat/04-incident-log`. Not merged — merging deploys.
 
 ## Exact next useful task
 
-Chapter 04's next increment, which needs its own authorization: persist
-an incident before the model call so a `pending` outcome survives a
-restart, validate a report's evidence citations, and add a bounded
-read-only tool set with recovery denied by code. The runtime model
-provider stays deliberately unbuilt.
+Review the open incident-log PR, then decide whether to merge it (a
+deployment). After that, chapter 04's next steps, each needing its own
+authorization: validate a report's evidence citations (and only then
+store report text), and a bounded read-only tool set with recovery denied
+by code. The runtime model provider stays deliberately unbuilt.
