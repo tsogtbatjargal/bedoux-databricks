@@ -140,27 +140,29 @@ for in this project's records). Whether to revoke either of the unused ones
 is the user's decision; this file only records that they exist and when
 they expire.
 
-## No caller of `evaluate_evidence_gate` prevents an external call
+## `evaluate_evidence_gate` prevents the call only against a fake provider
 
-Updated: `evaluate_evidence_gate` now has a real caller —
-`src/bedoux/evidence_log.gate_and_redact`, wired into `bedoux_gate_task`'s
-append-only evidence-log write (see
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)).
-That closes "nothing calls it," but **not** the roadmap's chapter 03
-acceptance criterion, and this line is kept, not removed, to say precisely
-why: "a failed check prevents the external call" names an *external* call
-— a model API request — and a Delta table append is not that. This gap
-remains **structurally blocked, not merely undemonstrated**: no job task,
-notebook, or model-call site exists anywhere in this project. "Prevents
-the call" is a claim about a caller's control flow at that specific
-boundary, and there is still no caller with that control flow. A gate
-protecting a durable write is real, but it does not stand in for a gate
-protecting a network egress.
+History: for most of chapter 03 this entry was titled "No caller of
+`evaluate_evidence_gate` prevents an external call." Its first caller,
+`evidence_log.gate_and_redact`, guards a Delta append, which is not the
+external call the roadmap's chapter 03 criterion names.
 
-Building the external-call site is chapter 04's job runtime, not more
-chapter-03 pure-Python work. See
+Chapter 04's first increment (branch `series/04-investigate-recover`) adds
+the model-call site: `src/bedoux/model_call.call_model` runs the gate and
+returns before touching its provider when the gate fails, then re-checks
+the exact serialized payload before sending. Unit tests show zero provider
+calls on a failed gate, including a test that the gate's verdict alone is
+enough (see
+[chapters/04-investigate-recover.md](chapters/04-investigate-recover.md)).
+
+**What's still open:** the only provider is a test fake. No evidence has
+left the process, so the control flow is proven for the local call path,
+not for a real network egress. That's by design (see the next entry for
+why the provider is deliberately never built). Nothing in the job calls
+`model_call` either. Whether this closes chapter 03's criterion is the
+user's call; see
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping)
-for the full per-criterion mapping this gap is one line of.
+for the original mapping.
 
 ## The sensitive-value leak check misses short and non-string secrets
 

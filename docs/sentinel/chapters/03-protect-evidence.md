@@ -408,8 +408,13 @@ honestly rather than marking the chapter complete:
   is a claim about a caller's control flow at *that* boundary, and there
   is still no caller with that specific control flow. This is chapter 04's
   job runtime to build, not something addable within chapter 03's own
-  pure-Python scope. Durable register entry:
-  [known-gaps.md](../known-gaps.md#no-caller-of-evaluate_evidence_gate-prevents-an-external-call).
+  pure-Python scope. **Update: chapter 04 has since built that caller**
+  (`model_call.call_model`, on `series/04-investigate-recover`) and
+  unit-tested the control flow against a fake provider — see
+  [chapters/04-investigate-recover.md](04-investigate-recover.md). No real
+  provider exists, so no evidence has left the process. Durable register
+  entry:
+  [known-gaps.md](../known-gaps.md#evaluate_evidence_gate-prevents-the-call-only-against-a-fake-provider).
 - **"Document the inspected boundary" — met.** See "What this chapter is
   protecting, and from what," above: one function's input, explicitly not
   network/IAM/S3-layer enforcement.
