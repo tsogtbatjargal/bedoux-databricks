@@ -38,6 +38,8 @@ deployed with its post still unpublished):
   [chapters/01-know-your-platform.md](chapters/01-know-your-platform.md).
 - **In progress**: chapter 04 ("Investigate and recover") — first
   increment integrated: the guarded model-call path with a fake provider.
+  Second increment (a local incident log saved before each model call) is
+  in review, not merged.
   See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 - **Planned**: chapters 05–07.
 

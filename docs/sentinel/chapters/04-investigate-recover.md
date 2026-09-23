@@ -5,9 +5,11 @@ Strategic theme: respond and adapt (see [README.md](../README.md)).
 Status: **first increment integrated into `main`** (PR #18, merge
 `b347a1c`, the eighth CI deployment: `Resources: 0 created, 0 changed, 0
 deleted, 8 unchanged`, `Files: 70 uploaded, 0 deleted`). It builds the
-guarded model-call path with an injected fake provider. There is no real
-provider, agent, tool set, incident store, or recovery executor yet, and
-nothing in `bedoux_analytics_job` calls this code.
+guarded model-call path with an injected fake provider. **Second increment
+(local incident log) is on branch `feat/04-incident-log`, PR open, not
+merged** — see "Incident log," below. There is no real provider, agent,
+tool set, or recovery executor yet, and nothing in `bedoux_analytics_job`
+calls this code.
 
 ## Why this increment first
 
@@ -89,6 +91,77 @@ the external call" criterion as **implemented and unit-tested, not
 demonstrated live**, on the strength of
 `test_evaluate_evidence_gate_verdict_alone_stops_the_call`.
 
+## Incident log: `src/bedoux/incidents.py` (second increment)
+
+`investigate(fields, provider, log)` saves an incident *before* the model
+is called, then records the outcome against it:
+
+1. `model_call.prepare_payload(fields)` — the same gate and final payload
+   check `call_model` uses (`call_model` is now `prepare_payload` +
+   `send_payload`, unchanged in behavior). It returns a `CheckedPayload`,
+   which only `prepare_payload` can create, and `send_payload` raises
+   `TypeError` on anything else before touching the provider. Without
+   that, splitting `call_model` would have made the gate skippable with
+   `send_payload(json.dumps(fields), provider)` — and chapter 03's
+   criterion was closed on the gate being unavoidable.
+2. `log.open_incident(payload)` appends an `opened` event and fsyncs it.
+   The stored evidence is the exact checked payload, or nothing when the
+   gate blocked — never the raw fields. Plain redaction isn't enough to
+   store: it doesn't remove the canary.
+3. Only if the payload exists: `send_payload` calls the provider once.
+4. `log.record_outcome(...)` appends an `outcome` event with the status
+   (`blocked` / `pending` / `reported`) and fixed reason codes. The
+   provider's report text is **not** stored — it isn't validated against
+   its evidence yet.
+
+**Storage: a local append-only JSON Lines file.** The chapter's
+investigation service is local (`sentinel/README.md`, "Scope"; the
+roadmap's "local agent"), so a Delta table would put a Spark and workspace
+dependency where the design says there isn't one. JSONL needs only the
+standard library, and append-only — a second event instead of an update —
+is the same pattern `gate_evidence_log` already uses. SQLite would also
+work but adds mutable rows for no benefit here. An incident with no
+`outcome` event is pending; a torn last line from a crash mid-write is
+skipped on read.
+
+**What the tests prove** (`tests/test_incidents.py`, 19 tests, plus 6 in
+`tests/test_model_call.py` for `CheckedPayload`; 196 repo-wide; fake
+provider only):
+
+- The incident is on disk and pending when the provider is called, as
+  seen by a fresh reader of the file.
+- A real subprocess that dies (`os._exit`) inside the provider call leaves
+  a pending incident with its evidence, visible on restart.
+- If saving the incident fails, the provider is never called. If saving
+  the outcome fails, the incident stays pending.
+- `investigate` decides exactly like `call_model` for six inputs (healthy,
+  redacted-ssn, the canary fixture, nested canary, copied secret, and an
+  object whose `str()` carries the canary); blocked inputs never reach
+  the provider and are stored with no evidence.
+- The log file never contains a raw sensitive value or the canary, even
+  when the provider's error message or report text contains the canary.
+- `send_payload` refuses a raw string — even one byte-for-byte equal to a
+  prepared payload — plus an empty string, a dict, and `None`, with zero
+  provider calls; a `CheckedPayload` can't be built outside
+  `prepare_payload` or modified.
+- Checked by mutation: storing plain-redacted evidence or raw fields
+  fails the leak tests; saving after the call fails the three ordering
+  tests; removing `send_payload`'s type check, or replacing it with duck
+  typing that accepts a string, fails all five refusal cases.
+- Not a security boundary against code in the same process: the
+  creation token is module-private by convention, which Python can't
+  enforce. It stops mistakes, not deliberate circumvention.
+
+**Not proven:**
+- Real-world durability. `fsync` is called, but no test can show the OS
+  and disk honor it through a power loss; the subprocess test proves
+  survival of a process death, not a machine crash.
+- One writer at a time is assumed. Concurrent appends from several
+  processes aren't locked or tested.
+- Retries: a retried investigation opens a new incident. Nothing links or
+  deduplicates them yet.
+- Anything live: no real provider, and nothing in the job writes here.
+
 ## Chapter 04 acceptance, mapped
 
 | Roadmap criterion | Status |
@@ -97,10 +170,10 @@ demonstrated live**, on the strength of
 | Sensitive raw rows do not enter prompts | Implemented for this call site: gate + final payload check, tested with a fake. |
 | Recovery requires the defined approval | Not started. `proposed_recovery` is text only; nothing executes it. |
 | Replay does not duplicate accepted records | Not started. |
-| Model failure leaves a visible pending incident | Partly: failures return `pending`, but nothing persists an incident yet. |
+| Model failure leaves a visible pending incident | Implemented locally (second increment, not merged): the incident is saved before the call and stays `pending` through timeouts, errors, malformed responses, and process death. Fake provider only. |
 | Before/after business metric | Not started. |
 | Offline fixtures separate from live model runs | Holds trivially: there are no live runs. |
 
-Next increments, not authorized yet: persist an incident before the call
-(so `pending` survives a restart), validate report evidence citations,
-and a bounded read-only tool set with recovery denied by code.
+Next increments, not authorized yet: validate report evidence citations
+(and only then store report text), and a bounded read-only tool set with
+recovery denied by code.

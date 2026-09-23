@@ -211,3 +211,35 @@ def test_unexpected_response_fields_are_dropped():
     outcome = model_call.call_model(HEALTHY, FakeProvider(behavior=raw))
     assert outcome.status == REPORTED
     assert "execute" not in outcome.report
+
+
+# ---------------------------------------------------------------------------
+# send_payload can't be reached without the gate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("unchecked", [
+    json.dumps({"ssn": "123-45-6789", "notes": f"ref {CANARY_MARKER}"}),
+    # Byte-for-byte the text prepare_payload would produce, but unwrapped:
+    # the check is on how the payload was made, not on what it looks like.
+    model_call.serialize_packet(evidence.redact_evidence_packet(HEALTHY)),
+    "",
+    {"source": "leads"},
+    None,
+])
+def test_send_payload_refuses_anything_but_a_checked_payload(unchecked):
+    provider = FakeProvider()
+    with pytest.raises(TypeError):
+        model_call.send_payload(unchecked, provider)
+    assert provider.calls == []
+
+
+def test_checked_payload_is_only_made_by_prepare_payload():
+    with pytest.raises(TypeError):
+        model_call.CheckedPayload("anything")
+    with pytest.raises(TypeError):
+        model_call.CheckedPayload("anything", _token=object())
+    checked, codes = model_call.prepare_payload(HEALTHY)
+    assert isinstance(checked, model_call.CheckedPayload) and codes == ()
+    with pytest.raises(AttributeError):
+        checked._text = "swapped"
