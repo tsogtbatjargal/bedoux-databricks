@@ -12,9 +12,10 @@ bedoux_analytics_job writes here.
 
 What gets stored: the exact payload prepared for the provider -- redacted
 and checked for the canary and copied secrets -- or no evidence at all when
-the gate blocks. Never the raw fields. Outcomes store the status and fixed
-reason codes only, not the provider's report text: report content isn't
-validated against its evidence yet (a later increment).
+the gate blocks. Never the raw fields. Outcomes store the status, fixed
+reason codes, and -- only for a REPORTED outcome -- the report, which by
+then has had its citations resolved against the sent payload and been
+screened for the canary and copied secrets -- both inside send_payload.
 """
 
 import json
@@ -36,6 +37,7 @@ class Incident:
     evidence_payload: str | None  # None when the gate blocked
     status: str  # model_call.PENDING until an outcome is recorded
     reason_codes: tuple = ()
+    report: dict | None = None  # only for REPORTED
 
 
 class IncidentLog:
@@ -66,6 +68,7 @@ class IncidentLog:
             "ts": datetime.now(timezone.utc).isoformat(),
             "status": outcome.status,
             "reason_codes": list(outcome.reason_codes),
+            "report": outcome.report if outcome.status == model_call.REPORTED else None,
         })
 
     def load(self):
@@ -92,6 +95,7 @@ class IncidentLog:
                     incidents[incident_id] = Incident(
                         incident_id, opened.opened_ts, opened.evidence_payload,
                         event["status"], tuple(event["reason_codes"]),
+                        event.get("report"),
                     )
         return incidents
 

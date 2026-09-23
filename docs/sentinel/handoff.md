@@ -7,7 +7,8 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 ## Current state
 
 Chapters 00–03 are integrated into `main`, and so are chapter 04's first
-two increments. **196 tests pass.** Posts for chapters 00–03 are drafted,
+two increments; the third is an open PR. **196 tests pass on `main`, 224
+on `feat/04-report-citations`.** Posts for chapters 00–03 are drafted,
 none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -44,6 +45,17 @@ none published, no tags.
   - Only a test fake exists as a provider, and nothing in
     `bedoux_analytics_job` calls either module. See
     [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
+- **Chapter 04, third increment: open PR from `feat/04-report-citations`,
+  not merged** (merging deploys). A report needs a non-empty `citations`
+  list of paths like `rows[0].stage`, each resolving to non-redacted
+  evidence in the payload the provider was sent; otherwise it's `pending`
+  (`no_citations`, `unresolved_citation`, `redacted_citation` — also for
+  a container whose values are all redacted). `send_payload` itself
+  refuses a report echoing the canary or a secret (`report_leak`), using
+  sensitive values `prepare_payload` keeps in memory on the
+  `CheckedPayload`, so no caller gets an unscreened report. A checked
+  report is now stored in the incident log. 28 new tests. Citation checks prove a
+  citation *exists* in what was sent, not that it supports the claim.
 
 **Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s
 `<desc>` still says "no such call site exists yet in this project" — out of
@@ -62,19 +74,20 @@ brief — delete or archive it when the next chapter-04 increment starts
 Remote branches: `main`; the five retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
-`series/04-investigate-recover`); and `feat/04-incident-log`, a merged
-working branch (PR #20) kept because remote deletion wasn't authorized —
-deletable once verified merged. See [branch-workflow.md](branch-workflow.md).
+`series/04-investigate-recover`); and the working branch
+`feat/04-report-citations` (the open PR). `feat/04-incident-log` was
+deleted after confirming it was merged into `origin/main`. See
+[branch-workflow.md](branch-workflow.md).
 
-Local branches: `main` and `series/04-investigate-recover`. The merged
-local working branches were deleted with `git branch -d` after checking
-each was an ancestor of both `main` and `origin/main`.
+Local branches: `main`, `series/04-investigate-recover`, and
+`feat/04-report-citations`.
 
-**No open PRs.**
+**One open PR:** chapter 04's third increment, from
+`feat/04-report-citations`. Not merged — merging deploys.
 
 ## Exact next useful task
 
-Chapter 04's next steps, each needing its own authorization: validate a
-report's evidence citations (and only then store report text), and a
-bounded read-only tool set with recovery denied by code. The runtime model
-provider stays deliberately unbuilt.
+Review the report-citations PR, then decide whether to merge it (a
+deployment). After that, chapter 04's next step, which needs its own
+authorization: a bounded read-only tool set with recovery denied by code.
+The runtime model provider stays deliberately unbuilt.
