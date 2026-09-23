@@ -567,9 +567,13 @@ monitoring can catch separately. The cost of this choice: a broken writer
 can run silently for a while with no automatic alarm beyond the printed
 warning in the task log. That is accepted, not unnoticed.
 
-Added to `docs/contracts-bedoux.md`: `gate_evidence_log`'s table, grain
-(one row per job run), and append-only property, alongside the existing
-Silver table descriptions.
+At implementation time, this session added to `docs/contracts-bedoux.md`:
+`gate_evidence_log`'s table, grain (then stated as one row per job run),
+and append-only property, alongside the existing Silver table
+descriptions. The contract's grain has since been corrected to "at least
+one row per job run" after the live retry duplicate (see "Known
+limitation," below, and `contracts-bedoux.md`'s `gate_evidence_log`
+entry).
 
 **Known limitation, not solved this session — since confirmed live.** A
 task retry within the same job run (Databricks task retries, not a fresh
