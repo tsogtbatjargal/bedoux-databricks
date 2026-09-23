@@ -591,6 +591,10 @@ repeating chapter 02's two core mistakes (a correct control pointed at the
 wrong scope; a check verifying its own output instead of an independent
 source) — also reads better once a real caller exists to show the fix
 actually protecting something, rather than only protecting a fixture
-nothing calls. Draft this once chapter 04 gives the chapter a call site, or
-once the durable-evidence-log half is built and the chapter's own scope is
-genuinely finished — whichever the user decides to close first.
+nothing calls. The durable-evidence-log half has since been built,
+deployed, and demonstrated live (see "Append-only evidence log," above) —
+that condition has fired. What remains outstanding is the roadmap's own
+acceptance criterion: "a failed check prevents the external call" names a
+model-API call, and no such call site exists anywhere in this project yet.
+Draft this once chapter 04 gives the chapter that call site — the
+durable-write half alone does not close chapter 03's own scope.

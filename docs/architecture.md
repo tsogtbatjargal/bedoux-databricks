@@ -72,12 +72,18 @@ imperative notebook task, ahead of the Gold pipeline, is what makes
 [`sentinel/chapters/02-quality-gate.md`](sentinel/chapters/02-quality-gate.md)
 for the full design and its live demonstration.
 
-**Not shown here on purpose:** `src/bedoux/evidence.py` (sensitive-field
-redaction and canary detection, chapter 03) has no pipeline or job call
-site yet — nothing in `bedoux_analytics_job` invokes it. It is real,
-unit-tested code, but it isn't part of the deployed architecture until
-something calls it, so it's omitted from the diagram above rather than
-drawn as a box with no edges into anything. See
+**Inside `bedoux_gate_task`, not shown as its own box:** `src/bedoux/evidence.py`
+(sensitive-field redaction and canary detection, chapter 03) now has a real
+call site. `gate_check.py` imports `evidence_log`, which calls
+`evaluate_evidence_gate` and `redact_evidence_packet` before appending a
+row to `workspace.bedoux_silver.gate_evidence_log` — deployed at `7856b78`
+and run live twice. This guards a durable Delta write, not a network
+egress, so it does **not** close the roadmap's "a failed check prevents
+the external call" criterion, which names a model-API call; no such call
+site exists anywhere in this project yet. It is omitted as a separate box
+in the diagram above because it's a sub-step inside `bedoux_gate_task`,
+not a new task — the diagram update to show that sub-step is still
+outstanding, tracked separately from this correction. See
 [`sentinel/chapters/03-protect-evidence.md`](sentinel/chapters/03-protect-evidence.md)
 for what it does and doesn't close.
 

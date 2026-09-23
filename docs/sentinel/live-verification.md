@@ -242,15 +242,21 @@ What genuinely remains unproved:
   authorized or done this session. See section 6 for the exact commands a
   future authorized session should run.
 
-## 6. Chapter 03 evidence-log demonstration (not yet run)
+## 6. Chapter 03 evidence-log demonstration (partially run)
 
-Not run this session: this session's authorization was local edits, a
-branch, and a PR only — no deploy, no job run. `resources/bedoux_jobs.yml`
-was not changed (the evidence log is written by `gate_check.py` itself,
-not a new task), so deploying the merged branch deploys the updated task
-code inside the existing `bedoux_gate_task`, the same as any other
-`src/**` change. The exact commands a future authorized session should
-run, in order:
+Deployed at `7856b78` (PR #11, the sixth CI deployment).
+`resources/bedoux_jobs.yml` was not changed (the evidence log is written by
+`gate_check.py` itself, not a new task), so that deploy shipped the
+updated task code inside the existing `bedoux_gate_task`, the same as any
+other `src/**` change. A later session ran `bedoux_analytics_job` twice
+against that deployed code (default `bedoux_lead_invalid_rate=0.02`, a
+passing configuration both times) and confirmed the row content, the
+append-only property, and append-not-replace across two runs — see
+[chapter-03-evidence.md](chapter-03-evidence.md) for the full raw record.
+Still outstanding: a negative mutation test against `delta.appendOnly`
+(destructive SQL, not authorized to date) and a `gate_evidence_log` row
+from a failing run (would require deploying a fault setting, not
+authorized to date). The commands used for the confirmed parts, in order:
 
 ```bash
 databricks bundle validate -t dev --profile bedoux-databricks
