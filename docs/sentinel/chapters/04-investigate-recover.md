@@ -9,8 +9,10 @@ guarded model-call path with an injected fake provider. **Second increment
 (local incident log) integrated too** (PR #20, merge `27e20c1`, the ninth
 CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`,
 `Files: 72 uploaded, 0 deleted`) — see "Incident log," below. **Third
-increment (report citations) is on `feat/04-report-citations`, PR open,
-not merged** — see "Report citations," below. There is no real provider,
+increment (report citations) integrated** (PR #21, merge `8f9d1f5`, the
+tenth CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8
+unchanged`, `Files: 72 uploaded, 0 deleted`) — see "Report citations,"
+below. There is no real provider,
 agent, tool set, or recovery executor yet, and nothing in
 `bedoux_analytics_job`
 calls this code.
@@ -253,7 +255,7 @@ happens to be the string `[REDACTED]` is treated as redacted.
 
 | Roadmap criterion | Status |
 | --- | --- |
-| Reports identify evidence and uncertainty | Implemented locally (third increment, not merged): `uncertainty` and `citations` are required, and every citation must resolve to non-redacted evidence in the sent payload. Checks that citations exist, not that they support the claim. |
+| Reports identify evidence and uncertainty | Implemented locally (third increment): `uncertainty` and `citations` are required, and every citation must resolve to non-redacted evidence in the sent payload. Checks that citations exist, not that they support the claim. |
 | Sensitive raw rows do not enter prompts | Implemented for this call site: gate + final payload check, tested with a fake. |
 | Recovery requires the defined approval | Not started. `proposed_recovery` is text only; nothing executes it. |
 | Replay does not duplicate accepted records | Not started. |

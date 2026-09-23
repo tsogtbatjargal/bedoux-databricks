@@ -7,8 +7,7 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 ## Current state
 
 Chapters 00–03 are integrated into `main`, and so are chapter 04's first
-two increments; the third is an open PR. **196 tests pass on `main`, 224
-on `feat/04-report-citations`.** Posts for chapters 00–03 are drafted,
+three increments. **224 tests pass on `main`.** Posts for chapters 00–03 are drafted,
 none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -45,8 +44,9 @@ none published, no tags.
   - Only a test fake exists as a provider, and nothing in
     `bedoux_analytics_job` calls either module. See
     [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
-- **Chapter 04, third increment: open PR from `feat/04-report-citations`,
-  not merged** (merging deploys). A report needs a non-empty `citations`
+- **Chapter 04, third increment** (PR #21, merge `8f9d1f5`, tenth CI
+  deployment: `Files: 72 uploaded, 0 deleted`, `Resources: 0 created, 0
+  changed, 0 deleted, 8 unchanged`). A report needs a non-empty `citations`
   list of paths like `rows[0].stage`, each resolving to non-redacted
   evidence in the payload the provider was sent; otherwise it's `pending`
   (`no_citations`, `unresolved_citation`, `redacted_citation` — also for
@@ -74,20 +74,20 @@ brief — delete or archive it when the next chapter-04 increment starts
 Remote branches: `main`; the five retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
-`series/04-investigate-recover`); and the working branch
-`feat/04-report-citations` (the open PR). `feat/04-incident-log` was
-deleted after confirming it was merged into `origin/main`. See
+`series/04-investigate-recover`); and `feat/04-report-citations`, merged
+as PR #21 and not yet deleted (its removal needs authorization). See
 [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main`, `series/04-investigate-recover`, and
-`feat/04-report-citations`.
+Local branches: `main` and `series/04-investigate-recover`. The local
+`feat/04-report-citations` was deleted with `git branch -d` after
+confirming its tip equalled the remote's and was an ancestor of `main`
+and `origin/main`.
 
-**One open PR:** chapter 04's third increment, from
-`feat/04-report-citations`. Not merged — merging deploys.
+**No open PRs.**
 
 ## Exact next useful task
 
-Review the report-citations PR, then decide whether to merge it (a
-deployment). After that, chapter 04's next step, which needs its own
-authorization: a bounded read-only tool set with recovery denied by code.
+Chapter 04's next step, which needs its own authorization: a bounded
+read-only tool set with recovery denied by code. Optionally, first delete
+the merged remote `feat/04-report-citations` (also needs authorization).
 The runtime model provider stays deliberately unbuilt.

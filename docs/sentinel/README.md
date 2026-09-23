@@ -39,8 +39,8 @@ deployed with its post still unpublished):
 - **In progress**: chapter 04 ("Investigate and recover") — first
   increment integrated: the guarded model-call path with a fake provider.
   Second increment integrated too: a local incident log saved before each
-  model call. Third increment (report citations checked against what was
-  sent) is in review, not merged.
+  model call. Third increment integrated too: report citations checked
+  against what was sent.
   See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 - **Planned**: chapters 05–07.
 
