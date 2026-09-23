@@ -56,8 +56,9 @@ explicitly did not build this mechanism. A later session built it:
 `src/bedoux/evidence_log.py` plus a thin writer in `gate_check.py` append
 one row per job run to `workspace.bedoux_silver.gate_evidence_log`, pass
 or fail, created with a real `delta.appendOnly = true` table property. It
-has not been deployed or run, so the property's actual enforcement and the
-row content have not been observed against a live table — see
+was deployed at `7856b78` (`Files: 66 uploaded`), but has not yet been run,
+so the property's actual enforcement and the row content have not been
+observed against a live table — see
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
 for the full design and [live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-not-yet-run)
 for the exact commands the live demonstration still needs.
