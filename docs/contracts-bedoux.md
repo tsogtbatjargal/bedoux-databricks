@@ -135,21 +135,28 @@ Rules:
   gate field.
 - `gate_evidence_log` (chapter 03) is a durable, **append-only** record of
   every gate decision — unlike `gate_status`, it is not recomputed each
-  run. Grain: **one row per job run** (not per source), written by
-  `bedoux_gate_task` immediately after it evaluates the gate, whether the
-  run passes or fails. Columns: `run_start_ms`/`run_start_ts` (the run's
-  declared start — run identity, the same freshness boundary the gate
-  already uses), `written_ts` (wall-clock append time), `passed` (the
-  gate's overall verdict), `problems` (`quality.evaluate_gate`'s own
-  problem strings), and `sources` (an array of that run's per-source
-  `gate_status` fields, kept with the verdict so a reader isn't
-  cross-referencing a table that will itself be recomputed by the next
-  run). Created with `TBLPROPERTIES ('delta.appendOnly' = 'true')`, a real
-  Delta storage-engine property rejecting `UPDATE`/`DELETE`/`MERGE`, not a
-  convention — see
+  run. Grain: **at least one row per job run** (not per source) — one row
+  per `gate_check.py` execution, written immediately after it evaluates
+  the gate, whether the run passes or fails. `run_start_ms` is a
+  freshness boundary, not a dedup key, and append-only means "never
+  mutates a written row," not "at most one row per run": a job-level task
+  retry re-runs `gate_check.py` with the same `run_start_ms` and appends
+  another row, so a retried run produces duplicate rows sharing one
+  `run_start_ms` — observed live, see
+  [chapter-03-evidence.md](sentinel/chapter-03-evidence.md)'s Run 3.
+  Columns: `run_start_ms`/`run_start_ts` (the run's declared start — run
+  identity, the same freshness boundary the gate already uses),
+  `written_ts` (wall-clock append time), `passed` (the gate's overall
+  verdict), `problems` (`quality.evaluate_gate`'s own problem strings),
+  and `sources` (an array of that run's per-source `gate_status` fields,
+  kept with the verdict so a reader isn't cross-referencing a table that
+  will itself be recomputed by the next run). Created with
+  `TBLPROPERTIES ('delta.appendOnly' = 'true')`, a real Delta
+  storage-engine property rejecting `UPDATE`/`DELETE`/`MERGE`, not a
+  convention — confirmed live: an `UPDATE` and a `DELETE` against real
+  rows both failed with `DELTA_CANNOT_MODIFY_APPEND_ONLY`. See
   [chapters/03-protect-evidence.md](sentinel/chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
-  for the full design, what "append-only" does and doesn't mean here, and
-  why this has not yet been verified against a live table.
+  for the full design and what "append-only" does and doesn't mean here.
 
 ---
 

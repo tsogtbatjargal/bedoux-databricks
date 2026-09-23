@@ -50,29 +50,49 @@ chapter 03 ("Protect what matters"), not this chapter. Chapter 02's gate
 decides whether to publish; it was never scoped to also preserve evidence
 of what it rejected beyond one run's `_quarantine` tables.
 
-**Built and run live; the property's negative-test enforcement is still
-unobserved.** Chapter 03's first session built the redaction/canary half
-of its scope (`src/bedoux/evidence.py`) but explicitly did not build this
-mechanism. A later session built it: `src/bedoux/evidence_log.py` plus a
-thin writer in `gate_check.py` append one row per job run to
+**Built, run live, and negative-tested; a predicted limitation confirmed
+in the process.** Chapter 03's first session built the redaction/canary
+half of its scope (`src/bedoux/evidence.py`) but explicitly did not build
+this mechanism. A later session built it: `src/bedoux/evidence_log.py`
+plus a thin writer in `gate_check.py` append at least one row per job run
+(a task retry appends more — see below) to
 `workspace.bedoux_silver.gate_evidence_log`, pass or fail, created with a
 real `delta.appendOnly = true` table property. Deployed at `7856b78`
-(`Files: 66 uploaded`); a further session ran `bedoux_analytics_job` twice
-against it. Confirmed live: a row was written on both runs with content
-matching `gate_status` from the same run, `SHOW TBLPROPERTIES` shows
-`delta.appendOnly` genuinely set on the created table (not just requested
-in the creation code), and the second run appended a second row rather
-than replacing the first. **Not yet confirmed:** that the property
-actually rejects a mutation attempt (`UPDATE`/`DELETE`/`MERGE`) — that
-would be a negative test needing destructive SQL, out of scope for the run
-that confirmed the rest. A `gate_evidence_log` row from a failing run is
-also still unobserved (both runs used the default, passing
-`bedoux_lead_invalid_rate=0.02`). See
+(`Files: 66 uploaded`). Confirmed live across four job runs (two passing
+at the default `bedoux_lead_invalid_rate=0.02`, one failing at a
+separately authorized `0.30`, one restore run back at `0.02`): a row is
+written on every run, pass or fail, with content matching `gate_status`
+from the same run; `SHOW TBLPROPERTIES` shows `delta.appendOnly`
+genuinely set on the created table (not just requested in the creation
+code); and rows accumulate rather than replace. **The negative test is
+now done:** an `UPDATE` and a `DELETE` against two real, existing rows
+both failed with `[DELTA_CANNOT_MODIFY_APPEND_ONLY]`, and a full re-read
+confirmed every row unchanged. This proves the property rejects those two
+specific operations against real data — not that the table is immutable
+against every possible operation; `MERGE`, `INSERT OVERWRITE`, `REPLACE
+TABLE`, `DROP`, and a property change were out of scope and not attempted.
+A `gate_evidence_log` row from a failing run is confirmed too: `leads`
+breached at a 32.8% quarantine rate under the fault deploy, `problems`
+held its first-ever non-empty value, and the gate correctly withheld Gold.
+
+**A predicted limitation, now empirically confirmed:** the design doc
+already named this ("Known limitation, not solved this session" in
+`chapters/03-protect-evidence.md`) — a task retry within one job run
+would call `gate_check.py` again with the same `run_start_ms` and append
+a second row. The failing run's `bedoux_gate_task` retried once at the
+job level (both attempts failed), and the evidence-write-then-raise code
+ran on *both* attempts, appending **two** rows with identical
+`run_start_ms` and content, differing only in `written_ts`. Append-only
+guards against mutation, not duplication — the property held exactly as
+designed, and a retried failing run still produces a duplicate evidence
+row today. Not investigated or fixed here; a candidate for a future
+chapter or a dedicated fix, the same way other entries in this file are
+held. See
 [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)
 for the full design, [chapter-03-evidence.md](chapter-03-evidence.md) for
-the raw run evidence, and
-[live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-partially-run)
-for the exact commands, including the still-outstanding negative test.
+the raw run evidence including the duplicate-row detail, and
+[live-verification.md](live-verification.md#6-chapter-03-evidence-log-demonstration-confirmed-live)
+for the exact commands used, including the negative test.
 
 ## Two conservation-check paths have never fired live
 

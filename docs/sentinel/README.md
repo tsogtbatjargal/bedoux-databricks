@@ -18,13 +18,16 @@ deployed with its post still unpublished):
 - **Integrated into `main`, not acceptance-complete**: chapter 03 ("Protect
   what matters") — pure-Python redaction/canary logic is implemented and
   unit-tested, and the append-only evidence log built on top of it
-  (`evidence_log.py`) is deployed at `7856b78` and partially demonstrated
-  live, across two `dev` runs: a row written each run matching `gate_status`,
-  and `delta.appendOnly` confirmed genuinely set. Still unobserved live: the
-  property rejecting a mutation, and a row from a failing run. None of this
-  closes the roadmap's "a failed check prevents the external call"
-  criterion, which is structurally blocked until chapter 04 builds a
-  model-call site — a durable Delta write is not that call. See
+  (`evidence_log.py`) is deployed at `7856b78` and confirmed live across
+  four `dev` runs: a row written every run matching `gate_status`
+  (including a failing run's row, with its first-ever non-empty
+  `problems`), `delta.appendOnly` confirmed genuinely set, and a negative
+  test confirming `UPDATE`/`DELETE` are actually rejected against real
+  rows. A predicted limitation was confirmed in that testing: a retried
+  failing run writes a duplicate evidence row (see `known-gaps.md`). None of this closes the
+  roadmap's "a failed check prevents the external call" criterion, which
+  is structurally blocked until chapter 04 builds a model-call site — a
+  durable Delta write is not that call. See
   [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md) and
   [chapter-03-evidence.md](chapter-03-evidence.md).
 - **Integrated, not yet demonstrated live**: chapter 01 ("Know your
@@ -60,7 +63,7 @@ The final video brings those pieces together.
 - [Chapter 00: The challenge](chapters/00-introduction.md): an unpublished launch post.
 - [Chapter 01: Know your platform](chapters/01-know-your-platform.md): the platform/threat map.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
-- [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and partially demonstrated live, not acceptance-complete.
+- [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test, not acceptance-complete.
 
 ## Docs lifecycle
 

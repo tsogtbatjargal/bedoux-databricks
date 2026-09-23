@@ -350,11 +350,13 @@ explicitly deferred, not done, at this point in the chapter's history.
 
 **Built in a later session — see "Append-only evidence log," below.** The
 mechanism this section describes as missing now exists: `evidence_log.py`
-plus a thin writer in `gate_check.py` append one row per job run to
-`workspace.bedoux_silver.gate_evidence_log`, pass or fail. It is not yet
-deployed or demonstrated live, so `known-gaps.md`'s entry is updated to say
-exactly that rather than closed outright — see that section for the full
-design and what remains unverified.
+plus a thin writer in `gate_check.py` append at least one row per job run
+(a task retry appends more than one — see below) to
+`workspace.bedoux_silver.gate_evidence_log`, pass or fail. It is deployed
+(`7856b78`) and confirmed live across four `dev` runs plus a negative
+mutation test — see `chapter-03-evidence.md` for the raw record and
+`known-gaps.md` for the current summary, including one confirmed
+limitation (below).
 
 ## Deliberately left unbuilt this session
 
@@ -443,8 +445,10 @@ design; the implementation follows it below.
 
 **Where the write happens.** `src/bedoux/gate_check.py`, immediately after
 it calls `quality.evaluate_gate`. Three reasons, not just the obvious one:
-it runs exactly once per job run (not per Silver table, not per Gold
-table); it already receives `{{job.start_time.timestamp_ms}}` as
+it appears once per job run in the job's task graph, not per Silver
+table or per Gold table (a task-level retry can still execute it more
+than once for that one logical job run — see "Known limitation," below);
+it already receives `{{job.start_time.timestamp_ms}}` as
 `run_start_ms`, making it the only component in this project with real run
 identity — Silver's DLT tables full-recompute with no equivalent boundary,
 and Gold's dataset functions have no run context at all; and it sits
@@ -457,7 +461,8 @@ reason it, not a Gold dataset function, holds the publication check — see
 its own module docstring), so an explicit `.write.mode("append")` is a
 natural fit, not a workaround.
 
-**Schema.** One row per job run, at `workspace.bedoux_silver.gate_evidence_log`:
+**Schema.** At least one row per job run (a retry appends more — see
+"Known limitation," below), at `workspace.bedoux_silver.gate_evidence_log`:
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -473,20 +478,20 @@ reconstructing "why did run X do what it did" never requires joining
 against `gate_status` as it existed at that moment — which, being
 current-state, won't exist anymore.
 
-**Enforcement: real, not conventional, but unverified live.** The writer
-creates the table with `TBLPROPERTIES ('delta.appendOnly' = 'true')` if it
-doesn't already exist, before the first append. That is a genuine Delta
-Lake storage-engine property — it rejects `UPDATE`/`DELETE`/`MERGE INTO`
-against the table outright, not just a convention this code happens to
-follow. That said: **this session has read-only workspace access and did
-not deploy or run the job**, so the property has never actually been set
-against a live table or tested against a real `UPDATE`/`DELETE` attempt.
-"Implemented" here means the `CREATE TABLE ... TBLPROPERTIES` statement is
-written and will run the first time this task executes; it does not yet
-mean "observed to reject a mutation in this workspace." That gap is closed
-by the live demonstration in `live-verification.md`, not by this session.
-Until that table property is confirmed live, treat "append-only" as
-implemented-but-unverified, not proven.
+**Enforcement: real, not conventional — and now verified live.** The
+writer creates the table with `TBLPROPERTIES ('delta.appendOnly' =
+'true')` if it doesn't already exist, before the first append. That is a
+genuine Delta Lake storage-engine property — it rejects
+`UPDATE`/`DELETE`/`MERGE INTO` against the table outright, not just a
+convention this code happens to follow. At design time, this session had
+only read-only workspace access and did not deploy or run the job, so the
+property had never actually been set against a live table or tested
+against a real `UPDATE`/`DELETE` attempt. A later, separately authorized
+session closed that gap: `SHOW TBLPROPERTIES` confirmed `delta.appendOnly
+= true` genuinely set on the created table, and a real `UPDATE` and a
+real `DELETE` against existing rows both failed with
+`[DELTA_CANNOT_MODIFY_APPEND_ONLY]`. See `chapter-03-evidence.md` for the
+verbatim errors and the re-`SELECT` confirming every row unchanged.
 
 **Every run, not only failures.** The row is written whether `passed` is
 true or false. A log that only captures failures cannot show that the
@@ -566,35 +571,93 @@ Added to `docs/contracts-bedoux.md`: `gate_evidence_log`'s table, grain
 (one row per job run), and append-only property, alongside the existing
 Silver table descriptions.
 
-**Known limitation, not solved this session:** a task retry within the
-same job run (Databricks task retries, not a fresh job run) would call
-`gate_check.py` again with the same `run_start_ms` and append a second row
-for that run. `run_start_ms` is a freshness boundary, not a dedup key —
-the same caveat `evaluate_gate`'s docstring already states about
-`min_computed_ts`. This log does not deduplicate by run; it is append-only
-in the sense of "never mutates a written row," not "at most one row per
-run enforced." Recorded here rather than silently assumed away.
+**Known limitation, not solved this session — since confirmed live.** A
+task retry within the same job run (Databricks task retries, not a fresh
+job run) would call `gate_check.py` again with the same `run_start_ms` and
+append a second row for that run. `run_start_ms` is a freshness boundary,
+not a dedup key — the same caveat `evaluate_gate`'s docstring already
+states about `min_computed_ts`. This log does not deduplicate by run; it
+is append-only in the sense of "never mutates a written row," not "at
+most one row per run enforced." This was recorded as a predicted
+limitation, not silently assumed away — and a later session's failing-run
+demonstration confirmed it empirically: `bedoux_gate_task` retried once,
+and both attempts wrote a row, producing two rows with identical
+`run_start_ms` for one run. See `chapter-03-evidence.md`'s Run 3 for the
+exact duplicate content.
 
-**Live demonstration is separate and not run this session.** See
-`live-verification.md` for the exact commands a future authorized session
-would run to deploy this, trigger the job, and confirm both the row
-content and the `delta.appendOnly` rejection live.
+**Live demonstration: run.** See `chapter-03-evidence.md` for the full raw
+record and `live-verification.md` for the exact commands used — four
+`dev` runs (two passing, one failing under a separately authorized fault
+deploy, one restore) plus the negative-mutation test confirmed the row
+content, the `delta.appendOnly` rejection, and the retry limitation above,
+all live.
 
-## Post draft — deliberately not written yet
+## Draft status
 
-Chapters 00, 01, and 02 have a "## LinkedIn draft" section; this one does
-not, and that's a decision, not an oversight. Chapter 03 is explicitly not
-acceptance-complete (see above) — a published post implies a finished
-chapter the way this one currently doesn't. The chapter's most interesting
-material so far — two review rounds finding the chapter's own controls
-repeating chapter 02's two core mistakes (a correct control pointed at the
-wrong scope; a check verifying its own output instead of an independent
-source) — also reads better once a real caller exists to show the fix
-actually protecting something, rather than only protecting a fixture
-nothing calls. The durable-evidence-log half has since been built,
-deployed, and demonstrated live (see "Append-only evidence log," above) —
-that condition has fired. What remains outstanding is the roadmap's own
-acceptance criterion: "a failed check prevents the external call" names a
-model-API call, and no such call site exists anywhere in this project yet.
-Draft this once chapter 04 gives the chapter that call site — the
-durable-write half alone does not close chapter 03's own scope.
+Earlier in this chapter's history, this section argued the post should
+wait: chapter 03 is explicitly not acceptance-complete, and a published
+post implies a finished chapter the way this one currently doesn't. That
+reasoning about *publishing* still holds — see "Roadmap acceptance
+mapping," above; the external-call criterion remains open. But drafting is
+not publishing, the same distinction chapters 01 and 02 already draw (both
+drafted, neither published, per `roadmap.md`'s publication column). With
+the append-only evidence log now built, deployed, and confirmed live
+end-to-end — including the negative mutation test — there is enough real,
+observed material to draft honestly without waiting on chapter 04. The
+draft below is explicit about what's still open, the same way the rest of
+this chapter has been throughout.
+
+## LinkedIn draft
+
+A function can be exactly right and still be structurally alone.
+
+Chapter 03 of Bedoux Sentinel built `evaluate_evidence_gate`: a fail-closed
+check that redacts sensitive fields and looks for a canary marker before
+evidence leaves the pipeline. It passed 24 tests across three review
+rounds. For several rounds after that, its own docstring still said the
+truth plainly: no caller of this function exists yet in this project. Not
+implied, not glossed over — a gate nobody calls is not yet a gate.
+
+Closing that was not chapter 04 work — no model-call site exists yet. It
+came from something else this project already needed: an append-only
+evidence log. Every `bedoux_analytics_job` run now appends one row to
+`gate_evidence_log`, pass or fail, before the gate raises, and that write
+goes through `evaluate_evidence_gate` first. The function has a real
+caller.
+
+Then the append-only property got tested instead of trusted. An `UPDATE`
+and a `DELETE` against real, existing rows, live: both rejected with
+`[DELTA_CANNOT_MODIFY_APPEND_ONLY]`. A separately authorized fault deploy
+pushed the leads quarantine rate to 32.8% and confirmed two things at
+once: the gate correctly withheld Gold, and the evidence log recorded
+that failure too, not only the clean runs.
+
+One gap the design doc had already named on paper showed up for real on
+the first try: a retried failing run wrote two rows for one run, not one.
+Append-only stops mutation. It does not stop duplication.
+
+What is still open: this guards a durable write, not a model-API call.
+Chapter 03's own acceptance criterion — a failed check prevents the
+external call — stays unmet until chapter 04 gives it something to call.
+
+## Before posting
+
+- Have the author edit any sentence that doesn't sound like them.
+- Suggested visual: the failing row's `sources` entry for `leads`
+  (`quarantine_rate 0.328`, `gate_passed false`) next to a passing row's,
+  from `chapter-03-evidence.md` — the same before/after shape chapter 02's
+  visual used, this time for the evidence log instead of `gate_status`.
+- Evidence backing every claim in the draft is in
+  [chapter-03-evidence.md](../chapter-03-evidence.md) (run IDs, exact
+  `gate_evidence_log` rows, the verbatim `UPDATE`/`DELETE` errors) and this
+  file's "Append-only evidence log" sections. No cost, incident, or quote
+  is claimed.
+- No `post/03-protect-evidence` tag exists yet — tagging is a separate,
+  authorized publication step. Until then, the verifiable public
+  references are PR #11 (`7856b78`) and this chapter doc on `main`. Add
+  the tag and update this note with the permalink before publishing.
+- Mark this draft unpublished until the user requests publication; no
+  assistant posts it automatically. Publishing still requires chapter 03
+  to be reconsidered against acceptance-complete status, or an explicit
+  decision to publish an honestly-scoped partial chapter — that decision
+  is the user's, not assumed by drafting this post.
