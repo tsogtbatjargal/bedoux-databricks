@@ -82,6 +82,13 @@ merged — see [branch-workflow.md](branch-workflow.md).
 
 **No open PRs.**
 
+**One stale source comment, deliberately not fixed yet:**
+`src/bedoux/gate_check.py:86` says the evidence-log block "Writes one row
+every run" — Run 3 disproved that (a task retry writes a second row with
+the same `run_start_ms`). It's a comment only, but it's a `src/**` change,
+so fixing it triggers a CI deployment and needs its own authorization. The
+correct wording is in `contracts-bedoux.md`'s `gate_evidence_log` entry.
+
 ## Exact next useful task
 
 Chapter 04 ("Investigate and recover") is the next substantive chapter
