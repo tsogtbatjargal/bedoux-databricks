@@ -2,8 +2,9 @@
 
 Strategic theme: respond and adapt (see [README.md](../README.md)).
 
-Status: **first increment implemented and unit-tested on
-`series/04-investigate-recover`, not merged, not deployed.** It builds the
+Status: **first increment integrated into `main`** (PR #18, merge
+`b347a1c`, the eighth CI deployment: `Resources: 0 created, 0 changed, 0
+deleted, 8 unchanged`, `Files: 70 uploaded, 0 deleted`). It builds the
 guarded model-call path with an injected fake provider. There is no real
 provider, agent, tool set, incident store, or recovery executor yet, and
 nothing in `bedoux_analytics_job` calls this code.
@@ -83,10 +84,10 @@ Databricks. No evidence has left the process. The provider interface is
 exercised only by the fake, so a real SDK's timeout, retry, or logging
 behavior is untested — and, as chapter 03 already states, what a provider
 does with a payload after it arrives is outside anything this code can
-see. This closes chapter 03's criterion at the level of **the local call
-path's control flow**; whether that counts as closing chapter 03, given
-the provider is intentionally never built, is a decision for the user,
-not something this increment asserts.
+see. The user decided this closes chapter 03's "a failed check prevents
+the external call" criterion as **implemented and unit-tested, not
+demonstrated live**, on the strength of
+`test_evaluate_evidence_gate_verdict_alone_stops_the_call`.
 
 ## Chapter 04 acceptance, mapped
 

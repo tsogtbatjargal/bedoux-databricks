@@ -6,117 +6,69 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–03 are integrated into `main`. **Chapter 04 has started** on
-`series/04-investigate-recover`: its first increment is implemented and
-unit-tested, with an open PR, not merged and not deployed (see "Chapter 04,"
-below). Chapter 02 is demonstrated live
-and its post is drafted, not published — see
-[chapter-02-evidence.md](chapter-02-evidence.md) and
-[chapters/02-quality-gate.md](chapters/02-quality-gate.md). Chapter 01's post
-is also drafted, not published — see
-[chapters/01-know-your-platform.md](chapters/01-know-your-platform.md).
-Chapter 03 is integrated but **not acceptance-complete**:
-`evaluate_evidence_gate` has a real caller (`evidence_log.gate_and_redact`,
-guarding the append-only evidence log below), but that's a durable Delta
-write, not the network egress the roadmap criterion means — "a failed check
-prevents the external call" gets its control flow from chapter 04's
-`model_call.call_model`, tested against a fake provider only. See
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping).
+Chapters 00–03 are integrated into `main`, and so is chapter 04's first
+increment. **171 tests pass.** Posts for chapters 00–03 are drafted, none
+published, no tags.
 
-**Chapter 03's append-only evidence log is merged, deployed, and now fully
-confirmed live**, including the negative mutation test
-(`src/bedoux/evidence_log.py`, pure, no Spark, plus a thin writer in
-`gate_check.py`; PR #11, merge `7856b78`, sixth CI deployment; PR #14,
-merge `028b27e`, seventh, a docstring-only fix). It appends at least one
-row to `workspace.bedoux_silver.gate_evidence_log` every run, pass or
-fail, before the gate's own raise (a retry appends more than one — see
-below). Four `dev` runs confirmed it live:
-`649621694823474` and `102698121895581` (passing, default
-`bedoux_lead_invalid_rate=0.02`), `180753859499836` (failing, under a
-separately authorized fault deploy at `0.30` — leads breached at 32.8%
-quarantine, gate correctly withheld Gold, and the row's `problems` held
-its first-ever non-empty value), and `793561848702599` (restore run,
-confirmed `0.02` actually redeployed before running, not assumed). A
-follow-on negative test then targeted two real, existing rows with an
-`UPDATE` and a `DELETE`: both failed with
-`[DELTA_CANNOT_MODIFY_APPEND_ONLY]`, and a full re-`SELECT` confirmed
-every row unchanged. Raw evidence in
-[chapter-03-evidence.md](chapter-03-evidence.md).
+- **Chapter 02** is demonstrated live — see
+  [chapter-02-evidence.md](chapter-02-evidence.md).
+- **Chapter 03 is acceptance-complete at code level, not demonstrated live
+  against a model** (the user's decision). Its last criterion, "a failed
+  check prevents the external call," is met by chapter 04's
+  `model_call.call_model`: `test_evaluate_evidence_gate_verdict_alone_stops_the_call`
+  forces the gate to refuse clean evidence and asserts zero provider calls,
+  and removing the gate line from `call_model` makes exactly that test
+  fail. The provider is a test fake, so no evidence has ever left the
+  process; a live proof needs a real provider, deliberately deferred. See
+  [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#roadmap-acceptance-mapping).
+- **Chapter 03's append-only evidence log** is deployed and confirmed live
+  across four `dev` runs (`649621694823474`, `102698121895581` passing;
+  `180753859499836` failing under an authorized `0.30` fault; `793561848702599`
+  restore), plus a negative test: `UPDATE` and `DELETE` both rejected with
+  `[DELTA_CANNOT_MODIFY_APPEND_ONLY]`. One predicted limitation confirmed live
+  and not fixed: a task retry writes a duplicate row sharing `run_start_ms`.
+  See [chapter-03-evidence.md](chapter-03-evidence.md) and
+  [known-gaps.md](known-gaps.md#durable-incident-evidence-is-manual).
+- **Chapter 04, first increment integrated** (PR #18, merge `b347a1c`, the
+  eighth CI deployment: `Files: 70 uploaded, 0 deleted`, `Resources: 0
+  created, 0 changed, 0 deleted, 8 unchanged`). `src/bedoux/model_call.py`
+  gates evidence, re-checks the exact serialized payload, calls an injected
+  provider once, and maps timeouts, provider errors, and malformed
+  responses to `pending` with fixed reason codes. The only provider is a
+  test fake, and nothing in `bedoux_analytics_job` calls this module. See
+  [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 
-**One confirmed limitation, predicted at design time, not fixed:** a
-job-level task retry re-runs `gate_check.py` with the same `run_start_ms`,
-so a retried failing run appends two evidence rows for one run, not one.
-Append-only guards mutation, not duplication. See
-[known-gaps.md](known-gaps.md#durable-incident-evidence-is-manual).
+**Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s
+`<desc>` still says "no such call site exists yet in this project" — out of
+date now that `model_call.py` is a call site (with a fake provider). The
+user maintains the diagrams by hand.
 
-Both diagrams (`architecture.drawio`, `architecture-context.svg`) now show
-the evidence-log sub-step inside `bedoux_gate_task`, matching
-`architecture.md` and `sentinel/README.md`'s text — no diagram/doc
-disagreement remains (PR #15, merge `663e280`).
+[known-gaps.md](known-gaps.md) is current, including the entry recording
+that chapter 04's runtime model provider is a deliberate scope decision,
+covered in the post/video instead of built.
+[claude-implementation.md](claude-implementation.md) is a dated, expiring
+brief whose first increment is now done — delete or archive it when the
+next chapter-04 increment starts (see [README.md](README.md)'s "Docs
+lifecycle").
 
-Docs across the repo (`architecture.md`, `sentinel/README.md`,
-`roadmap.md`, `known-gaps.md`, `live-verification.md`,
-`contracts-bedoux.md`, `chapters/03-protect-evidence.md`) were swept and
-corrected to match the live results — none still say "not yet confirmed,"
-"still unobserved," or claim `gate_evidence_log`'s grain is exactly one
-row per job run (`contracts-bedoux.md` said so; PR #16 corrected it to
-"at least one," matching the confirmed retry-duplicate behavior). Chapter
-03's LinkedIn post is now drafted (not published) in
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#linkedin-draft).
+## Branches and PRs
 
-## Chapter 04
-
-First increment on `series/04-investigate-recover`: the guarded model-call
-path, `src/bedoux/model_call.py`. `call_model` runs `evaluate_evidence_gate`
-and returns `blocked` before touching the provider if it fails, re-checks
-the exact serialized payload, calls an injected provider once, and maps
-timeouts, provider errors, and malformed responses to `pending` with fixed
-reason codes. The only provider is a test fake; nothing in the job calls
-this module; no evidence has left the process. 22 new tests
-(`tests/test_model_call.py`), **171 total**. Full design and what the tests
-do and don't prove: [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
-
-The same branch fixes `src/bedoux/gate_check.py`'s stale "Writes one row
-every run" comment and `evaluate_evidence_gate`'s docstring, so **merging it
-is a `src/**` change and deploys** (both edits are comments/docstrings; the
-new module isn't referenced by any job). Merging is a separate decision.
-
-Not updated on purpose: the diagrams (the user updates them by hand), and
-chapter 03's unpublished LinkedIn draft, which still says "no model-call
-site exists yet" — true from chapter 03's point of view, and worth revising
-before that post is ever published.
-
-`main` is clean at `0952961`, **149 tests pass** there. [known-gaps.md](known-gaps.md) is
-current, including the confirmed evidence-log entry, the retry-duplicate
-limitation above, and an entry recording that chapter 04's runtime model
-provider is a deliberate scope decision — deferred to the post/video,
-not an oversight, because a live provider would incur real API spend for
-no additional demonstrated capability beyond what a fake provider already
-proves; the plan is to show the boundary holding under a fake provider's
-timeouts and malformed responses, not to prove a real vendor's API works.
-[The implementation brief](claude-implementation.md) is a prepared plan
-for chapter 04, not authorization to start it — and is itself marked as a
-dated, expiring artifact (see [README.md](README.md)'s "Docs lifecycle").
-
-Branches besides `origin/main`: the four retained chapter branches
-(`series/00-introduction`, `series/01-know-your-platform`,
-`series/02-quality-gate`, `series/03-protect-evidence`); the new chapter
-branch `series/04-investigate-recover` (retained permanently, like the
-others); and merged working branches kept after their PRs, deletable once
-verified merged — `chore/evidence-docstring-fix` (PR #14),
+Retained chapter branches: `series/00-introduction`,
+`series/01-know-your-platform`, `series/02-quality-gate`,
+`series/03-protect-evidence`, `series/04-investigate-recover`.
+Merged working branches kept after their PRs, deletable once verified
+merged: `chore/evidence-docstring-fix` (PR #14),
 `docs/evidence-log-diagrams` (PR #15), `docs/chapter-03-live-close-out`
-(PR #16), `docs/grain-alignment` (PR #17). See
-[branch-workflow.md](branch-workflow.md).
+(PR #16), `docs/grain-alignment` (PR #17), and
+`docs/chapter-03-criterion-closed` (the docs PR recording the chapter 03
+decision). See [branch-workflow.md](branch-workflow.md).
 
-**One open PR:** chapter 04's first increment, from
-`series/04-investigate-recover`. Not merged — merging deploys.
+**No open PRs.**
 
 ## Exact next useful task
 
-Review chapter 04's open PR, then decide whether to merge it (a
-deployment). After that, the next increment — each needs its own
-authorization: persist an incident before the model call so `pending`
-survives a restart, validate a report's evidence citations, and add a
-bounded read-only tool set with recovery denied by code. The runtime model
-provider stays deliberately unbuilt (see `known-gaps.md`), covered in the
-post/video instead.
+Chapter 04's next increment, which needs its own authorization: persist
+an incident before the model call so a `pending` outcome survives a
+restart, validate a report's evidence citations, and add a bounded
+read-only tool set with recovery denied by code. The runtime model
+provider stays deliberately unbuilt.
