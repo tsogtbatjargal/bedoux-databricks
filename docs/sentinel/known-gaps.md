@@ -50,11 +50,12 @@ chapter 03 ("Protect what matters"), not this chapter. Chapter 02's gate
 decides whether to publish; it was never scoped to also preserve evidence
 of what it rejected beyond one run's `_quarantine` tables.
 
-**Built, run live, and negative-tested; one new gap found in the
-process.** Chapter 03's first session built the redaction/canary half of
-its scope (`src/bedoux/evidence.py`) but explicitly did not build this
-mechanism. A later session built it: `src/bedoux/evidence_log.py` plus a
-thin writer in `gate_check.py` append one row per job run to
+**Built, run live, and negative-tested; a predicted limitation confirmed
+in the process.** Chapter 03's first session built the redaction/canary
+half of its scope (`src/bedoux/evidence.py`) but explicitly did not build
+this mechanism. A later session built it: `src/bedoux/evidence_log.py`
+plus a thin writer in `gate_check.py` append at least one row per job run
+(a task retry appends more — see below) to
 `workspace.bedoux_silver.gate_evidence_log`, pass or fail, created with a
 real `delta.appendOnly = true` table property. Deployed at `7856b78`
 (`Files: 66 uploaded`). Confirmed live across four job runs (two passing

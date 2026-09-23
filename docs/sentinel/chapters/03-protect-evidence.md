@@ -350,7 +350,8 @@ explicitly deferred, not done, at this point in the chapter's history.
 
 **Built in a later session — see "Append-only evidence log," below.** The
 mechanism this section describes as missing now exists: `evidence_log.py`
-plus a thin writer in `gate_check.py` append one row per job run to
+plus a thin writer in `gate_check.py` append at least one row per job run
+(a task retry appends more than one — see below) to
 `workspace.bedoux_silver.gate_evidence_log`, pass or fail. It is deployed
 (`7856b78`) and confirmed live across four `dev` runs plus a negative
 mutation test — see `chapter-03-evidence.md` for the raw record and
@@ -444,8 +445,10 @@ design; the implementation follows it below.
 
 **Where the write happens.** `src/bedoux/gate_check.py`, immediately after
 it calls `quality.evaluate_gate`. Three reasons, not just the obvious one:
-it runs exactly once per job run (not per Silver table, not per Gold
-table); it already receives `{{job.start_time.timestamp_ms}}` as
+it appears once per job run in the job's task graph, not per Silver
+table or per Gold table (a task-level retry can still execute it more
+than once for that one logical job run — see "Known limitation," below);
+it already receives `{{job.start_time.timestamp_ms}}` as
 `run_start_ms`, making it the only component in this project with real run
 identity — Silver's DLT tables full-recompute with no equivalent boundary,
 and Gold's dataset functions have no run context at all; and it sits
@@ -458,7 +461,8 @@ reason it, not a Gold dataset function, holds the publication check — see
 its own module docstring), so an explicit `.write.mode("append")` is a
 natural fit, not a workaround.
 
-**Schema.** One row per job run, at `workspace.bedoux_silver.gate_evidence_log`:
+**Schema.** At least one row per job run (a retry appends more — see
+"Known limitation," below), at `workspace.bedoux_silver.gate_evidence_log`:
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -567,7 +571,7 @@ Added to `docs/contracts-bedoux.md`: `gate_evidence_log`'s table, grain
 (one row per job run), and append-only property, alongside the existing
 Silver table descriptions.
 
-**Known limitation, not solved this session — since confirmed live.** a
+**Known limitation, not solved this session — since confirmed live.** A
 task retry within the same job run (Databricks task retries, not a fresh
 job run) would call `gate_check.py` again with the same `run_start_ms` and
 append a second row for that run. `run_start_ms` is a freshness boundary,
