@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 800" width="900" height="800" role="img" aria-labelledby="bdx-title bdx-desc">
   <title id="bdx-title">bedoux-databricks — Bedoux architecture (system context)</title>
-  <desc id="bdx-desc">The Bedoux analytics job runs Bronze to Silver to a publication gate to Gold. GitHub Actions deploys the Databricks Asset Bundle; Unity Catalog governs the datasets; a SQL Warehouse serves Genie AI/BI. Silver deduplicates and quarantines invalid fact rows with reasons. The notebook gate requires fresh, complete evidence, positive input counts, row conservation and a quarantine rate at or below 10% for every required source. Failure skips Gold and preserves previously published content. Direct Gold runs bypass the job-level gate. Runtime investigation, Jev routing and recovery with approval remain planned.</desc>
+  <desc id="bdx-desc">The Bedoux analytics job runs Bronze to Silver to a publication gate to Gold. GitHub Actions deploys the Databricks Asset Bundle; Unity Catalog governs the datasets; a SQL Warehouse serves Genie AI/BI. Silver deduplicates and quarantines invalid fact rows with reasons. The notebook gate requires fresh, complete evidence, positive input counts, row conservation and a quarantine rate at or below 10% for every required source. As a sub-step, the gate also redacts sensitive fields, checks for a canary marker, and appends one row per run to an append-only evidence log, bedoux_silver.gate_evidence_log — a durable Delta write, not a call to any outbound model; no such call site exists yet in this project. Failure skips Gold and preserves previously published content. Direct Gold runs bypass the job-level gate. Runtime investigation, Jev routing and recovery with approval remain planned.</desc>
 
   <defs>
     <marker id="bdx-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -81,15 +81,16 @@
     <path class="bdx-edge" id="edge-bedoux-silver-gate" d="M565,265 L565,290"/>
 
     <g id="bedoux-publication-gate">
-      <title>bedoux_gate_task — fails closed if a required source lacks a fresh explicit pass, positive input count or conserved rows. Failure prevents the job's Gold refresh.</title>
-      <rect class="bdx-box" x="350" y="290" width="430" height="80" fill="#2b1d14" stroke="#f0883e"/>
-      <text class="bdx-label" x="565" y="310" font-size="13" font-weight="600" style="fill: #ffa657">bedoux_gate_task</text>
-      <text class="bdx-label" x="565" y="326" font-size="11">Publication gate · notebook task</text>
-      <text class="bdx-label-sm" x="565" y="343" font-size="10">fresh, complete evidence · row conservation</text>
-      <text class="bdx-label-sm" x="565" y="359" font-size="10">quarantine rate ≤ 10% for each required source</text>
+      <title>bedoux_gate_task — fails closed if a required source lacks a fresh explicit pass, positive input count or conserved rows. Failure prevents the job's Gold refresh. Sub-step: evaluate_evidence_gate + redact_evidence_packet append one row to the append-only bedoux_silver.gate_evidence_log — a durable Delta write, not a model call; no outbound model-call site exists yet in this project.</title>
+      <rect class="bdx-box" x="350" y="290" width="430" height="95" fill="#2b1d14" stroke="#f0883e"/>
+      <text class="bdx-label" x="565" y="308" font-size="13" font-weight="600" style="fill: #ffa657">bedoux_gate_task</text>
+      <text class="bdx-label" x="565" y="324" font-size="11">Publication gate · notebook task</text>
+      <text class="bdx-label-sm" x="565" y="340" font-size="10">fresh, complete evidence · row conservation</text>
+      <text class="bdx-label-sm" x="565" y="354" font-size="10">quarantine rate ≤ 10% for each required source</text>
+      <text class="bdx-label-sm" x="565" y="370" font-size="9">sub-step: redact + evaluate → append-only gate_evidence_log</text>
     </g>
-    <path class="bdx-edge" id="edge-bedoux-gate-gold" d="M565,370 L565,400"/>
-    <text class="bdx-edge-label" x="599" y="388">PASS only</text>
+    <path class="bdx-edge" id="edge-bedoux-gate-gold" d="M565,385 L565,400"/>
+    <text class="bdx-edge-label" x="599" y="393">PASS only</text>
 
     <g id="bedoux-gold">
       <title>bedoux_gold_pipeline — 3 business-ready tables in workspace.bedoux_gold</title>
