@@ -317,6 +317,17 @@ def test_citing_a_container_that_holds_a_redacted_field_is_allowed():
     assert outcome.status == REPORTED
 
 
+@pytest.mark.parametrize("container", ["secrets", "rows[0]", "rows"])
+def test_citing_a_container_whose_values_are_all_redacted_is_refused(container):
+    """Nothing in it was visible to the provider, so it supports nothing."""
+    fields = {"source": "leads",
+              "secrets": {"ssn": "123-45-6789", "password": "hunter2-fictional"},
+              "rows": [{"ssn": "987-65-4321", "api_key": "sk_fake_1111111111111111"}]}
+    provider = FakeProvider(behavior=_report(["source", container]))
+    outcome = model_call.call_model(fields, provider)
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("redacted_citation",))
+
+
 def test_resolve_citation_handles_a_list_at_the_root():
     assert model_call.resolve_citation([{"a": 1}], "[0].a") == 1
     assert model_call.resolve_citation({"a": 1}, "[0]") is model_call._MISSING
@@ -338,3 +349,25 @@ def test_a_report_that_echoes_the_canary_or_a_secret_is_refused(echo):
     assert (outcome.status, outcome.reason_codes) == (PENDING, ("report_leak",))
     assert outcome.report is None
     assert "123-45-6789" not in repr(outcome) and CANARY_MARKER not in repr(outcome)
+
+
+def test_send_payload_itself_screens_the_report():
+    """Not just call_model: a caller using prepare_payload + send_payload
+    directly can't receive a report carrying the canary or a secret."""
+    fields = {"source": "leads", "api_key": "sk_fake_0000000000000000"}
+    echo = f"ref {CANARY_MARKER}, key sk_fake_0000000000000000"
+    payload, codes = model_call.prepare_payload(fields)
+    assert codes == ()
+    provider = FakeProvider(behavior=_report(["source"], summary=echo))
+    outcome = model_call.send_payload(payload, provider)
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("report_leak",))
+    assert outcome.report is None
+
+
+def test_checked_payload_repr_and_text_hold_no_sensitive_value():
+    fields = {"source": "leads", "ssn": "123-45-6789", "api_key": "sk_fake_0000000000000000"}
+    payload, _ = model_call.prepare_payload(fields)
+    for secret in ("123-45-6789", "sk_fake_0000000000000000"):
+        assert secret not in repr(payload)
+        assert secret not in str(payload)
+        assert secret not in payload.text

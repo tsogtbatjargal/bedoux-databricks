@@ -186,25 +186,33 @@ provider received (`CheckedPayload.text`), not the original fields.
 - `unresolved_citation`: any citation names a key, index, or step that
   doesn't exist in the payload — for example `rows[5].stage`, or
   `rows.stage` on a list. One bad citation refuses the whole report.
-- `redacted_citation`: any citation lands on the `[REDACTED]` marker.
+- `redacted_citation`: any citation lands on the `[REDACTED]` marker, or
+  on a container (`secrets`, `rows[0]`) whose values are all redacted.
 - `report_leak`: the report text contains the canary or a sensitive value
-  from the original fields (`screen_report`, the same two checks as the
-  final payload check).
+  from the original fields (the same two checks as the final payload
+  check).
 
 **Redacted citations refuse the report, not just the citation.** The
 provider never saw a redacted value, so a claim that rests on it has no
 basis in the evidence. Dropping the citation quietly would leave that
 claim standing with its basis hidden. The cost: a report can't cite a
 redacted field even to say "this was withheld" — it has to say that in
-`uncertainty` instead. Citing a container that holds redacted fields
-(`rows[0]`) is allowed, since it also holds values the provider did see.
+`uncertainty` instead. Citing a container is allowed only if it holds at
+least one value other than the marker: `rows[0]` with a redacted `ssn`
+beside a visible `stage` is fine, but a `secrets` object holding only a
+redacted `ssn` and `password` gave the provider nothing, so it's refused.
+An empty container is refused by the same rule.
 
-**Leaks are refused before they reach anyone.** `screen_report` runs in
-`call_model` as well as on the way to the incident log, so neither the
-in-process caller nor the log receives a report carrying the canary or a
-secret. Only a `reported` outcome's report is stored.
+**Leaks are refused before they reach anyone.** `send_payload` screens
+the report itself, before returning it. `prepare_payload` already has the
+original fields, so it stores their sensitive values in a private slot of
+the `CheckedPayload` — in memory only, never in its `text`, its `repr`, or
+anything written to disk. Every caller of `send_payload`, including
+`call_model` and `investigate`, therefore gets the same screening; neither
+an in-process caller nor the log can receive a report carrying the canary
+or a secret. Only a `reported` outcome's report is stored.
 
-**What the tests prove** (23 new; 219 repo-wide; fake provider only):
+**What the tests prove** (28 new; 224 repo-wide; fake provider only):
 - Citations that resolve — leaf values and a container — are reported
   and kept.
 - Missing, empty, or `null` citations → `no_citations`; badly typed ones
@@ -215,13 +223,21 @@ secret. Only a `reported` outcome's report is stored.
 - Citations are checked against what was sent: `ssn` exists in both the
   fields and the payload, but citing it is refused because the payload
   holds the redaction marker.
+- Citing a container whose values are all redacted (`secrets`, `rows[0]`,
+  `rows`) is refused; citing one with a visible value is still reported.
+- `prepare_payload` + `send_payload`, without `call_model`, returns
+  `pending` / `report_leak` for a report echoing the canary and an API
+  key. `repr` and `text` of a `CheckedPayload` hold no sensitive value.
 - A report echoing the canary or a copied secret is refused, never
   returned, and never stored; a report with a bad citation isn't stored
   either; a report that passes is stored with its citations.
 - Checked by mutation: removing the citation check fails 9 tests (all
   seven unresolved cases, the redacted case, and the incident-log case);
-  allowing redacted citations fails the redacted test; dropping the leak
-  screen from the storage path fails both log-leak tests.
+  allowing redacted citations fails the redacted test. Removing the
+  screen from `send_payload` fails 5 tests (the direct `send_payload`
+  test, both `call_model` echo cases, and both log-leak tests); refusing
+  only redacted leaves again fails the three all-redacted container
+  cases; putting the sensitive values in `repr` fails the `repr` test.
 
 **What citation checking does not prove:** that the cited evidence
 supports the claim. It checks that each citation *exists* in what was

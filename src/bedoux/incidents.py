@@ -15,7 +15,7 @@ and checked for the canary and copied secrets -- or no evidence at all when
 the gate blocks. Never the raw fields. Outcomes store the status, fixed
 reason codes, and -- only for a REPORTED outcome -- the report, which by
 then has had its citations resolved against the sent payload and been
-screened for the canary and copied secrets (model_call.screen_report).
+screened for the canary and copied secrets -- both inside send_payload.
 """
 
 import json
@@ -120,7 +120,6 @@ def investigate(fields, provider, log, *, timeout_s=30.0):
     if payload is None:
         outcome = model_call.CallOutcome(model_call.BLOCKED, codes)
     else:
-        outcome = model_call.screen_report(
-            fields, model_call.send_payload(payload, provider, timeout_s=timeout_s))
+        outcome = model_call.send_payload(payload, provider, timeout_s=timeout_s)
     log.record_outcome(incident_id, outcome)
     return incident_id, outcome

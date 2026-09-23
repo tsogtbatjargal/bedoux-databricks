@@ -7,7 +7,7 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 ## Current state
 
 Chapters 00–03 are integrated into `main`, and so are chapter 04's first
-two increments; the third is an open PR. **196 tests pass on `main`, 219
+two increments; the third is an open PR. **196 tests pass on `main`, 224
 on `feat/04-report-citations`.** Posts for chapters 00–03 are drafted,
 none published, no tags.
 
@@ -49,10 +49,12 @@ none published, no tags.
   not merged** (merging deploys). A report needs a non-empty `citations`
   list of paths like `rows[0].stage`, each resolving to non-redacted
   evidence in the payload the provider was sent; otherwise it's `pending`
-  (`no_citations`, `unresolved_citation`, `redacted_citation`).
-  `screen_report` refuses a report echoing the canary or a secret
-  (`report_leak`), in `call_model` and before storage. A checked report is
-  now stored in the incident log. 23 new tests. Citation checks prove a
+  (`no_citations`, `unresolved_citation`, `redacted_citation` — also for
+  a container whose values are all redacted). `send_payload` itself
+  refuses a report echoing the canary or a secret (`report_leak`), using
+  sensitive values `prepare_payload` keeps in memory on the
+  `CheckedPayload`, so no caller gets an unscreened report. A checked
+  report is now stored in the incident log. 28 new tests. Citation checks prove a
   citation *exists* in what was sent, not that it supports the claim.
 
 **Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s

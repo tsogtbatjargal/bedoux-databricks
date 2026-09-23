@@ -77,15 +77,20 @@ def _gate_reason_codes(problems):
     return tuple(sorted(codes))
 
 
-def _final_payload_problems(fields, payload):
-    """Re-check the serialized string itself, against the original input
-    as the independent source -- the same two checks evaluate_evidence_gate
-    runs on the dict, applied to what actually leaves the process."""
+def _sensitive_values(fields):
+    return tuple(value for _path, value in evidence._collect_sensitive_values(fields))
+
+
+def _final_payload_problems(sensitive_values, text):
+    """Re-check a serialized string itself, against sensitive values read
+    from the original input as the independent source -- the same two
+    checks evaluate_evidence_gate runs on the dict, applied to what actually
+    leaves the process (or comes back from the provider)."""
     codes = set()
-    if evidence.contains_canary(payload):
+    if evidence.contains_canary(text):
         codes.add("canary_present")
-    for _path, value in evidence._collect_sensitive_values(fields):
-        if evidence._value_leaked(payload, value):
+    for value in sensitive_values:
+        if evidence._value_leaked(text, value):
             codes.add("sensitive_value_leak")
     return tuple(sorted(codes))
 
@@ -150,17 +155,28 @@ def _check_citations(report, payload_text):
 
     A citation of a redacted value refuses the whole report rather than
     being dropped: the provider never saw that value, so whatever the
-    report claims from it has no basis in the evidence. Citing a container
-    (e.g. "rows[0]") that holds some redacted fields is allowed -- it also
-    holds values the provider did see."""
+    report claims from it has no basis in the evidence. A container (e.g.
+    "rows[0]") is allowed only if it holds at least one value other than
+    the redaction marker -- one whose values are all redacted gives the
+    provider nothing it saw, so it's refused the same way."""
     packet = json.loads(payload_text)
     for citation in report["citations"]:
         value = resolve_citation(packet, citation)
         if value is _MISSING:
             return "unresolved_citation"
-        if value == evidence.REDACTED:
+        if not _holds_visible_value(value):
             return "redacted_citation"
     return None
+
+
+def _holds_visible_value(node):
+    """True if `node` is, or contains at any depth, a value other than the
+    redaction marker. An empty container holds none."""
+    if isinstance(node, dict):
+        return any(_holds_visible_value(v) for v in node.values())
+    if isinstance(node, list):
+        return any(_holds_visible_value(v) for v in node)
+    return node != evidence.REDACTED
 
 
 _PREPARED = object()
@@ -172,6 +188,10 @@ class CheckedPayload:
     deliberate workaround instead of an easy mistake like
     `send_payload(json.dumps(fields), provider)`.
 
+    It also carries the original fields' sensitive values, so send_payload
+    can screen the provider's report for them. Those stay in memory only:
+    not in `text`, not in repr, and nothing serializes this object.
+
     Only prepare_payload can create one: the constructor requires a
     module-private token. A slotted class, not a frozen dataclass, because
     `dataclasses.replace` would copy the token onto new, unchecked text.
@@ -179,12 +199,13 @@ class CheckedPayload:
     process -- Python can't stop that.
     """
 
-    __slots__ = ("_text",)
+    __slots__ = ("_text", "_sensitive_values")
 
-    def __init__(self, text, *, _token=None):
+    def __init__(self, text, sensitive_values=(), *, _token=None):
         if _token is not _PREPARED:
             raise TypeError("CheckedPayload is only created by prepare_payload")
         object.__setattr__(self, "_text", text)
+        object.__setattr__(self, "_sensitive_values", tuple(sensitive_values))
 
     def __setattr__(self, name, value):
         raise AttributeError("CheckedPayload is immutable")
@@ -213,16 +234,19 @@ def prepare_payload(fields):
         return None, _gate_reason_codes(problems)
 
     payload = serialize_packet(evidence.redact_evidence_packet(fields))
-    final_problems = _final_payload_problems(fields, payload)
+    sensitive_values = _sensitive_values(fields)
+    final_problems = _final_payload_problems(sensitive_values, payload)
     if final_problems:
         return None, final_problems
-    return CheckedPayload(payload, _token=_PREPARED), ()
+    return CheckedPayload(payload, sensitive_values, _token=_PREPARED), ()
 
 
 def send_payload(payload, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     """Send a CheckedPayload once and classify the result. Raises TypeError
     for anything else -- including a plain string -- before the provider is
-    touched."""
+    touched. A report is returned only after its citations check out and
+    it has been screened for the canary and copied secrets, so no caller
+    can receive an unscreened one."""
     if not isinstance(payload, CheckedPayload):
         raise TypeError("send_payload needs a CheckedPayload from prepare_payload")
     try:
@@ -238,20 +262,19 @@ def send_payload(payload, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     code = _check_citations(report, payload.text)
     if code is not None:
         return CallOutcome(PENDING, (code,))
+    if _report_leaks(report, payload):
+        return CallOutcome(PENDING, ("report_leak",))
     return CallOutcome(REPORTED, (), report)
 
 
-def screen_report(fields, outcome):
-    """Refuse a report that carries the canary or a sensitive value from
-    the original `fields`. The provider only saw redacted evidence, so
-    either one in its reply means something is wrong -- and the report
-    must not reach a caller or the incident log. Same two checks as the
-    final payload check, run on the report's serialized text."""
-    if outcome.status != REPORTED:
-        return outcome
-    if _final_payload_problems(fields, serialize_packet(outcome.report)):
-        return CallOutcome(PENDING, ("report_leak",))
-    return outcome
+def _report_leaks(report, payload):
+    """True if the report carries the canary or a sensitive value from the
+    original fields. The provider only saw redacted evidence, so either one
+    in its reply means something is wrong -- and the report must not reach
+    a caller or the incident log. Same two checks as the final payload
+    check, run on the report's serialized text."""
+    return bool(_final_payload_problems(payload._sensitive_values,
+                                        serialize_packet(report)))
 
 
 def call_model(fields, provider, *, timeout_s: float = 30.0) -> CallOutcome:
@@ -277,4 +300,4 @@ def call_model(fields, provider, *, timeout_s: float = 30.0) -> CallOutcome:
     payload, codes = prepare_payload(fields)
     if payload is None:
         return CallOutcome(BLOCKED, codes)
-    return screen_report(fields, send_payload(payload, provider, timeout_s=timeout_s))
+    return send_payload(payload, provider, timeout_s=timeout_s)
