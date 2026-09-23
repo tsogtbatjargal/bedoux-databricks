@@ -98,7 +98,12 @@ is called, then records the outcome against it:
 
 1. `model_call.prepare_payload(fields)` — the same gate and final payload
    check `call_model` uses (`call_model` is now `prepare_payload` +
-   `send_payload`, unchanged in behavior).
+   `send_payload`, unchanged in behavior). It returns a `CheckedPayload`,
+   which only `prepare_payload` can create, and `send_payload` raises
+   `TypeError` on anything else before touching the provider. Without
+   that, splitting `call_model` would have made the gate skippable with
+   `send_payload(json.dumps(fields), provider)` — and chapter 03's
+   criterion was closed on the gate being unavoidable.
 2. `log.open_incident(payload)` appends an `opened` event and fsyncs it.
    The stored evidence is the exact checked payload, or nothing when the
    gate blocked — never the raw fields. Plain redaction isn't enough to
@@ -119,8 +124,9 @@ work but adds mutable rows for no benefit here. An incident with no
 `outcome` event is pending; a torn last line from a crash mid-write is
 skipped on read.
 
-**What the tests prove** (`tests/test_incidents.py`, 19 tests, 190
-repo-wide, fake provider only):
+**What the tests prove** (`tests/test_incidents.py`, 19 tests, plus 6 in
+`tests/test_model_call.py` for `CheckedPayload`; 196 repo-wide; fake
+provider only):
 
 - The incident is on disk and pending when the provider is called, as
   seen by a fresh reader of the file.
@@ -134,9 +140,17 @@ repo-wide, fake provider only):
   the provider and are stored with no evidence.
 - The log file never contains a raw sensitive value or the canary, even
   when the provider's error message or report text contains the canary.
+- `send_payload` refuses a raw string — even one byte-for-byte equal to a
+  prepared payload — plus an empty string, a dict, and `None`, with zero
+  provider calls; a `CheckedPayload` can't be built outside
+  `prepare_payload` or modified.
 - Checked by mutation: storing plain-redacted evidence or raw fields
   fails the leak tests; saving after the call fails the three ordering
-  tests.
+  tests; removing `send_payload`'s type check, or replacing it with duck
+  typing that accepts a string, fails all five refusal cases.
+- Not a security boundary against code in the same process: the
+  creation token is module-private by convention, which Python can't
+  enforce. It stops mistakes, not deliberate circumvention.
 
 **Not proven:**
 - Real-world durability. `fsync` is called, but no test can show the OS

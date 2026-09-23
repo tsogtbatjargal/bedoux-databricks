@@ -83,7 +83,7 @@ investigate({HEALTHY!r}, DyingProvider(), IncidentLog({str(path)!r}))
     pending = restarted.pending()
     assert len(pending) == 1
     assert pending[0].reason_codes == ()
-    assert pending[0].evidence_payload == model_call.prepare_payload(HEALTHY)[0]
+    assert pending[0].evidence_payload == model_call.prepare_payload(HEALTHY)[0].text
 
 
 def test_restart_keeps_earlier_incidents(log):

@@ -112,7 +112,7 @@ def investigate(fields, provider, log, *, timeout_s=30.0):
     Returns (incident_id, CallOutcome).
     """
     payload, codes = model_call.prepare_payload(fields)
-    incident_id = log.open_incident(payload)
+    incident_id = log.open_incident(payload.text if payload is not None else None)
     if payload is None:
         outcome = model_call.CallOutcome(model_call.BLOCKED, codes)
     else:

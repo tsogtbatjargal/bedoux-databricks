@@ -103,12 +103,47 @@ def _parse_report(raw):
     return report, None
 
 
+_PREPARED = object()
+
+
+class CheckedPayload:
+    """A payload string that has passed prepare_payload's gate and final
+    check. send_payload accepts nothing else, so skipping the gate takes a
+    deliberate workaround instead of an easy mistake like
+    `send_payload(json.dumps(fields), provider)`.
+
+    Only prepare_payload can create one: the constructor requires a
+    module-private token. A slotted class, not a frozen dataclass, because
+    `dataclasses.replace` would copy the token onto new, unchecked text.
+    This guards against misuse, not against hostile code in the same
+    process -- Python can't stop that.
+    """
+
+    __slots__ = ("_text",)
+
+    def __init__(self, text, *, _token=None):
+        if _token is not _PREPARED:
+            raise TypeError("CheckedPayload is only created by prepare_payload")
+        object.__setattr__(self, "_text", text)
+
+    def __setattr__(self, name, value):
+        raise AttributeError("CheckedPayload is immutable")
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    def __repr__(self):
+        return f"CheckedPayload(<{len(self._text)} chars>)"
+
+
 def prepare_payload(fields):
     """Gate `fields` and build the exact string a provider would receive.
 
-    Returns `(payload, ())` when both the gate and the final serialized
-    check pass, or `(None, reason_codes)` when either refuses. `payload` is
-    the only form of the evidence that is ever safe to send or store: it is
+    Returns `(CheckedPayload, ())` when both the gate and the final
+    serialized check pass, or `(None, reason_codes)` when either refuses.
+    The wrapped text is the only form of the evidence that is ever safe to
+    send or store: it is
     redacted, and it has been checked for the canary and copied secrets
     after serialization. Redaction alone is not enough -- it doesn't remove
     the canary.
@@ -121,14 +156,17 @@ def prepare_payload(fields):
     final_problems = _final_payload_problems(fields, payload)
     if final_problems:
         return None, final_problems
-    return payload, ()
+    return CheckedPayload(payload, _token=_PREPARED), ()
 
 
 def send_payload(payload, provider, *, timeout_s: float = 30.0) -> CallOutcome:
-    """Send an already-prepared payload once and classify the result.
-    Only call this with a payload returned by prepare_payload."""
+    """Send a CheckedPayload once and classify the result. Raises TypeError
+    for anything else -- including a plain string -- before the provider is
+    touched."""
+    if not isinstance(payload, CheckedPayload):
+        raise TypeError("send_payload needs a CheckedPayload from prepare_payload")
     try:
-        raw = provider.complete(payload, timeout_s=timeout_s)
+        raw = provider.complete(payload.text, timeout_s=timeout_s)
     except (ProviderTimeout, TimeoutError):
         return CallOutcome(PENDING, ("provider_timeout",))
     except Exception:
