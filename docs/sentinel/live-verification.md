@@ -242,21 +242,23 @@ What genuinely remains unproved:
   authorized or done this session. See section 6 for the exact commands a
   future authorized session should run.
 
-## 6. Chapter 03 evidence-log demonstration (partially run)
+## 6. Chapter 03 evidence-log demonstration (confirmed live)
 
 Deployed at `7856b78` (PR #11, the sixth CI deployment).
 `resources/bedoux_jobs.yml` was not changed (the evidence log is written by
 `gate_check.py` itself, not a new task), so that deploy shipped the
 updated task code inside the existing `bedoux_gate_task`, the same as any
-other `src/**` change. A later session ran `bedoux_analytics_job` twice
-against that deployed code (default `bedoux_lead_invalid_rate=0.02`, a
-passing configuration both times) and confirmed the row content, the
-append-only property, and append-not-replace across two runs — see
-[chapter-03-evidence.md](chapter-03-evidence.md) for the full raw record.
-Still outstanding: a negative mutation test against `delta.appendOnly`
-(destructive SQL, not authorized to date) and a `gate_evidence_log` row
-from a failing run (would require deploying a fault setting, not
-authorized to date). The commands used for the confirmed parts, in order:
+other `src/**` change. Confirmed across four `dev` job runs (two passing
+at the default rate, one failing under a separately authorized fault
+deploy, one restore run) plus a negative-SQL test against real rows: row
+content matching `gate_status`, the append-only property genuinely set,
+append-not-replace, a failing run's row, and `UPDATE`/`DELETE` both
+rejected. See [chapter-03-evidence.md](chapter-03-evidence.md) for the
+full raw record, including one new gap this testing surfaced (a retried
+failing run writes a duplicate evidence row — see that file's Run 3).
+
+The commands used, in order. First, the two passing runs at the default
+rate:
 
 ```bash
 databricks bundle validate -t dev --profile bedoux-databricks
@@ -282,24 +284,47 @@ databricks api post /api/2.0/sql/statements --profile bedoux-databricks --json '
 }'
 ```
 
-Then prove `delta.appendOnly` actually rejects a mutation — this is the
-part of "enforced, not conventional" that has never been observed live
-(see [chapters/03-protect-evidence.md](chapters/03-protect-evidence.md#append-only-evidence-log-design-this-session)):
+**The failing-run row.** Requires deploying a fault setting — only run
+with explicit, separate authorization for both the deploy and the
+subsequent mandatory restore:
+
+```bash
+databricks bundle deploy -t dev --profile bedoux-databricks --var="bedoux_lead_invalid_rate=0.30"
+databricks bundle run bedoux_analytics_job -t dev --profile bedoux-databricks
+# capture the failure, the new row, and the per-source quarantine rates, then:
+databricks bundle deploy -t dev --profile bedoux-databricks --var="bedoux_lead_invalid_rate=0.02"
+databricks bundle run bedoux_analytics_job -t dev --profile bedoux-databricks
+```
+
+Verify the restore actually took effect — do not assume the deploy
+succeeded just because the command exited cleanly:
+
+```bash
+databricks bundle summary -t dev --profile bedoux-databricks --output json
+# check resources.pipelines.bedoux_bronze_pipeline.configuration."bedoux.lead_invalid_rate" == 0.02
+```
+
+**The append-only negative test.** Requires explicit authorization for
+destructive SQL — target real, existing rows by `run_start_ms`, not a
+placeholder value, so the statement has something to reject:
 
 ```bash
 databricks api post /api/2.0/sql/statements --profile bedoux-databricks --json '{
   "warehouse_id": "<warehouse_id>",
-  "statement": "DELETE FROM workspace.bedoux_silver.gate_evidence_log WHERE run_start_ms = 0"
+  "statement": "UPDATE workspace.bedoux_silver.gate_evidence_log SET passed = false WHERE run_start_ms = <a known-passing run_start_ms>"
+}'
+databricks api post /api/2.0/sql/statements --profile bedoux-databricks --json '{
+  "warehouse_id": "<warehouse_id>",
+  "statement": "DELETE FROM workspace.bedoux_silver.gate_evidence_log WHERE run_start_ms = <a different known-passing run_start_ms>"
 }'
 ```
 
-Expect this to fail with a Delta error naming the `appendOnly` table
-property, even though the `WHERE` clause matches zero rows — the property
-blocks the operation outright, not just rows it would touch. Record the
-exact error text as evidence. Then repeat the fault/restore sequence from
-section 4 once, confirming a `gate_evidence_log` row is written on both
-the failing and the restored run (two rows, not one, with `passed=false`
-then `passed=true`), and that the failing run's row still lists the same
-problem strings the task log and `problems` field. Record run IDs,
-timestamps, and the row content in the chapter evidence file, the same way
-section 4 records `gate_status` rows.
+Both are expected to fail with `[DELTA_CANNOT_MODIFY_APPEND_ONLY]` —
+confirmed live: identical error text on both statements, `sql_state
+42809`. Record the exact error text as evidence, not a paraphrase. Then
+re-`SELECT` the full table and confirm the row count and every row's
+content are identical to before the attempts. Scope was `UPDATE`/`DELETE`
+only, against real rows — `MERGE`, `INSERT OVERWRITE`, `REPLACE TABLE`,
+`DROP`, and any `ALTER TABLE ... SET TBLPROPERTIES` were out of scope and
+not attempted; this proves those two operations are rejected, not that
+the table is immutable against every possible operation.
