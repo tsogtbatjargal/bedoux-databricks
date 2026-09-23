@@ -48,9 +48,12 @@
         <mxCell id="silver2" value="bedoux_silver_pipeline&#xa;workspace.bedoux_silver&#xa;quarantine with reasons, not drop (~2% invalid rows)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="780" y="290" width="260" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="gate2" value="bedoux_gate_task (notebook) &#8212; publication gate&#xa;withholds Gold unless quarantine rate &#8804; 10% and row-conserved&#xa;sub-step: evaluate_evidence_gate + redact_evidence_packet &#8594; append-only write to gate_evidence_log" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+        <mxCell id="gate2" value="bedoux_gate_task (notebook) &#8212; publication gate&#xa;withholds Gold unless quarantine &#8804; 10% and conserved&#xa;sub-step: redact + evaluate &#8594; append-only gate_evidence_log" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
           <mxGeometry x="780" y="353" width="260" height="55" as="geometry" />
         </mxCell>
+        <!-- gold2/caption2 sit 23px lower than gold1/caption1 on purpose: Track 2
+             has a fourth task (gate2) that Track 1 doesn't, so the rows are not
+             meant to align. Do not "fix" this back into an overlap with gate2. -->
         <mxCell id="gold2" value="bedoux_gold_pipeline&#xa;workspace.bedoux_gold&#xa;3 business tables" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="780" y="413" width="260" height="60" as="geometry" />
         </mxCell>
