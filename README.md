@@ -43,7 +43,7 @@ data quality, sensitive-data handling, and agent-assisted incident
 investigation. The theme comes from applying ideas in *The Art of War* to a
 modern data platform.
 
-**Chapters 00–04 are integrated into `main`.** Chapter 02 ("Defend before
+**Chapters 00–07 are integrated into `main`.** Chapter 02 ("Defend before
 damage spreads," the publication gate) is deployed and demonstrated live —
 a full fault → restore → replay sequence against the real workspace, review-
 closed against two follow-on findings. Chapter 03 ("Protect what matters")

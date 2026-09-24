@@ -87,10 +87,9 @@ with a real CDC example present to compare against; without Track 1, Track
 
 **Candidate for extraction into its own repo later**, not now. If that
 happens, extraction means moving: `src/bronze.py`, `src/silver.py`,
-`src/gold.py`, `src/transforms.py`, `resources/jobs.yml`,
-`resources/pipelines.yml`, this file, and Track 1's tests
-(`tests/test_transforms.py` and the Track-1-specific parts of any shared
-test file).
+`src/gold.py`, `resources/jobs.yml`, `resources/pipelines.yml`, and this
+file. Track 1 has no unit tests: `tests/test_transforms.py` tests Track 2's
+`src/bedoux/transforms.py`.
 
 **The constraint that makes this non-trivial:** `databricks.yml` includes
 `resources/*.yml` — both tracks currently share **one bundle**. Deleting

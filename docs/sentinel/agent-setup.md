@@ -16,7 +16,8 @@ but optional. Do not run two writers in one checkout.
 
 No provider credentials, global configuration, paid API calls, hooks, automatic
 model routing, or Jev installation are included. Project instructions guide an
-assistant; they do not enforce the runtime security controls planned for Sentinel.
+assistant; they do not enforce Sentinel's runtime security controls, which are
+implemented at code level, not demonstrated live.
 
 ## Start a session
 
