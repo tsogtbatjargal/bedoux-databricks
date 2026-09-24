@@ -6,7 +6,8 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–06 are integrated into `main`. **362 tests pass on `main`.**
+Chapters 00–06 are integrated into `main`. **362 tests pass on `main`** (372 on
+`series/07-full-demo`).
 Posts for chapters 00–06 are drafted, none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -98,6 +99,29 @@ hand.
   See [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md#closing-decision)
   and [known-gaps.md](known-gaps.md#chapter-06s-boundaries-are-enforced-by-fakes-names-and-a-local-file).
 
+- **Chapter 07 is in progress on `series/07-full-demo`, not merged**
+  (this PR). The user chose option 1: no new live runs.
+  - `scripts/full_demo.py` runs chapter 02's fault case (leads at 32.8%)
+    through every control, locally, with fakes: gate refuses, rules-only
+    routing flags it severe, incident saved before the first model call,
+    three read-only tools, a cited report, approvals, an approved restore
+    and replay with no duplicates, then h07 and a prohibited export
+    refused. Deterministic; prints only counts, codes and hashes.
+    `tests/test_full_demo.py` adds 10 tests: **372 pass on the branch**.
+  - It lives in `scripts/`, outside the bundle's paths, so merging it
+    wouldn't deploy.
+  - The chapter doc maps the criteria, records the output, says which
+    steps match recorded live evidence (chapter 02 runs `330174171866992`,
+    `262274593519322`, `98756061776337`; chapter 03 run
+    `180753859499836` and the rejected `UPDATE`/`DELETE`) and which exist
+    only with fakes, and holds the video demo script, a draft.
+  - Not done: the video recording, the final architecture (the user's
+    diagrams), an evaluation result (needs a real provider), redaction in
+    the end-to-end path, and the composed finale.
+
+  See [chapters/07-full-demo.md](chapters/07-full-demo.md)
+  and [known-gaps.md](known-gaps.md#chapter-07s-end-to-end-run-is-local-its-live-half-is-recorded-not-rerun).
+
 [known-gaps.md](known-gaps.md) is current.
 
 ## Branches and PRs
@@ -106,29 +130,26 @@ Remote branches: `main`, the seven retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
 `series/04-investigate-recover`, `series/05-jev-routing`,
-`series/06-agent-boundaries`), and the docs working branch
-`docs/06-close-and-post` (this closing PR). `feat/06-audit-and-prohibited`
-was deleted locally and on the server after PR #27 merged, once it
+`series/06-agent-boundaries`), and the new chapter branch
+`series/07-full-demo` (this chapter's PR, open, not merged).
+`docs/06-close-and-post` was deleted locally and on the server after it
 appeared in `git branch -r --merged origin/main`. See
 [branch-workflow.md](branch-workflow.md).
 
 Local branches: `main`, `series/06-agent-boundaries` (merged; kept, no
-deletion authorized), and `docs/06-close-and-post`. Deleting the docs
-branch after it merges wasn't authorized, so both copies remain.
+deletion authorized), and `series/07-full-demo`.
 
 Wait for Unit tests to pass on a PR's head before merging it, docs-only
 PRs included.
 
 ## Exact next useful task
 
-**Chapter 07 ("The complete demonstration", `series/07-full-demo`) is
-next. It is not authorized.** Start it from integrated `main` per
-branch-workflow.md, and read its roadmap entry first: one incident end to
-end, a 4–6 minute video, and an evaluation report, with cached model
-responses labelled. Chapters 03–06 all closed at code level, not
-demonstrated live; the user said the deferred provider work would be
-covered in the post or video. How much of it runs live (a real provider
-with frozen versions and a spend cap, real executors, the real tables) is
-the user's decision, and each part needs its own authorization.
+**Review chapter 07's PR; merging it is not authorized.** It changes no
+`src/**`, `resources/**` or `databricks.yml`, so merging shouldn't deploy;
+confirm on the run. After that, what's left of chapter 07 needs a decision
+from the user: recording the video from the draft script, the final
+architecture diagrams, and whether any part runs live (a real provider
+with frozen versions and a spend cap, real executors, the real tables),
+each with its own authorization.
 
 Also not authorized: publishing any post, tagging, and the diagrams.
