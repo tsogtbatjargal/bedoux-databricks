@@ -62,9 +62,9 @@ acceptance-complete at code level, not demonstrated live: its routing
 harness runs on fake models only, and its central result, a live
 comparison of routing strategies, is deferred. Chapter 06 ("Establish rules
 of command") is acceptance-complete at code level, not demonstrated live,
-with fake providers only. Chapter 07 ("The complete demonstration") is in
-progress: a local, fakes-only end-to-end run tied to the recorded live
-evidence, with no new live runs. Build status is tracked
+with fake providers only. Chapter 07 ("The complete demonstration") is
+integrated at code level: a local, fakes-only end-to-end run tied to the
+recorded live evidence, with no new live runs; the video isn't recorded. Build status is tracked
 separately from publication status: **no chapter's post has been published
 yet**, including chapter 02's, even though it's fully demonstrated. Each
 chapter keeps its own retained remote branch as a stable reference; working/
