@@ -76,7 +76,7 @@ hand.
   See [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md#closing-decision)
   and [known-gaps.md](known-gaps.md#chapter-05s-comparison-is-a-harness-without-a-result).
 
-- **Chapter 06, first step: on `series/06-agent-boundaries`, PR open,
+- **Chapter 06, first step: on `series/06-agent-boundaries`, PR #26 open,
   not merged** (merging deploys: it changes `src/**`).
   - Instructions inside evidence are data, never commands. Tests put the
     instruction in evidence and tool results and show it can't dismiss an
@@ -113,7 +113,7 @@ after confirming it in `git branch -r --merged origin/main`. See
 
 Local branches: `main` and `series/06-agent-boundaries`.
 
-**Open PR:** chapter 06's first step, from `series/06-agent-boundaries`.
+**Open PR:** #26, chapter 06's first step, from `series/06-agent-boundaries`.
 Not merged. Wait for Unit tests to pass on the PR head before any merge,
 docs-only PRs included; PR #25 merged before its checks finished.
 
