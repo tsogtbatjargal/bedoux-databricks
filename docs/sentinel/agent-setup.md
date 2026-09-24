@@ -73,7 +73,8 @@ never put a key into committed config. Confirm API access and a spend limit befo
 a live benchmark. Do not auto-install an unpinned package in a startup hook.
 
 If unavailable, continue with ordinary review and labeled fixtures. Distinguish
-Jev used during development from the runtime incident router planned for part 05.
+Jev used during development from the runtime incident router in part 05 (built
+against fake models; no live Jev call).
 Codex/Claude Code subscriptions do not establish API access or a runtime budget.
 
 ## Local verification and sources
