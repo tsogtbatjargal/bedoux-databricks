@@ -2,8 +2,10 @@
 
 Strategic theme: use resources carefully (see [README.md](../README.md)).
 
-Status: **first step on `series/05-jev-routing`, PR open, not merged**
-(merging deploys). It adds routing logic with fake classifiers and fake
+Status: **in progress; first step integrated** (PR #24 from
+`series/05-jev-routing`, merge `9274317`, the thirteenth CI deployment:
+`Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`, `Files: 80
+uploaded, 1 deleted`). It adds routing logic with fake classifiers and fake
 models, built on chapter 04's gated call path. No real classifier, Jev,
 or reasoning model has been called. Every number below comes from
 scripted fakes or is a labelled estimate.

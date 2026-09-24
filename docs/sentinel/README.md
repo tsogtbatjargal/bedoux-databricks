@@ -47,7 +47,7 @@ deployed with its post still unpublished):
   against the real tables. See
   [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 - **In progress**: chapter 05 ("Spend intelligence carefully"). The first
-  step is in review, not merged: rules, a cheap classifier, and selective
+  step is integrated: rules, a cheap classifier, and selective
   escalation, all through chapter 04's gate, with fake models only. See
   [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md).
 - **Planned**: chapters 06–07.

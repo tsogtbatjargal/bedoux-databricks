@@ -6,9 +6,8 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–04 are integrated into `main`. Chapter 05 has started on
-`series/05-jev-routing`, with an open PR. **273 tests pass on `main`, 310
-on `series/05-jev-routing`.** Posts for chapters 00–04 are drafted, none
+Chapters 00–04 are integrated into `main`, and so is chapter 05's first
+step. **310 tests pass on `main`.** Posts for chapters 00–04 are drafted, none
 published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -52,8 +51,11 @@ published, no tags.
 date since chapter 04's first increment. The user maintains the diagrams by
 hand.
 
-- **Chapter 05, first step: open PR from `series/05-jev-routing`, not
-  merged** (merging deploys).
+- **Chapter 05, first step** (PR #24 from the chapter branch
+  `series/05-jev-routing`, merge `9274317`, thirteenth CI deployment:
+  `Files: 80 uploaded, 1 deleted`, `Resources: 0 created, 0 changed, 0
+  deleted, 8 unchanged`; the one deleted file is the removed
+  `claude-implementation.md`).
   - `src/bedoux/routing.py` has three strategies: rules only, rules plus
     reasoning, and rules plus a cheap classifier with selective
     escalation.
@@ -83,19 +85,20 @@ Remote branches: `main` and the six retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
 `series/04-investigate-recover`, `series/05-jev-routing`). The chapter
-05 branch is retained after merging, like the others. See
+05 branch was kept after PR #24 merged, like the others; GitHub's
+delete-head-branch-on-merge setting is off. See
 [branch-workflow.md](branch-workflow.md).
 
 Local branches: `main`, `series/04-investigate-recover`, and
-`series/05-jev-routing`.
+`series/05-jev-routing`. The last two are merged and could be removed
+locally under branch-workflow.md's checks, but no branch deletion was
+authorized this session.
 
-**One open PR:** chapter 05's first step, from `series/05-jev-routing`.
-Not merged — merging deploys.
+**No open PRs.**
 
 ## Exact next useful task
 
-Review the chapter 05 PR and decide whether to merge it (a deployment).
-After that, none of the following is authorized:
+Chapter 05 continues. None of the following is authorized:
 - The live comparison needs real providers: a Jev access path and a
   reasoning model, with frozen versions and a spend cap.
 - Offline follow-ups that could come first:
