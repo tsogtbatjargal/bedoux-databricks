@@ -90,41 +90,52 @@ class IncidentLog:
             "evidence_payload": evidence_payload,
         })
 
-    def load(self):
-        """Replay the file into {incident_id: Incident}. A line that doesn't
-        parse is skipped: a crash mid-write leaves a torn last line, and the
-        write it belonged to never completed, so nothing depends on it."""
-        incidents = {}
+    def append_event(self, event_type, incident_id, **fields):
+        """Append any other event type (recovery.py's). Callers are
+        responsible for the "never raw fields" rule for what they pass."""
+        self._append({"event": event_type, "incident_id": incident_id,
+                      "ts": datetime.now(timezone.utc).isoformat(), **fields})
+
+    def events(self):
+        """Every parsed event, in file order. A line that doesn't parse is
+        skipped: a crash mid-write leaves a torn last line, and the write it
+        belonged to never completed, so nothing depends on it."""
         if not os.path.exists(self.path):
-            return incidents
+            return
         with open(self.path, encoding="utf-8") as fh:
             for line in fh:
                 try:
-                    event = json.loads(line)
+                    yield json.loads(line)
                 except ValueError:
                     continue
-                incident_id = event.get("incident_id")
-                if event.get("event") == OPENED:
-                    incidents[incident_id] = Incident(
-                        incident_id, event["ts"], event["evidence_payload"],
-                        model_call.PENDING,
-                    )
-                elif event.get("event") == OUTCOME and incident_id in incidents:
-                    opened = incidents[incident_id]
-                    incidents[incident_id] = Incident(
-                        incident_id, opened.opened_ts, opened.evidence_payload,
-                        event["status"], tuple(event["reason_codes"]),
-                        event.get("report"), opened.tool_calls,
-                    )
-                elif event.get("event") == TOOL_CALL and incident_id in incidents:
-                    current = incidents[incident_id]
-                    call = {k: event[k] for k in
-                            ("request", "status", "reason_codes", "evidence_payload")}
-                    incidents[incident_id] = Incident(
-                        incident_id, current.opened_ts, current.evidence_payload,
-                        current.status, current.reason_codes, current.report,
-                        current.tool_calls + (call,),
-                    )
+
+    def load(self):
+        """Replay the file into {incident_id: Incident}. Event types this
+        method doesn't know (recovery events) are left to their readers."""
+        incidents = {}
+        for event in self.events():
+            incident_id = event.get("incident_id")
+            if event.get("event") == OPENED:
+                incidents[incident_id] = Incident(
+                    incident_id, event["ts"], event["evidence_payload"],
+                    model_call.PENDING,
+                )
+            elif event.get("event") == OUTCOME and incident_id in incidents:
+                opened = incidents[incident_id]
+                incidents[incident_id] = Incident(
+                    incident_id, opened.opened_ts, opened.evidence_payload,
+                    event["status"], tuple(event["reason_codes"]),
+                    event.get("report"), opened.tool_calls,
+                )
+            elif event.get("event") == TOOL_CALL and incident_id in incidents:
+                current = incidents[incident_id]
+                call = {k: event[k] for k in
+                        ("request", "status", "reason_codes", "evidence_payload")}
+                incidents[incident_id] = Incident(
+                    incident_id, current.opened_ts, current.evidence_payload,
+                    current.status, current.reason_codes, current.report,
+                    current.tool_calls + (call,),
+                )
         return incidents
 
     def pending(self):

@@ -15,9 +15,12 @@ unchanged`, `Files: 72 uploaded, 0 deleted`) — see "Report citations,"
 below. **Fourth increment (read-only tools) integrated** (PR #22, merge
 `3fa08a9`, the eleventh CI deployment: `Resources: 0 created, 0 changed,
 0 deleted, 8 unchanged`, `Files: 74 uploaded, 0 deleted`) — see
-"Read-only tools," below. Per-criterion status is in "Roadmap acceptance
-mapping," at the end. There is no real provider or recovery executor, and
-nothing in `bedoux_analytics_job` calls this code.
+"Read-only tools," below. **Fifth increment (recovery approval and
+duplicate-free replay) is on `feat/04-recovery-approval`, PR open, not
+merged** — see "Recovery approval and replay," below. Per-criterion
+status is in "Roadmap acceptance mapping," at the end. There is no real
+provider and no real recovery executor (only test fakes), and nothing in
+`bedoux_analytics_job` calls this code.
 
 ## Why this increment first
 
@@ -347,6 +350,158 @@ fake provider and fake tools only):
 - Prompt injection through tool results (instructions hidden in a row)
   isn't tested; chapter 06 covers adversarial evaluation.
 
+## Recovery approval and replay (fifth increment)
+
+### The defined approval (`src/bedoux/recovery.py`)
+
+The roadmap says "recovery requires the defined approval" without
+defining it. This is the definition:
+
+1. **A fixed list of actions.** `RECOVERY_ACTIONS` holds
+   `restore_lead_invalid_rate` and `replay_batch`: chapter 02's restore
+   and replay. Nothing else can be approved or executed
+   (`unknown_recovery_action`). The module ships no executor. The caller
+   injects one, and the only executors in this repo are test fakes that
+   record every call. Nothing touches the workspace.
+2. **A human-side call records the approval.**
+   `approve_recovery(log, incident_id, action, approver=..., payload_sha256=...)`
+   names the approver and binds one incident, one action, and the
+   SHA-256 of the exact checked payload the approver reviewed. It returns
+   a random `approval_id`. No model path calls it. The model can only
+   return a report or a tool request, and `approve_recovery` isn't a tool.
+   It refuses, and records nothing for, an unknown incident, an action
+   off the list, a blank approver, or a blocked incident with no stored
+   payload.
+3. **Execution checks the approval.** `execute_recovery(log, incident_id,
+   action, approval_id, executor)` calls the executor only if the
+   approval exists in the log and matches all of these: the same incident
+   (`approval_incident_mismatch`), the same action
+   (`approval_action_mismatch`), a payload hash matching the incident's
+   *current* payload (`approval_payload_mismatch`, so an approval goes
+   stale when a tool call adds evidence), and no earlier use
+   (`approval_already_used`). Anything else is `no_approval`.
+4. **A model's proposal is never an approval.** `proposed_recovery` is
+   report text: evidence to evaluate. The only thing that counts is an
+   `approval_id` that `approve_recovery` wrote to the log. A report
+   claiming approval, or inventing an approval id, is refused as
+   `no_approval`, and an extra `approval_id` field in a response is
+   dropped with the other extra fields.
+5. **Everything is logged, never raw fields.** `recovery_approved`,
+   `recovery_requested` (refusals), `recovery_started`, and
+   `recovery_result` events go to the incident log. Approvals store a
+   hash, not the payload. Results store a status and fixed codes, and the
+   executor's return value and exception text are discarded. An
+   `approval_id` that isn't a known one isn't stored, since it could be
+   anything a caller or model made up.
+
+**Idempotent execution.** The `approval_id` is the idempotency key.
+`recovery_started` is written and fsynced *before* the executor runs,
+which uses up the approval. A retry with the same approval never runs the
+action again:
+- If the first result was recorded, the retry is `approval_already_used`.
+- If the first attempt died before recording one, it's
+  `recovery_outcome_unknown`, and a person has to check.
+
+That makes it at-most-once, not exactly-once: a crash can leave an action
+that may or may not have happened, and this says so instead of re-running
+it. A failed action uses up its approval too, so retrying it needs a new
+one.
+
+### Replay without duplicates (`src/bedoux/replay.py`)
+
+The criterion's wording is "replay does not duplicate accepted records."
+The offline version: `replay_batch(rows, store, known_campaign_ids)`
+re-runs Silver's lead rules (`quality.reconcile` + `classify_lead`) over a
+batch. It merges the accepted rows into an in-memory `AcceptedRecords`
+store **keyed on `lead_id`**.
+
+**Why `lead_id`:** it's the natural key Silver's dedup rule uses, and the
+seeded generator reproduces it on every run. `_row_id` is only a position
+in one generated list ("not a globally unique batch or run ID",
+[contracts-bedoux.md](../../contracts-bedoux.md)), so a shifted replay
+gives the same lead a new one. `_ingest_ts` changes every load.
+
+**How the merge works:** a key already present is left alone if the row
+is identical, and replaced if it changed. A key is never added twice. A
+lead quarantined in one replay and accepted in a later one is inserted
+then. A merge never removes a record: a lead accepted once and
+quarantined on a later replay stays in the store (tested, as a documented
+limit).
+
+**What this doesn't prove about the real pipeline:**
+- It isn't Spark, DLT, or Delta `MERGE`. Track 2's Silver tables are
+  recomputed in full each run, so the real pipeline doesn't accumulate
+  records across runs this way at all.
+- Nothing here shows that a real replay (chapter 02's fault → restore →
+  replay, demonstrated live) leaves no duplicates in a real table.
+  Chapter 02's own row-conservation check is what covers that run.
+- This isn't a fix for chapter 03's `gate_evidence_log` retry duplicate.
+  That's a different gap in a different table, a task retry appending a
+  second evidence row, and it stays as recorded in
+  [known-gaps.md](../known-gaps.md#durable-incident-evidence-is-manual).
+
+### What the tests prove
+
+`tests/test_recovery.py`, 24 tests (273 repo-wide), with fake executors
+and in-memory data only:
+- No valid approval, no execution: `None`, `""`, a made-up id, and a
+  non-string are each refused as `no_approval`, with zero executor calls
+  (`test_no_approval_means_no_execution`). A valid approval runs the
+  action exactly once and is logged.
+- Each mismatch is refused with zero executor calls:
+  - a different incident (`test_an_approval_for_a_different_incident_is_refused`);
+  - a different action (`test_an_approval_for_a_different_action_is_refused`);
+  - a different payload (`test_an_approval_based_on_a_different_payload_is_refused`);
+  - a payload changed since approval (`test_an_approval_goes_stale_when_new_evidence_arrives`);
+  - an action off the list.
+- A used approval is refused (`test_a_used_approval_is_refused`), and an
+  approval must name its approver.
+- A model can't approve (`test_a_model_proposal_cannot_approve`): a
+  report saying "APPROVED" and inventing an approval id produces no
+  approval event, and neither string executes anything.
+- Retries run once. This holds after success
+  (`test_a_retry_after_success_does_not_run_again`), after the result
+  write failed (`test_a_retry_after_the_result_was_lost_does_not_run_again`),
+  and after the action failed. An approved `replay_batch` retried twice
+  replays once.
+- Replay:
+  - The same batch twice leaves each accepted lead once
+    (`test_replaying_the_same_batch_twice_duplicates_nothing`).
+  - So does a replay whose `_row_id`s shift
+    (`test_a_replay_whose_rows_shift_position_still_duplicates_nothing`).
+  - So does chapter 02's 0.30 fault → 0.02 restore → replay sequence
+    run offline on seeded generator batches
+    (`test_fault_then_restore_then_replay_leaves_each_lead_once`).
+- The log never holds the canary, a raw sensitive value, or payload
+  text from recovery events.
+
+**Checked by mutation**, each failing at least the named test:
+
+| Mutation | Tests that fail |
+| --- | --- |
+| A missing approval executes (fails open) | 5: all four `no_approval` cases and the model-proposal test |
+| Incident check removed | The different-incident test |
+| Action check removed | The different-action test |
+| Payload-hash check removed | The different-payload and stale-payload tests |
+| Used-approval check removed | 5: reuse, retry after success, retry after lost result, failed-action, and approved-replay retry |
+| `recovery_started` not written before executing | The same 5 |
+| Replay appends instead of merging | The three replay-duplicate tests |
+| Replay keyed on `_row_id` | The shifted-position test |
+
+**Not proven:**
+- No real executor exists, and nothing has ever restored a setting or
+  replayed a batch in the workspace through this code.
+- Who counts as an approver isn't checked. `approver` is a name string,
+  with no identity, authentication, or role behind it. As with the
+  allowlist, this is a same-process check: it stops a model's output
+  from approving, not code in the process that calls `approve_recovery`
+  itself.
+- `recovery_outcome_unknown` is detected but not resolved; a person has
+  to check what happened.
+- Concurrency isn't handled. Two processes executing the same approval
+  at once could both pass the check before either writes
+  `recovery_started`.
+
 ## Roadmap acceptance mapping
 
 `roadmap.md`'s stated acceptance for chapter 04: "reports identify evidence
@@ -357,16 +512,18 @@ metric. Keep offline fixtures separate from live model runs." Per
 criterion, using four states: **met at code level** (with the test that
 proves it), **met live**, **not built**, or **deliberately deferred**. No
 criterion is met live, because no real model has ever been called. This
-section lays the chapter out; it doesn't decide what closes it.
+section lays the chapter out; it doesn't decide what closes it. The
+recovery and replay rows reflect the fifth increment, which is in review,
+not merged.
 
 | Roadmap criterion | State | Proof or gap |
 | --- | --- | --- |
 | Reports identify evidence and uncertainty | Met at code level | `test_citations_that_resolve_in_the_sent_payload_are_reported`, `test_a_citation_that_does_not_resolve_in_the_payload_is_refused`, `test_citations_resolve_against_what_was_sent_not_the_original_fields`; a missing or blank `uncertainty` is refused in `test_malformed_response_is_pending`. Proves citations exist in what was sent, not that they support the claim. |
 | Sensitive raw rows do not enter prompts | Met at code level | `test_canary_blocks_with_zero_provider_calls`, `test_copied_secret_blocks_with_zero_provider_calls`, `test_final_serialized_check_catches_what_the_dict_gate_cannot`, `test_sent_payload_is_exactly_the_redacted_serialization`; for tool results, `test_a_tool_result_carrying_the_canary_or_a_secret_is_blocked_not_sent` and `test_a_tool_result_with_a_sensitive_field_is_redacted_not_raw`. Bounded by `evidence.py`'s own limits: a sensitive value under an unrecognized key name, in freeform text, or too short or non-string, isn't caught (see [known-gaps.md](../known-gaps.md#freeform-sensitive-text-with-no-recognized-marker-is-invisible-to-evidencepy)). |
-| Recovery requires the defined approval | Not built | No approval path exists, and "the defined approval" isn't defined yet. What *is* met at code level is the stronger precondition: nothing can execute a recovery at all. `proposed_recovery` is text only, and every non-allowlisted tool request is refused without running (`test_a_tool_off_the_allowlist_is_refused_and_never_executed`). |
-| Replay does not duplicate accepted records | Not built | Nothing deduplicates. A retried investigation opens a new incident, and chapter 03's evidence log already writes a duplicate row on a task retry ([known-gaps.md](../known-gaps.md#durable-incident-evidence-is-manual)). |
+| Recovery requires the defined approval | Met at code level (fifth increment, not merged) | The approval is defined in "The defined approval," above. `test_no_approval_means_no_execution`, the four mismatch tests (incident, action, payload, stale payload), `test_a_used_approval_is_refused`, and `test_a_model_proposal_cannot_approve`. The model can't reach recovery through tools either (`test_a_tool_off_the_allowlist_is_refused_and_never_executed`). Only fake executors exist, and the approver's identity isn't verified. |
+| Replay does not duplicate accepted records | Met at code level, offline (fifth increment, not merged) | `test_replaying_the_same_batch_twice_duplicates_nothing`, `test_a_replay_whose_rows_shift_position_still_duplicates_nothing`, and `test_fault_then_restore_then_replay_leaves_each_lead_once`, keyed on `lead_id` against an in-memory store. An approved replay retried runs once (`test_an_approved_replay_retried_runs_once_and_duplicates_nothing`). Proves nothing about Spark/DLT. Chapter 03's `gate_evidence_log` retry duplicate is a separate gap and still open. |
 | Model failure leaves a visible pending incident | Met at code level | `test_process_death_during_the_call_leaves_a_pending_incident` (a real subprocess dies mid-call), `test_outcome_is_recorded_against_the_incident` (timeout, provider error, malformed response), `test_restart_keeps_earlier_incidents`; bounded tool loops end `pending` too (`test_the_call_limit_stops_the_loop`). Process death only, not a machine crash. |
-| Record the before/after business metric | Not built | No metric is chosen or measured. |
+| Record the before/after business metric | Deliberately deferred, with the live run | No metric is chosen or measured. A before/after number from fixtures would be invented, not measured. |
 | Keep offline fixtures separate from live model runs | Holds trivially | Everything is offline: a fake provider and in-memory synthetic fixtures. There is no live run to keep separate yet, so this says nothing about how the separation would be done. |
 
 The roadmap's scope sentence adds two things that aren't acceptance
@@ -381,14 +538,14 @@ or job status.
 
 | Open item | State | Criteria it affects |
 | --- | --- | --- |
-| Live run | Deliberately deferred: it needs a real provider, and the user chose not to build one. | It would move the three code-level criteria (evidence and uncertainty, sensitive rows, pending incident) toward met live, and make the offline/live separation meaningful. No criterion requires it by wording. |
+| Live run | Deliberately deferred: it needs a real provider, and the user chose not to build one. | It would move the code-level criteria toward met live, and make the offline/live separation meaningful. No criterion requires it by wording. |
 | Real-table reads | Not built. Tools read in-memory fixtures; real reads would need a read-only identity and a workspace call. | None directly. It's scope ("bounded tools"), and it would strengthen the sensitive-rows criterion by testing real row shapes. |
-| Recovery approval path | Not built. | Recovery requires the defined approval. |
-| Replay without duplicates | Not built. | Replay does not duplicate accepted records. |
-| Before/after business metric | Not built. | Record the before/after business metric. |
+| Recovery approval path | Built at code level, with fake executors (fifth increment, in review). | Recovery requires the defined approval. |
+| Replay without duplicates | Built at code level, offline, against an in-memory store (fifth increment, in review). | Replay does not duplicate accepted records. |
+| Before/after business metric | Deliberately deferred with the live run. | Record the before/after business metric. |
 
-**The decision left to the user:** three criteria are met at code level,
-one holds trivially, and three aren't built: recovery approval, replay,
-and the business metric. Whether chapter 04 closes at code level the way
-chapter 03 did, needs some of the unbuilt items first, or waits for a
-live run is not decided here.
+**The decision left to the user:** if the fifth increment merges, five
+criteria are met at code level and one holds trivially. The business
+metric is deliberately deferred with the live run, and none is met live.
+This doc doesn't decide whether chapter 04 closes at code level the way
+chapter 03 did, or waits for a live run.

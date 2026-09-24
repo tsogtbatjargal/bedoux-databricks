@@ -41,9 +41,9 @@ deployed with its post still unpublished):
   Second increment integrated too: a local incident log saved before each
   model call. Third increment integrated too: report citations checked
   against what was sent. Fourth increment integrated: read-only tools,
-  recovery refused in code. Three acceptance criteria are met at code
-  level, three aren't built, none is met live; closing the chapter is
-  the user's decision.
+  recovery refused in code. Fifth increment (recovery approval,
+  duplicate-free replay) is in review, not merged. None of the criteria
+  is met live; closing the chapter is the user's decision.
   See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 - **Planned**: chapters 05–07.
 
