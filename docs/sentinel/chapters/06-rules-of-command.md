@@ -3,10 +3,17 @@
 Strategic theme: maintain visibility and separation; establish
 responsibility (see [README.md](../README.md)).
 
-Status: **in progress; first step on `series/06-agent-boundaries`, not
-merged.** It covers one case: text inside evidence that reads like an
-instruction. Fake providers and synthetic fixtures only. No real model has
-seen any of this text.
+Status: **in progress.**
+- **First step integrated:** PR #26 from `series/06-agent-boundaries`,
+  merge `db3d0e9`, the fourteenth CI deployment (`Files: 83 uploaded, 0
+  deleted`, `Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`).
+  It covers text inside evidence that reads like an instruction.
+- **Second step on `feat/06-audit-and-prohibited`, not merged:** an audit
+  record of routing decisions, an explicit prohibited-action list, and a
+  line-break fix for the instruction patterns.
+
+Fake providers and synthetic fixtures only. No real model has seen any of
+this text. The chapter isn't closed; the user decides that.
 
 ## Acceptance criteria, mapped before building
 
@@ -21,19 +28,19 @@ the limits of this test set."
 
 **Acceptance criteria:**
 
-| Criterion | Already met by chapters 03–05 | Buildable offline | Needs something live |
+| Criterion | State | Proof | Needs something live |
 | --- | --- | --- | --- |
-| Executor-level checks reject prohibited actions regardless of model output | Mostly. Tools run only if named in the frozen `ALLOWED_TOOLS` (`tools.py`, chapter 04). Recovery runs only for an action in `RECOVERY_ACTIONS` with an approval `approve_recovery` wrote for that incident, action, and payload hash (`recovery.py`). Both deny by default. This step adds tests with the instruction placed in evidence and tool results. | An explicit list of prohibited actions (export, delete, grant) refused at the executor with its own code, instead of only "not on the allowlist". | Real executors. Only test fakes exist, so nothing shows the checks sit in front of a real workspace write. |
-| Unknown/timeouts can't authorize publication or data export | Publication: `quality.evaluate_gate` reads only `gate_status` rows and never a model's output, so no model answer of any kind reaches it. Routing sends unknown or unavailable answers to a person (chapter 05), and timeouts leave an incident pending (chapter 04, `test_timeout_is_pending`). Export: no export path exists anywhere, so this holds trivially. | A test that drives timeouts and unknowns through every path that ends in an action, once an export path exists. | Nothing, for the property itself. |
-| The audit record explains the decision without storing secrets | Partly. The incident log stores the checked payload, fixed codes, and hashes, never raw fields (`test_recovery_events_never_hold_raw_fields_or_payload_text`). This step's flag is a code, never the matched text. | Not built: routing decisions aren't written to any audit record yet. A `Route` has reason codes but nothing persists them. | Nothing. |
-| Publish an honest failure analysis with the limits of this test set | — | The analysis can be written from fakes, labelled that way. "What this doesn't prove," below, starts it. | Publishing isn't authorized. A failure analysis of *real* model behaviour needs real models. |
+| Executor-level checks reject prohibited actions regardless of model output | **Met at code level** (second step) | Checked first in `tools.execute_tool_request`, `recovery.approve_recovery`, and `recovery.execute_recovery`: a prohibited name is refused with `prohibited_action` even if allowlisted, implemented, or approved (`test_a_prohibited_tool_is_refused_even_if_allowlisted_with_an_implementation`, `test_a_prohibited_recovery_is_refused_even_if_listed_and_approved`). Behind it, chapter 04's default-deny allowlists. See "Prohibited actions," below, for what a name-based list can't catch. | Real executors. Only test fakes exist, so nothing shows the checks sit in front of a real workspace write. |
+| Unknown/timeouts can't authorize publication or data export | Met at code level (from chapters 02–05); export holds trivially | `quality.evaluate_gate` reads only `gate_status` rows, never model output. Routing sends unknown or unavailable answers to a person (chapter 05); timeouts leave an incident pending (`test_timeout_is_pending`). No export path exists, and export names are now prohibited. | Nothing, for the property itself. |
+| The audit record explains the decision without storing secrets | **Met at code level** (second step) | Every `route()` decision can be recorded as a `route_decision` event: fixed codes and a payload hash only. `test_every_decision_can_be_explained_from_the_record_alone`, `test_the_record_holds_only_the_decision_fields`, `test_the_record_never_holds_evidence_text_secrets_or_the_canary`. Chapter 04's events already held no raw fields (`test_recovery_events_never_hold_raw_fields_or_payload_text`). | A real audit store with retention and access control; this is a local JSONL file. |
+| Publish an honest failure analysis with the limits of this test set | Not built | Can be written from the fakes, labelled that way. "What this doesn't prove," below, starts it. | Publishing isn't authorized. An analysis of *real* model behaviour needs real models. |
 
 **Scope items:**
 
 | Scope item | State |
 | --- | --- |
-| Malicious instructions in logs | This step. |
-| Prohibited exports | Not built. No export action exists to prohibit. |
+| Malicious instructions in logs | First step (integrated), plus the line-break fix in the second. |
+| Prohibited exports | Met at code level (second step): export, delete, grant, and other write verbs are refused by name. No export action exists. |
 | Unauthorized tool calls | Met at code level by chapter 04 (`test_a_tool_off_the_allowlist_is_refused_and_never_executed`). |
 | Ambiguous incidents | Met at code level by chapter 05's unknown path (`test_when_nothing_usable_comes_back_a_person_decides`). |
 | Provider outages | Met at code level by chapters 04 and 05: a timeout or provider error is `pending`, and an unavailable classifier escalates. |
@@ -78,6 +85,12 @@ matches.
 - another language ("ignora las instrucciones anteriores");
 - a phrase split across two fields;
 - encodings and homoglyphs, not tested.
+
+A line break *inside one field* ("ignore previous\ninstructions") used to
+get past too, because `.` didn't match a newline. The second step adds
+`re.DOTALL`, tested by `test_a_line_break_inside_one_field_is_still_flagged`.
+No held-out case contains a line break, so chapter 05's record and the
+chapter 06 comparison are unchanged.
 
 The first three are pinned by `test_known_evasions_are_not_flagged`.
 **Flags harmless text too:** "customer asked us to mark the parcel safe".
@@ -140,15 +153,89 @@ From chapter 04's code, restated as the rule:
   - dismissing a severe signal or evidence the rules don't recognise;
   - clearing a failed publication gate (the gate never reads model
     output);
-  - an export (none exists).
+  - an export, delete, grant, or other prohibited write (refused by
+    name, before any allowlist or approval).
+
+## Second step: the audit record
+
+`route(..., log=..., incident_id=...)` appends one `route_decision` event
+to the incident log per decision. Its fields:
+
+| Field | What it holds |
+| --- | --- |
+| `event`, `incident_id`, `ts`, `decision_id` | The event type, the caller's incident id (or null), a UTC timestamp, a random id |
+| `strategy`, `instruction_rule` | Which strategy ran, and whether chapter 06's instruction rule was on |
+| `label`, `action` | The final label (always one of the four labels or `unknown`, never free model text) and `dismiss`/`runbook`/`human` |
+| `reason_codes` | Fixed codes only |
+| `calls` | Model stages called, in order: `classifier`, `reasoning` |
+| `severe` | Whether a severe signal applied |
+| `payload_sha256` | SHA-256 of the checked payload the models were sent; null when the evidence gate refused and nothing was sent |
+
+`routing.explain(event)` turns an event back into sentences, from the
+event alone, using a fixed sentence per action and per code
+(`EXPLANATIONS`). An unknown code prints as unexplained, and the test
+fails.
+
+What the tests check:
+- Every held-out case under every strategy, plus always-healthy fakes on
+  a failed gate, an unrecognised shape, and `h07`: the record rebuilds the
+  exact `Route`, its hash equals the hash of `prepare_payload`'s text, and
+  every code is explained.
+- Each event has exactly the fields above.
+- After routing the canary case, the sensitive-field cases, `h07`, `t04`,
+  and a classifier that echoes a secret (`report_leak`), the log file
+  contains no canary, no sensitive value, and no instruction text.
+
+**Limits:** recording is opt-in: a caller that doesn't pass `log` records
+nothing. The log is a local file anyone with file access can edit;
+nothing makes it tamper-evident.
+
+## Second step: prohibited actions
+
+`boundaries.is_prohibited(name)` splits a tool or action name into words
+(snake_case, kebab-case, camelCase). It returns true if any word is on
+`PROHIBITED_VERBS`: export, delete, drop, truncate, grant, revoke, write,
+insert, update, upsert, merge, alter, create, upload, send, publish,
+deploy, copy, move, overwrite.
+
+It's checked first, before the allowlist, the arguments, or any approval:
+- **Tool path** (`tools.execute_tool_request`): refused with
+  `prohibited_action` even if the name were added to `ALLOWED_TOOLS` and
+  had an implementation.
+- **Recovery path:** `approve_recovery` raises and records nothing.
+  `execute_recovery` refuses with `prohibited_action` even if the name
+  were added to `RECOVERY_ACTIONS` and an approval event for it existed
+  (the test writes one directly, as a bug or a tampered log would).
+
+**Design choice: the two recovery actions are not prohibited.**
+`replay_batch` and `restore_lead_invalid_rate` write outside the incident
+log, so a literal reading of "anything that writes outside the incident
+log" would prohibit them. That would remove chapter 04's recovery path.
+They stay the deliberate exception: approval-only, and their names
+contain no prohibited verb. A test pins that the three tools and two
+recovery actions aren't prohibited.
+
+**What a name-based list can't catch:** a write under a name with none of
+these verbs ("purge_leads", "ship_to_s3"). Those are still refused, but
+only because they aren't on an allowlist, with the allowlists' codes
+(`tool_not_allowed`, `unknown_recovery_action`). A test pins that. The
+allowlists remain the real default-deny guard; the prohibited list is a
+second, named refusal that survives an allowlist mistake.
+
+**Changed chapter 04 expectations:** two chapter 04 tests used prohibited
+names as examples of "not on the allowlist". `deploy_bundle`,
+`write_gold`, and `delete_quarantine` now expect `prohibited_action`
+instead of `tool_not_allowed`. The recovery test's example name changed
+from `drop_table` to `rebuild_everything` so it still tests
+`unknown_recovery_action`. No assertion was weakened.
 
 ## What the tests prove
 
-`tests/test_boundaries.py`, 29 tests (339 repo-wide), fake providers and
-synthetic fixtures only.
+`tests/test_boundaries.py`, 52 tests (362 repo-wide), fake providers and
+synthetic fixtures only: 29 from the first step and 23 from the second.
 
-**Checked by mutation** (each applied alone, whole suite run, source
-restored):
+**Checked by mutation, first step** (each applied alone, whole suite run,
+source restored):
 
 | Mutation | Tests that fail |
 | --- | --- |
@@ -166,6 +253,24 @@ restored):
 | Patterns broadened (a bare "instructions") | `test_known_evasions_are_not_flagged`, a limit pin: it fails when the doc's limits go stale, not when a defense breaks |
 | `instruction_rule=False` ignored | Chapter 05's `test_the_comparison_on_scripted_fakes` |
 
+**Checked by mutation, second step:**
+
+| Mutation | Tests that fail |
+| --- | --- |
+| `re.DOTALL` removed | `test_a_line_break_inside_one_field_is_still_flagged` (3) |
+| Raw fields added to the record | `test_the_record_holds_only_the_decision_fields`, `test_the_record_never_holds_evidence_text_secrets_or_the_canary` |
+| Reason codes not recorded | The explain test and the never-holds test |
+| Hash of the raw fields instead of the checked payload | The explain test |
+| Matched instruction text recorded as a code | 19, including the never-holds test |
+| A code with no explanation | The explain test |
+| Gate-refused decisions not recorded | The explain test |
+| Prohibited check removed from the tool path | 10: the prohibited-tool tests and chapter 04's allowlist test |
+| Prohibited check removed from `execute_recovery` | The prohibited-recovery tests (7) |
+| Prohibited check removed from `approve_recovery` | The prohibited-recovery tests (7) |
+| camelCase not split | `grantAccess` and `DropTable`, both paths (4) |
+| "replay" made prohibited | 20, including `test_the_defined_tools_and_recovery_actions_are_not_prohibited` and chapter 04's recovery tests |
+| "purge" made prohibited | `test_a_write_without_a_prohibited_verb_falls_to_the_allowlists`, a limit pin |
+
 ## What this doesn't prove
 
 - **No real model has seen any of this text.** Nothing here shows how a
@@ -176,6 +281,9 @@ restored):
   catching instructions in general.
 - Only fake executors exist. Nothing shows these checks stand in front of
   a real workspace action or a real identity.
-- Routing decisions aren't written to an audit record yet.
+- The audit record is opt-in and a local, editable file; nothing makes
+  it tamper-evident.
+- The prohibited list is name-based: a write under an innocuous name is
+  caught only by the allowlists.
 - No export path exists, so "can't authorize an export" holds only
   because there's nothing to authorize.

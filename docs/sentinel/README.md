@@ -56,9 +56,10 @@ deployed with its post still unpublished):
   provider work. See
   [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md).
 - **In progress**: chapter 06 ("Establish rules of command"). The first
-  step, on its chapter branch and not merged, shows that instructions
-  inside evidence can't dismiss an incident, add a tool, approve a
-  recovery, or clear a failed gate. Fake providers only. See
+  step is integrated: instructions inside evidence can't dismiss an
+  incident, add a tool, approve a recovery, or clear a failed gate. A
+  second step, not merged, adds an audit record of routing decisions and
+  a prohibited-action list. Fake providers only. See
   [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md).
 - **Planned**: chapter 07.
 

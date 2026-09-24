@@ -27,13 +27,43 @@ structural rules above are what hold.
 
 Only a fixed code is returned, never the matched text: the text is
 attacker-controlled and doesn't belong in an audit record.
+
+Prohibited actions (chapter 06, second step): is_prohibited(name) says
+whether an action or tool name is one the agent may never run -- export,
+delete, grant, or any other write outside the incident log. tools.py and
+recovery.py check it *first*, before the allowlist, the arguments, or any
+approval, and refuse with `prohibited_action`. So the refusal holds even
+if someone later adds such a name to ALLOWED_TOOLS or RECOVERY_ACTIONS,
+registers an implementation, or an approval for it exists.
+
+It's name-based: a name is split into words (snake_case, kebab-case,
+camelCase) and refused if any word is a prohibited verb. A write under a
+name with none of these words ("purge_leads", "ship_to_s3") isn't caught
+here; it's refused only because it isn't on an allowlist
+(`tool_not_allowed` / `unknown_recovery_action`). The allowlists stay the
+real default-deny guard; this list is a second, named refusal that
+survives an allowlist mistake.
+
+The two recovery actions, replay_batch and restore_lead_invalid_rate, do
+write outside the incident log. They are the deliberate exception:
+approval-only, never prohibited, and their names contain no prohibited
+verb. Prohibiting them would remove chapter 04's recovery path.
 """
 
 import re
 
 INSTRUCTION_IN_EVIDENCE = "instruction_in_evidence"
+PROHIBITED_ACTION = "prohibited_action"
 
-_PATTERNS = tuple(re.compile(p, re.IGNORECASE) for p in (
+PROHIBITED_VERBS = frozenset({
+    "export", "delete", "drop", "truncate", "grant", "revoke",
+    "write", "insert", "update", "upsert", "merge", "alter", "create",
+    "upload", "send", "publish", "deploy", "copy", "move", "overwrite",
+})
+
+# DOTALL: `.` must cross a line break inside one field, or "ignore\nprevious
+# instructions" gets past.
+_PATTERNS = tuple(re.compile(p, re.IGNORECASE | re.DOTALL) for p in (
     # "ignore previous instructions", "disregard the rules above"
     r"\b(ignore|disregard|forget|override)\b.{0,40}\b(instructions?|rules?|prompt|policy)\b",
     # "mark this batch healthy", "mark the incident as resolved"
@@ -64,3 +94,14 @@ def instruction_signals(fields):
     if any(p.search(s) for s in _strings(fields) for p in _PATTERNS):
         return (INSTRUCTION_IN_EVIDENCE,)
     return ()
+
+
+def _name_words(name):
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+    return set(re.split(r"[^a-z0-9]+", spaced.lower())) - {""}
+
+
+def is_prohibited(name):
+    """True if `name` contains a prohibited verb as a word. Non-strings
+    are left to the callers' other checks, which refuse them."""
+    return isinstance(name, str) and bool(_name_words(name) & PROHIBITED_VERBS)
