@@ -63,7 +63,8 @@ deployed with its post still unpublished):
   an audit record of routing decisions, a prohibited-action rule, and an
   honest failure analysis. Fake providers only. See
   [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md).
-- **In progress, not merged**: chapter 07 ("The complete demonstration").
+- **Integrated into `main` at code level, not demonstrated live**: chapter
+  07 ("The complete demonstration").
   One command runs chapter 02's fault case through every control from
   chapters 02–06 locally, with fake models, and the doc says which steps
   match live runs already recorded. No new live runs, by the user's choice.
@@ -102,7 +103,7 @@ The final video brings those pieces together.
 - [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): guarded model call, incident log, cited reports, read-only tools, approved recovery, and replay — acceptance-complete at code level, fake provider only, not demonstrated live.
 - [Chapter 05: Spend intelligence carefully](chapters/05-spend-intelligence.md): routing with fake models through chapter 04's gate, a frozen held-out set, and a scoring harness — acceptance-complete at code level; the live comparison is deferred.
 - [Chapter 06: Establish rules of command](chapters/06-rules-of-command.md): instructions inside evidence are data, never commands; audit record, prohibited actions, and a failure analysis — acceptance-complete at code level, fake providers only.
-- [Chapter 07: The complete demonstration](chapters/07-full-demo.md): one local command runs the fault case end to end with fakes; which steps match recorded live evidence; the video script draft — in progress, not merged.
+- [Chapter 07: The complete demonstration](chapters/07-full-demo.md): one local command runs the fault case end to end with fakes; which steps match recorded live evidence; the video script draft — integrated at code level, fake models only.
 
 ## Docs lifecycle
 

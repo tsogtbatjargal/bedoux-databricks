@@ -6,9 +6,9 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–06 are integrated into `main`. **362 tests pass on `main`** (372 on
-`series/07-full-demo`).
-Posts for chapters 00–06 are drafted, none published, no tags.
+Chapters 00–07 are integrated into `main`. **372 tests pass on `main`.**
+Posts for chapters 00–06 are drafted, and chapter 07's video script; none
+published, no tags.
 
 - **Chapter 02** is demonstrated live — see
   [chapter-02-evidence.md](chapter-02-evidence.md).
@@ -99,25 +99,32 @@ hand.
   See [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md#closing-decision)
   and [known-gaps.md](known-gaps.md#chapter-06s-boundaries-are-enforced-by-fakes-names-and-a-local-file).
 
-- **Chapter 07 is in progress on `series/07-full-demo`, not merged**
-  (PR #29, open). The user chose option 1: no new live runs.
+- **Chapter 07 is integrated at code level, not demonstrated live**
+  (PR #29 from `series/07-full-demo`, merge `29aa8c8`; Validate and
+  Deploy skipped, no deployment). The user chose option 1: no new live
+  runs.
   - `scripts/full_demo.py` runs chapter 02's fault case (leads at 32.8%)
     through every control, locally, with fakes: gate refuses, rules-only
     routing flags it severe, incident saved before the first model call,
     three read-only tools, a cited report, approvals, an approved restore
     and replay with no duplicates, then h07 and a prohibited export
     refused. Deterministic; prints only counts, codes and hashes.
-    `tests/test_full_demo.py` adds 10 tests: **372 pass on the branch**.
-  - It lives in `scripts/`, outside the bundle's paths, so merging it
-    wouldn't deploy.
+    `tests/test_full_demo.py` adds 10 tests. It runs as
+    `python -m scripts.full_demo` or `python scripts/full_demo.py`, with
+    identical output.
+  - It lives in `scripts/`, outside the bundle's paths; the merge didn't
+    deploy.
   - The chapter doc maps the criteria, records the output, says which
     steps match recorded live evidence (chapter 02 runs `330174171866992`,
     `262274593519322`, `98756061776337`; chapter 03 run
     `180753859499836` and the rejected `UPDATE`/`DELETE`) and which exist
     only with fakes, and holds the video demo script, a draft.
-  - Not done: the video recording, the final architecture (the user's
-    diagrams), an evaluation result (needs a real provider), redaction in
-    the end-to-end path, and the composed finale.
+  - **What's left is the user's:** recording the video from the draft
+    script, the final architecture diagrams, publishing, and tags.
+  - **The provider work is still deferred:** a real model provider (with
+    frozen versions and a spend cap), real executors and tool readers,
+    and so an evaluation result. Also not built: redaction in the
+    end-to-end path and the composed finale.
 
   See [chapters/07-full-demo.md](chapters/07-full-demo.md)
   and [known-gaps.md](known-gaps.md#chapter-07s-end-to-end-run-is-local-its-live-half-is-recorded-not-rerun).
@@ -130,26 +137,29 @@ Remote branches: `main`, the seven retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
 `series/04-investigate-recover`, `series/05-jev-routing`,
-`series/06-agent-boundaries`), and the new chapter branch
-`series/07-full-demo` (PR #29, open, not merged).
-`docs/06-close-and-post` was deleted locally and on the server after it
-appeared in `git branch -r --merged origin/main`. See
+`series/06-agent-boundaries`), `series/07-full-demo`, and the docs
+working branch `docs/07-integrated` (this handoff's PR). Deleting remote
+branches wasn't authorized this round, so it stays after merging. See
 [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main`, `series/06-agent-boundaries` (merged; kept, no
-deletion authorized), and `series/07-full-demo`.
+Local branches: `main`, `series/07-full-demo` (merged; kept, no deletion
+authorized), and `docs/07-integrated`. `series/06-agent-boundaries` was
+deleted locally with `git branch -d` after checking that its remote copy
+exists, has the same tip, and is an ancestor of `main` and `origin/main`.
 
 Wait for Unit tests to pass on a PR's head before merging it, docs-only
 PRs included.
 
 ## Exact next useful task
 
-**Review chapter 07's PR #29; merging it is not authorized.** It changes no
-`src/**`, `resources/**` or `databricks.yml`, so merging shouldn't deploy;
-confirm on the run. After that, what's left of chapter 07 needs a decision
-from the user: recording the video from the draft script, the final
-architecture diagrams, and whether any part runs live (a real provider
-with frozen versions and a spend cap, real executors, the real tables),
-each with its own authorization.
+**None authorized.** All eight chapters are integrated at code level.
+What remains is the user's decision:
+- recording the final video from the draft script in
+  [chapters/07-full-demo.md](chapters/07-full-demo.md#final-video-demo-script-draft),
+  labelling recorded evidence and fakes as it says;
+- the diagrams, publishing posts, and tags;
+- the deferred provider work: whether any part runs live (a real provider
+  with frozen versions and a spend cap, real executors, the real tables),
+  each with its own authorization.
 
 Also not authorized: publishing any post, tagging, and the diagrams.

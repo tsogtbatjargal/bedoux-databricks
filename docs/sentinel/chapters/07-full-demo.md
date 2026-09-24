@@ -3,9 +3,12 @@
 Strategic theme: none new. This chapter runs the earlier ones in order
 (see [README.md](../README.md)).
 
-Status: **in progress on `series/07-full-demo`, not merged.** First step: a
-local end-to-end demonstration, one command, fakes only, tied to the live
-evidence already recorded. The user chose option 1: **no new live runs**.
+Status: **integrated at code level, not demonstrated live** (PR #29 from
+`series/07-full-demo`, merge `29aa8c8`; Validate and Deploy skipped, so
+no deployment). A local end-to-end demonstration, one command, fakes
+only, tied to the live evidence already recorded. What's left is the
+user's: recording the video, the diagrams, publishing, and tags. The
+provider work stays deferred. The user chose option 1: **no new live runs**.
 Nothing in this chapter ran against Databricks or called a model; every
 live fact below comes from runs recorded in chapters 02 and 03.
 
