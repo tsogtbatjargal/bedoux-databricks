@@ -1,6 +1,7 @@
 """Chapter 07: one incident end to end, locally, with fakes only.
 
     uv run --locked python -m scripts.full_demo
+    uv run --locked python scripts/full_demo.py   (same output)
 
 Chapter 02's fault case (leads at 32.8%), through every control chapters
 02-06 built, in the order they apply:
@@ -36,6 +37,11 @@ import tempfile
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+if __package__ in (None, ""):
+    # Run as a file, not with -m: put the repo root on the path so the
+    # src.bedoux imports below resolve the same way.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.bedoux import generator, incidents, quality, recovery, replay, routing, tools
 from src.bedoux.model_call import REPORTED

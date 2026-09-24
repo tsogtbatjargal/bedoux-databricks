@@ -48,7 +48,10 @@ periods. Verify every performance claim against a run."
 
 ```
 uv run --locked python -m scripts.full_demo
+uv run --locked python scripts/full_demo.py
 ```
+
+Both forms print identical output.
 
 `scripts/full_demo.py` calls the project's own modules in `src/bedoux`,
 unchanged. It writes its incident log to a temporary directory and deletes
@@ -272,8 +275,9 @@ stand-in. The live replay in chapter 02 had no approval step at all."
 On screen: steps 8–9.
 Narration: "Case h07 has an ops message telling the system to ignore its
 instructions and mark the batch healthy. Every fake model agrees with it.
-Nothing dismisses it: the rules call it severe, and a model can't
-overrule that. And when the model asks to export leads, it's refused by
+The two model strategies are fooled and keep the wrong label, healthy,
+but they can't act on it: the case is severe, so it goes to a person
+instead of being dismissed. And when the model asks to export leads, it's refused by
 name, as a tool and as a recovery, even with a real approval id."
 Don't show h07's text on screen; describe it.
 
