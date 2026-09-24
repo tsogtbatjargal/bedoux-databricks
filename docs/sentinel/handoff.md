@@ -100,7 +100,7 @@ hand.
     Not built yet, offline: an explicit prohibited-action list (export,
     delete, grant) and an audit record of routing decisions.
 
-- **Chapter 06, second step: on `feat/06-audit-and-prohibited`, PR open,
+- **Chapter 06, second step: on `feat/06-audit-and-prohibited`, PR #27 open,
   not merged** (merging deploys: it changes `src/**`).
   - Audit record: `route(..., log=...)` appends a `route_decision` event
     (strategy, instruction_rule, label, action, reason codes, calls,
@@ -138,7 +138,7 @@ after PR #26 merged. See [branch-workflow.md](branch-workflow.md).
 Local branches: `main`, `series/06-agent-boundaries` (merged; kept, no
 deletion authorized), and `feat/06-audit-and-prohibited`.
 
-**Open PR:** chapter 06's second step, from `feat/06-audit-and-prohibited`.
+**Open PR:** #27, chapter 06's second step, from `feat/06-audit-and-prohibited`.
 Not merged. Wait for Unit tests and Validate to pass on the PR head
 before any merge, docs-only PRs included.
 
