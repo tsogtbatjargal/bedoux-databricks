@@ -100,7 +100,7 @@ hand.
   and [known-gaps.md](known-gaps.md#chapter-06s-boundaries-are-enforced-by-fakes-names-and-a-local-file).
 
 - **Chapter 07 is in progress on `series/07-full-demo`, not merged**
-  (this PR). The user chose option 1: no new live runs.
+  (PR #29, open). The user chose option 1: no new live runs.
   - `scripts/full_demo.py` runs chapter 02's fault case (leads at 32.8%)
     through every control, locally, with fakes: gate refuses, rules-only
     routing flags it severe, incident saved before the first model call,
@@ -131,7 +131,7 @@ Remote branches: `main`, the seven retained chapter branches
 `series/02-quality-gate`, `series/03-protect-evidence`,
 `series/04-investigate-recover`, `series/05-jev-routing`,
 `series/06-agent-boundaries`), and the new chapter branch
-`series/07-full-demo` (this chapter's PR, open, not merged).
+`series/07-full-demo` (PR #29, open, not merged).
 `docs/06-close-and-post` was deleted locally and on the server after it
 appeared in `git branch -r --merged origin/main`. See
 [branch-workflow.md](branch-workflow.md).
@@ -144,7 +144,7 @@ PRs included.
 
 ## Exact next useful task
 
-**Review chapter 07's PR; merging it is not authorized.** It changes no
+**Review chapter 07's PR #29; merging it is not authorized.** It changes no
 `src/**`, `resources/**` or `databricks.yml`, so merging shouldn't deploy;
 confirm on the run. After that, what's left of chapter 07 needs a decision
 from the user: recording the video from the draft script, the final
