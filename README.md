@@ -57,7 +57,8 @@ acceptance-complete at code level, not demonstrated live. It covers a
 guarded model call, an incident log, cited reports, read-only tools, and
 approved recovery with duplicate-free replay, all against a fake provider
 and synthetic fixtures. Its before/after business metric and live run are
-deliberately deferred. Chapters 05–07 are planned. Build status is tracked
+deliberately deferred. Chapter 05 ("Spend intelligence carefully") is in
+progress, with fake models only; chapters 06–07 are planned. Build status is tracked
 separately from publication status: **no chapter's post has been published
 yet**, including chapter 02's, even though it's fully demonstrated. Each
 chapter keeps its own retained remote branch as a stable reference; working/

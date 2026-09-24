@@ -1,9 +1,9 @@
 """Pure evidence-packet redaction and canary-detection logic for chapter 03
 ("Protect what matters") -- spark/dlt/network-free, unit testable in plain
 pytest, same pattern as quality.py. This is deliberately the redaction/canary
-half only: no outbound model call exists anywhere in this project yet (that
-is chapter 04's job runtime), so nothing here has been exercised against a
-real provider. See docs/sentinel/chapters/03-protect-evidence.md for what
+half only. Its outbound caller is model_call.py (chapter 04): a gated call
+site whose only provider is a test fake, so nothing here has been exercised
+against a real provider. See docs/sentinel/chapters/03-protect-evidence.md for what
 that means for "proven" vs "merely asserted."
 
 FICTIONAL_SENSITIVE_LEAD is an isolated fixture, not wired into
