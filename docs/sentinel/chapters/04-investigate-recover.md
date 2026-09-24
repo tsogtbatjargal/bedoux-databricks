@@ -12,9 +12,11 @@ CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`,
 increment (report citations) integrated** (PR #21, merge `8f9d1f5`, the
 tenth CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8
 unchanged`, `Files: 72 uploaded, 0 deleted`) — see "Report citations,"
-below. **Fourth increment (read-only tools) is on
-`feat/04-read-only-tools`, PR open, not merged** — see "Read-only
-tools," below. There is no real provider or recovery executor, and
+below. **Fourth increment (read-only tools) integrated** (PR #22, merge
+`3fa08a9`, the eleventh CI deployment: `Resources: 0 created, 0 changed,
+0 deleted, 8 unchanged`, `Files: 74 uploaded, 0 deleted`) — see
+"Read-only tools," below. Per-criterion status is in "Roadmap acceptance
+mapping," at the end. There is no real provider or recovery executor, and
 nothing in `bedoux_analytics_job` calls this code.
 
 ## Why this increment first
@@ -345,23 +347,48 @@ fake provider and fake tools only):
 - Prompt injection through tool results (instructions hidden in a row)
   isn't tested; chapter 06 covers adversarial evaluation.
 
-## Chapter 04 acceptance, mapped
+## Roadmap acceptance mapping
 
-| Roadmap criterion | Status |
-| --- | --- |
-| Reports identify evidence and uncertainty | Implemented locally (third increment): `uncertainty` and `citations` are required, and every citation must resolve to non-redacted evidence in the sent payload. Checks that citations exist, not that they support the claim. |
-| Sensitive raw rows do not enter prompts | Implemented for this call site: gate + final payload check, tested with a fake. |
-| Recovery requires the defined approval | Partly (fourth increment, not merged): no recovery can run at all, because only three read-only tools are allowlisted and any other tool request is refused in code. `proposed_recovery` is text only. No approval path exists yet. |
-| Replay does not duplicate accepted records | Not started. |
-| Model failure leaves a visible pending incident | Implemented locally (second increment): the incident is saved before the call and stays `pending` through timeouts, errors, malformed responses, and process death. Fake provider only. |
-| Before/after business metric | Not started. |
-| Offline fixtures separate from live model runs | Holds trivially: there are no live runs. Tools read in-memory synthetic fixtures. |
+`roadmap.md`'s stated acceptance for chapter 04: "reports identify evidence
+and uncertainty; sensitive raw rows do not enter prompts; recovery requires
+the defined approval; replay does not duplicate accepted records; model
+failure leaves a visible pending incident. Record the before/after business
+metric. Keep offline fixtures separate from live model runs." Per
+criterion, using four states: **met at code level** (with the test that
+proves it), **met live**, **not built**, or **deliberately deferred**. No
+criterion is met live, because no real model has ever been called. This
+section lays the chapter out; it doesn't decide what closes it.
 
-**What chapter 04 still needs**, none of it authorized:
-- A live run. That needs a real provider, which stays deliberately
-  deferred (see
-  [known-gaps.md](../known-gaps.md#chapter-04s-runtime-model-provider-is-deliberately-not-built)).
-  Until then, no real model has produced a report or chosen a tool.
-- Tools that read the real tables, with a read-only identity.
-- An approval path for recovery, and replay without duplicates.
-- The before/after business metric.
+| Roadmap criterion | State | Proof or gap |
+| --- | --- | --- |
+| Reports identify evidence and uncertainty | Met at code level | `test_citations_that_resolve_in_the_sent_payload_are_reported`, `test_a_citation_that_does_not_resolve_in_the_payload_is_refused`, `test_citations_resolve_against_what_was_sent_not_the_original_fields`; a missing or blank `uncertainty` is refused in `test_malformed_response_is_pending`. Proves citations exist in what was sent, not that they support the claim. |
+| Sensitive raw rows do not enter prompts | Met at code level | `test_canary_blocks_with_zero_provider_calls`, `test_copied_secret_blocks_with_zero_provider_calls`, `test_final_serialized_check_catches_what_the_dict_gate_cannot`, `test_sent_payload_is_exactly_the_redacted_serialization`; for tool results, `test_a_tool_result_carrying_the_canary_or_a_secret_is_blocked_not_sent` and `test_a_tool_result_with_a_sensitive_field_is_redacted_not_raw`. Bounded by `evidence.py`'s own limits: a sensitive value under an unrecognized key name, in freeform text, or too short or non-string, isn't caught (see [known-gaps.md](../known-gaps.md#freeform-sensitive-text-with-no-recognized-marker-is-invisible-to-evidencepy)). |
+| Recovery requires the defined approval | Not built | No approval path exists, and "the defined approval" isn't defined yet. What *is* met at code level is the stronger precondition: nothing can execute a recovery at all. `proposed_recovery` is text only, and every non-allowlisted tool request is refused without running (`test_a_tool_off_the_allowlist_is_refused_and_never_executed`). |
+| Replay does not duplicate accepted records | Not built | Nothing deduplicates. A retried investigation opens a new incident, and chapter 03's evidence log already writes a duplicate row on a task retry ([known-gaps.md](../known-gaps.md#durable-incident-evidence-is-manual)). |
+| Model failure leaves a visible pending incident | Met at code level | `test_process_death_during_the_call_leaves_a_pending_incident` (a real subprocess dies mid-call), `test_outcome_is_recorded_against_the_incident` (timeout, provider error, malformed response), `test_restart_keeps_earlier_incidents`; bounded tool loops end `pending` too (`test_the_call_limit_stops_the_loop`). Process death only, not a machine crash. |
+| Record the before/after business metric | Not built | No metric is chosen or measured. |
+| Keep offline fixtures separate from live model runs | Holds trivially | Everything is offline: a fake provider and in-memory synthetic fixtures. There is no live run to keep separate yet, so this says nothing about how the separation would be done. |
+
+The roadmap's scope sentence adds two things that aren't acceptance
+criteria but bear on them. "One runtime model provider" is
+**deliberately deferred** ([known-gaps.md](../known-gaps.md#chapter-04s-runtime-model-provider-is-deliberately-not-built)).
+"Bounded tools for quality results, contracts, runbooks, and job status"
+is **partly built**: three tools cover quality results (`gate_status`,
+quarantine samples, the evidence log). None covers contracts, runbooks,
+or job status.
+
+**Where the handoff's open items fall:**
+
+| Open item | State | Criteria it affects |
+| --- | --- | --- |
+| Live run | Deliberately deferred: it needs a real provider, and the user chose not to build one. | It would move the three code-level criteria (evidence and uncertainty, sensitive rows, pending incident) toward met live, and make the offline/live separation meaningful. No criterion requires it by wording. |
+| Real-table reads | Not built. Tools read in-memory fixtures; real reads would need a read-only identity and a workspace call. | None directly. It's scope ("bounded tools"), and it would strengthen the sensitive-rows criterion by testing real row shapes. |
+| Recovery approval path | Not built. | Recovery requires the defined approval. |
+| Replay without duplicates | Not built. | Replay does not duplicate accepted records. |
+| Before/after business metric | Not built. | Record the before/after business metric. |
+
+**The decision left to the user:** three criteria are met at code level,
+one holds trivially, and three aren't built: recovery approval, replay,
+and the business metric. Whether chapter 04 closes at code level the way
+chapter 03 did, needs some of the unbuilt items first, or waits for a
+live run is not decided here.

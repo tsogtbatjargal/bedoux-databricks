@@ -6,9 +6,8 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–03 are integrated into `main`, and so are chapter 04's first
-three increments; the fourth is an open PR. **224 tests pass on `main`,
-249 on `feat/04-read-only-tools`.** Posts for chapters 00–03 are drafted,
+Chapters 00–03 are integrated into `main`, and so are chapter 04's four
+increments. **249 tests pass on `main`.** Posts for chapters 00–03 are drafted,
 none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -57,18 +56,26 @@ none published, no tags.
   `CheckedPayload`, so no caller gets an unscreened report. A checked
   report is now stored in the incident log. 28 new tests. Citation checks prove a
   citation *exists* in what was sent, not that it supports the claim.
-- **Chapter 04, fourth increment: open PR from `feat/04-read-only-tools`,
-  not merged** (merging deploys). `src/bedoux/tools.py`: three read-only
+- **Chapter 04, fourth increment** (PR #22, merge `3fa08a9`, eleventh CI
+  deployment: `Files: 74 uploaded, 0 deleted`, `Resources: 0 created, 0
+  changed, 0 deleted, 8 unchanged`). `src/bedoux/tools.py`: three read-only
   tools over in-memory synthetic fixtures (`read_gate_status`,
   `read_quarantine_sample`, `read_evidence_log`). A fixed `ALLOWED_TOOLS`
   frozenset decides what runs, and anything else, recovery included, is
   refused (`tool_not_allowed`), never executed, and recorded. Each tool
   result goes back through `prepare_payload` before it's sent, so a
   result carrying the canary or a secret is blocked
-  (`tool_result_blocked`). The loop allows at most 3 tool calls, then
+  (`tool_result_blocked`). A sample `limit` outside 1–5 is refused
+  (`invalid_tool_args`). The loop allows at most 3 tool calls, then
   stops `pending` (`tool_limit_reached`). Each call is a `tool_call` event
   in the incident log, holding only the checked payload. 25 new tests.
   No real model has ever chosen a tool.
+- **Chapter 04 acceptance** is mapped per criterion in
+  [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md#roadmap-acceptance-mapping).
+  Three criteria are met at code level: evidence and uncertainty,
+  sensitive rows, and pending incident. Offline/live separation holds
+  trivially. Three aren't built: recovery approval, replay without
+  duplicates, and the business metric. None is met live.
 
 **Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s
 `<desc>` still says "no such call site exists yet in this project" — out of
@@ -87,27 +94,23 @@ brief — delete or archive it when the next chapter-04 increment starts
 Remote branches: `main`; the five retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
-`series/04-investigate-recover`); and the working branch
-`feat/04-read-only-tools` (the open PR). `feat/04-report-citations` was
-deleted after confirming it was merged into `origin/main`. See
-[branch-workflow.md](branch-workflow.md).
+`series/04-investigate-recover`). `feat/04-read-only-tools` was deleted
+locally and remotely after confirming it was merged into `origin/main`.
+See [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main`, `series/04-investigate-recover`, and
-`feat/04-read-only-tools`.
+Local branches: `main` and `series/04-investigate-recover`.
 
-**One open PR:** chapter 04's fourth increment, from
-`feat/04-read-only-tools`. Not merged — merging deploys.
+**No open PRs.**
 
 ## Exact next useful task
 
-Review the read-only-tools PR, then decide whether to merge it (a
-deployment). After that, chapter 04 still needs the following, and none
-of it is authorized:
-- A live run. It needs a real provider, which stays deliberately
-  deferred, so no real model has produced a report or chosen a tool.
-- Tools that read the real tables under a read-only identity.
-- An approval path for recovery.
-- Replay without duplicates.
-- The before/after business metric.
-
-See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md#chapter-04-acceptance-mapped).
+The user decides what closes chapter 04, using the acceptance mapping.
+The open items, none authorized:
+- Live run: deliberately deferred, since it needs a real provider.
+- Real-table reads: not built. This is scope, not an acceptance
+  criterion.
+- Recovery approval path: not built. Affects "recovery requires the
+  defined approval."
+- Replay without duplicates: not built. Affects "replay does not
+  duplicate accepted records."
+- Before/after business metric: not built. Affects its own criterion.
