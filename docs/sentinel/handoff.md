@@ -79,7 +79,8 @@ hand.
 
 ## Branches and PRs
 
-Remote branches: `main` and the six retained chapter branches
+Remote branches: `main`, `docs/05-close-and-post` (merged), and the six
+retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
 `series/04-investigate-recover`, `series/05-jev-routing`). The chapter
@@ -87,7 +88,9 @@ Remote branches: `main` and the six retained chapter branches
 delete-head-branch-on-merge setting is off. See
 [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main` only. `series/04-investigate-recover` (`864876b`)
+Local branches: `main`, plus the merged working branch
+`docs/05-close-and-post` (PR #25, merge `f61f4be`). It also exists on the
+server; deleting it wasn't authorized, so both copies remain. `series/04-investigate-recover` (`864876b`)
 and `series/05-jev-routing` (`4196330`) were deleted locally with `git
 branch -d` after branch-workflow.md's checks passed: each exists on the
 server, its local tip equalled the remote tip, and it's an ancestor of
