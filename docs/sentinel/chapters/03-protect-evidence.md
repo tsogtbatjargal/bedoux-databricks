@@ -246,7 +246,8 @@ that logs `problems`, puts them in an error message, or files them into an
 incident report (exactly the surfaces this module exists to protect) hands
 the secret to whoever reads that surface. The gate blocks the packet and
 then leaks the secret through its own rejection. This was first flagged by
-`claude-implementation.md`'s assessment while scoping a future caller, not
+`claude-implementation.md`'s assessment (a dated working brief, since
+deleted) while scoping a future caller, not
 found by a fresh line-by-line review — worth noting, since it means the
 existing test suite passed with this present the whole time; nothing
 asserted on problem-string *content* being safe, only on whether the gate

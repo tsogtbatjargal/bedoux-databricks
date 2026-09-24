@@ -6,8 +6,10 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–04 are integrated into `main`. **273 tests pass on `main`.**
-Posts for chapters 00–04 are drafted, none published, no tags.
+Chapters 00–04 are integrated into `main`. Chapter 05 has started on
+`series/05-jev-routing`, with an open PR. **273 tests pass on `main`, 310
+on `series/05-jev-routing`.** Posts for chapters 00–04 are drafted, none
+published, no tags.
 
 - **Chapter 02** is demonstrated live — see
   [chapter-02-evidence.md](chapter-02-evidence.md).
@@ -50,36 +52,53 @@ Posts for chapters 00–04 are drafted, none published, no tags.
 date since chapter 04's first increment. The user maintains the diagrams by
 hand.
 
-**Known stale text, left alone this session:**
-- `src/bedoux/evidence.py`'s module docstring still says "no outbound
-  model call exists anywhere in this project yet." Fixing it touches
-  `src/**` and so deploys; that's a separate decision.
-- [claude-implementation.md](claude-implementation.md) is a dated,
-  expiring brief. Its own instruction was to delete or archive it once
-  chapter 04 started, and that hasn't been done (see
-  [README.md](README.md)'s "Docs lifecycle").
+- **Chapter 05, first step: open PR from `series/05-jev-routing`, not
+  merged** (merging deploys).
+  - `src/bedoux/routing.py` has three strategies: rules only, rules plus
+    reasoning, and rules plus a cheap classifier with selective
+    escalation.
+  - Every model call goes through `prepare_payload` and `send_payload`,
+    which gained an `expect="classification"` mode.
+  - Severe deterministic signals can't be dismissed, in both the flat
+    and the `gate_evidence_log` shape. A model can't dismiss evidence
+    the rules don't recognise. Unknown or unusable classifier answers
+    escalate.
+  - A frozen, synthetic held-out set (hash pinned) and a scoring harness.
+  - Fake models only. Costs are relative *estimate* units, and latency
+    isn't measured.
+  - The criteria are mapped in
+    [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md):
+    labels, the unknown path, the frozen held-out set, non-dismissable
+    signals, and the harness work offline. Every measurement, and the
+    comparison itself, needs real providers.
+  - 37 new tests.
+  - Folded in: `evidence.py`'s module docstring now names `model_call.py`
+    as its gated caller, and `claude-implementation.md` is deleted.
 
 [known-gaps.md](known-gaps.md) is current.
 
 ## Branches and PRs
 
-Remote branches: `main` and the five retained chapter branches
+Remote branches: `main` and the six retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
-`series/04-investigate-recover`). `feat/04-recovery-approval` was deleted
-locally and remotely after confirming it was merged into `origin/main`.
-See [branch-workflow.md](branch-workflow.md).
+`series/04-investigate-recover`, `series/05-jev-routing`). The chapter
+05 branch is retained after merging, like the others. See
+[branch-workflow.md](branch-workflow.md).
 
-Local branches: `main` and `series/04-investigate-recover`.
+Local branches: `main`, `series/04-investigate-recover`, and
+`series/05-jev-routing`.
 
-**No open PRs.**
+**One open PR:** chapter 05's first step, from `series/05-jev-routing`.
+Not merged — merging deploys.
 
 ## Exact next useful task
 
-Chapter 05, "Spend intelligence carefully," is not authorized. It would
-start from integrated `main` on `series/05-jev-routing`: optional Jev
-classification/routing, compared against rules only and rules plus the
-reasoning model on a held-out incident set. Its acceptance asks for
-measured misses, routing quality, latency, and cost, so a live comparison
-would need a real provider. Without Jev access, only adapter and fixture
-work is possible (see [roadmap.md](roadmap.md)).
+Review the chapter 05 PR and decide whether to merge it (a deployment).
+After that, none of the following is authorized:
+- The live comparison needs real providers: a Jev access path and a
+  reasoning model, with frozen versions and a spend cap.
+- Offline follow-ups that could come first:
+  - wire the reasoning model's chapter 04 report into routing;
+  - add runbooks behind the labels;
+  - grow the held-out set, which only matters once real models exist.

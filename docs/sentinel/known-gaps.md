@@ -229,8 +229,8 @@ unit-tested — `evidence.py`'s redaction/canary gate, and this session's
 append-only evidence log (`evidence_log.py`) that gives it its first real
 caller — but the provider itself is intentionally absent. That is a scope
 decision, made once, in writing, not an oversight discovered later: the
-same distinction `claude-implementation.md`'s "First increment" already
-draws between building the guarded call path (inject a fake provider, no
+same distinction the chapter 04 implementation brief (a dated working
+brief, since deleted; it's in Git history) drew between building the guarded call path (inject a fake provider, no
 network dependency, no waiting on credentials) and the separate, later
 increment of wiring in an actual model/provider with real spend.
 

@@ -29,6 +29,9 @@ REPORTED = "reported"  # the provider returned a report that validated
 # caller offered tools (send_payload's accept_tool_requests); never an
 # incident's final status.
 TOOL_REQUESTED = "tool_requested"
+# The provider returned a classification (send_payload's expect=
+# "classification", used by routing.py). Never an incident's final status.
+CLASSIFIED = "classified"
 
 # Required text fields of a report. `citations` is required too and checked
 # separately. Anything else in a response is dropped rather than passed
@@ -58,6 +61,7 @@ class CallOutcome:
     reason_codes: tuple = ()
     report: dict | None = None
     tool_request: dict | None = None  # only for TOOL_REQUESTED
+    classification: dict | None = None  # only for CLASSIFIED
 
 
 def serialize_packet(packet) -> str:
@@ -147,6 +151,25 @@ def _parse_tool_request(raw):
     if not all(isinstance(v, (str, int, float, bool)) or v is None for v in args.values()):
         return None
     return {"tool": tool, "args": dict(args)}
+
+
+def _parse_classification(raw):
+    """Return {"label": str, "confidence": float} or None. Only the shape is
+    checked; whether the label means anything is routing.py's decision."""
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else None
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    label, confidence = parsed.get("label"), parsed.get("confidence")
+    if not isinstance(label, str) or not label.strip():
+        return None
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+        return None
+    if not 0.0 <= confidence <= 1.0:
+        return None
+    return {"label": label, "confidence": float(confidence)}
 
 
 _MISSING = object()
@@ -270,7 +293,8 @@ def prepare_payload(fields):
 
 
 def send_payload(payload, provider, *, timeout_s: float = 30.0,
-                 accept_tool_requests: bool = False) -> CallOutcome:
+                 accept_tool_requests: bool = False,
+                 expect: str = "report") -> CallOutcome:
     """Send a CheckedPayload once and classify the result. Raises TypeError
     for anything else -- including a plain string -- before the provider is
     touched. A report is returned only after its citations check out and
@@ -280,7 +304,15 @@ def send_payload(payload, provider, *, timeout_s: float = 30.0,
     With `accept_tool_requests`, a response that is a tool request comes
     back as TOOL_REQUESTED -- screened the same way, since the request is
     model output that gets recorded. Without it, a tool request is just a
-    malformed report."""
+    malformed report.
+
+    With `expect="classification"` (routing.py), the response must be a
+    classification instead -- {"label": ..., "confidence": 0..1} -- and
+    comes back as CLASSIFIED after the same leak screen. A cheaper
+    classifier goes through this exact path: same CheckedPayload, same
+    screening."""
+    if expect not in ("report", "classification"):
+        raise ValueError("expect must be 'report' or 'classification'")
     if not isinstance(payload, CheckedPayload):
         raise TypeError("send_payload needs a CheckedPayload from prepare_payload")
     try:
@@ -289,6 +321,14 @@ def send_payload(payload, provider, *, timeout_s: float = 30.0,
         return CallOutcome(PENDING, ("provider_timeout",))
     except Exception:
         return CallOutcome(PENDING, ("provider_error",))
+
+    if expect == "classification":
+        classification = _parse_classification(raw)
+        if classification is None:
+            return CallOutcome(PENDING, ("malformed_response",))
+        if _report_leaks(classification, payload):
+            return CallOutcome(PENDING, ("report_leak",))
+        return CallOutcome(CLASSIFIED, (), classification=classification)
 
     if accept_tool_requests:
         request = _parse_tool_request(raw)
