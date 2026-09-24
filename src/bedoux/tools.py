@@ -11,7 +11,9 @@ never the workspace:
 Which tools may run is decided here, in code: ALLOWED_TOOLS is a fixed
 frozenset. A request for anything else -- restore, replay, deploy, write,
 delete, or a name that merely looks like an allowed one -- is refused with
-`tool_not_allowed` and never executed. The request is still recorded, as
+`tool_not_allowed` and never executed. A prohibited name (export, delete,
+grant, other writes; boundaries.is_prohibited) is refused first, with
+`prohibited_action`, even if it were allowlisted. The request is still recorded, as
 evidence. Nothing a model returns can add to the allowlist: the name is
 only ever compared against it, never looked up with getattr/globals.
 
@@ -25,7 +27,7 @@ counting refused ones; a request past that stops it as PENDING
 (`tool_limit_reached`).
 """
 
-from . import model_call
+from . import boundaries, model_call
 from .model_call import BLOCKED, PENDING, TOOL_REQUESTED, CallOutcome
 
 MAX_TOOL_CALLS = 3
@@ -85,6 +87,10 @@ def execute_tool_request(request, fixtures, implementations=IMPLEMENTATIONS):
     hold other callables (tests pass a recording recovery tool), and they
     are unreachable unless their name is in ALLOWED_TOOLS."""
     tool, args = request["tool"], request["args"]
+    # Checked first: a prohibited name is refused even if it were ever
+    # allowlisted or had an implementation (boundaries.py).
+    if boundaries.is_prohibited(tool):
+        return REFUSED, (boundaries.PROHIBITED_ACTION,), None
     if tool not in ALLOWED_TOOLS:
         return REFUSED, ("tool_not_allowed",), None
     if not _args_ok(tool, args):

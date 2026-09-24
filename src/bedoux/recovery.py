@@ -27,6 +27,10 @@ result, it's `recovery_outcome_unknown` and needs a person to check.
 At-most-once, not exactly-once -- a crash can leave an action that may or
 may not have happened, and this says so instead of re-running it.
 
+A prohibited action (export, delete, grant, other writes;
+boundaries.is_prohibited) is refused first, `prohibited_action`, and can't
+be approved, even if it were ever added to RECOVERY_ACTIONS.
+
 Everything is recorded in the incident log: the request, the approval, the
 start, and the result. Never raw fields or payload text: approvals store a
 hash, results store a status and fixed codes, and an approval_id that
@@ -37,6 +41,8 @@ model made up).
 import hashlib
 import uuid
 from dataclasses import dataclass
+
+from . import boundaries
 
 RECOVERY_ACTIONS = frozenset({"restore_lead_invalid_rate", "replay_batch"})
 
@@ -79,6 +85,8 @@ def approve_recovery(log, incident_id, action, *, approver, payload_sha256):
     Raises ValueError -- and records nothing -- for an unknown incident, an
     action that doesn't exist, a blank approver, or an incident with no
     stored payload to base an approval on."""
+    if boundaries.is_prohibited(action):
+        raise ValueError("prohibited action; no approval can be recorded for it")
     if action not in RECOVERY_ACTIONS:
         raise ValueError("no such recovery action")
     if not isinstance(approver, str) or not approver.strip():
@@ -124,6 +132,10 @@ def execute_recovery(log, incident_id, action, approval_id, executor):
     approval, started, result = _approval_state(log, approval_id) if known else (None, False, None)
     recorded_id = approval_id if approval is not None else None
 
+    # Checked first: refused even if the name were in RECOVERY_ACTIONS or an
+    # approval event for it existed (boundaries.py).
+    if boundaries.is_prohibited(action):
+        return _refuse(log, incident_id, action, recorded_id, boundaries.PROHIBITED_ACTION)
     if action not in RECOVERY_ACTIONS:
         return _refuse(log, incident_id, action, recorded_id, "unknown_recovery_action")
     if approval is None:

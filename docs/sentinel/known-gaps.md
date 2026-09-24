@@ -281,11 +281,13 @@ right. Non-dismissable severe signals don't help, because there's no
 signal. Flagged, not fixed: it's chapter 06's subject (agent boundaries
 and embedded instructions).
 
-**Narrowed, not closed, by chapter 06's first step** (on
-`series/06-agent-boundaries`, not merged). A regex flag,
+**Narrowed, not closed, by chapter 06's first step** (PR #26, merged). A regex flag,
 `instruction_in_evidence`, makes instruction-like text a severe,
 non-dismissable signal, so `h07` is no longer dismissed under any route.
 But the flag was written after seeing `h07`, and a paraphrase, another
 language, or a phrase split across fields gets past it. For those, the
 original gap still stands. See
 [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md#a-new-rule-flag-instruction-like-text).
+
+A line break inside one field used to get past the flag too. Chapter 06's
+second step (not merged) adds `re.DOTALL` and a test for it.

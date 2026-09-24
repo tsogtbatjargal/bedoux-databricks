@@ -61,7 +61,7 @@ deliberately deferred. Chapter 05 ("Spend intelligence carefully") is
 acceptance-complete at code level, not demonstrated live: its routing
 harness runs on fake models only, and its central result, a live
 comparison of routing strategies, is deferred. Chapter 06 ("Establish rules
-of command") is in progress on its chapter branch; chapter 07 is planned. Build status is tracked
+of command") is in progress, with fake providers only; chapter 07 is planned. Build status is tracked
 separately from publication status: **no chapter's post has been published
 yet**, including chapter 02's, even though it's fully demonstrated. Each
 chapter keeps its own retained remote branch as a stable reference; working/

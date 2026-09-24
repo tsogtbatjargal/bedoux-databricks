@@ -35,11 +35,20 @@ Rules the models can't override:
 - Routing decides where an incident goes. It never approves recovery
   (recovery.py) and never clears a failed gate.
 
+Audit (chapter 06): given an IncidentLog, route() appends one
+`route_decision` event per decision -- strategy, label, action, reason
+codes, model stages called, whether a severe signal applied, and the
+SHA-256 of the checked payload (None when the gate refused). Only fixed
+codes and a hash: never raw fields, model text, or matched instruction
+text. explain() turns an event back into sentences from EXPLANATIONS.
+
 Costs: EST_COST_UNITS are *relative units* assumed for comparison -- an
 estimate from fixed inputs, not a price and not measured spend. Latency is
 not measured at all offline. Only fakes exist for both models.
 """
 
+import hashlib
+import uuid
 from dataclasses import dataclass
 
 from . import boundaries, model_call
@@ -65,6 +74,37 @@ CONFIDENCE_THRESHOLD = 0.8
 # ESTIMATE, not measured: assumed relative cost per call, in units, not
 # currency. Only the ratio matters, and it is an assumption.
 EST_COST_UNITS = {"classifier": 1, "reasoning": 20}
+
+ROUTE_DECISION = "route_decision"
+
+ACTION_EXPLANATIONS = {
+    DISMISS: "dismissed: no further action",
+    RUNBOOK: "sent to the runbook for its label",
+    HUMAN: "sent to a person",
+}
+# Every reason code route() can record, with a fixed sentence. A code
+# missing here makes explain() say so, and a test fails.
+EXPLANATIONS = {
+    "gate_failed": "the publication gate failed",
+    "not_conserved": "rows were not conserved",
+    "run_failed": "the evidence-log record says the run failed",
+    "source_gate_failed": "a source in the evidence-log record failed its gate",
+    "source_not_conserved": "a source in the evidence-log record did not conserve rows",
+    "instruction_in_evidence": "instruction-like text was found in the evidence (text not stored)",
+    "evidence_gate_refused": "the evidence gate refused the payload, so no model was called",
+    "canary_present": "the canary marker was in the evidence",
+    "sensitive_value_leak": "a sensitive value would have left the process",
+    "evidence_gate_failed": "the evidence gate failed for another reason",
+    "classified_unknown": "the model answered unknown",
+    "invalid_label": "the model answered a label that isn't on the list",
+    "low_confidence": "the classifier's confidence was under the threshold",
+    "malformed_response": "the model's answer didn't parse",
+    "provider_error": "the model provider failed",
+    "provider_timeout": "the model provider timed out",
+    "report_leak": "the model's answer echoed a secret or the canary",
+    "severe_signal_not_dismissable": "a model said healthy, but a severe signal can't be dismissed",
+    "unrecognized_evidence": "a model said healthy, but the rules didn't recognise the evidence",
+}
 
 
 @dataclass(frozen=True)
@@ -162,12 +202,41 @@ def _finish(label, severe_codes, codes, calls, known_shape=True):
 
 
 def route(fields, strategy, *, classifier=None, reasoner=None, timeout_s=30.0,
-          instruction_rule=True):
+          instruction_rule=True, log=None, incident_id=None):
     """`instruction_rule=False` reproduces chapter 05's rules exactly, so
     its recorded comparison stays reproducible. Nothing else should turn it
-    off."""
+    off. With `log`, the decision is appended as a `route_decision` event."""
     if strategy not in STRATEGIES:
         raise ValueError("unknown strategy")
+    decision, payload = _decide(fields, strategy, classifier, reasoner, timeout_s,
+                                instruction_rule)
+    if log is not None:
+        log.append_event(
+            ROUTE_DECISION, incident_id, decision_id=uuid.uuid4().hex,
+            strategy=strategy, instruction_rule=instruction_rule,
+            label=decision.label, action=decision.action,
+            reason_codes=list(decision.reason_codes), calls=list(decision.calls),
+            severe=decision.severe,
+            payload_sha256=(hashlib.sha256(payload.text.encode("utf-8")).hexdigest()
+                            if payload is not None else None))
+    return decision
+
+
+def explain(event):
+    """Sentences explaining a recorded route_decision, from the event
+    alone."""
+    lines = [f"{event['strategy']}: labelled {event['label']}, "
+             f"{ACTION_EXPLANATIONS.get(event['action'], 'unexplained action')}"]
+    lines.append("models called: " + (", ".join(event["calls"]) or "none"))
+    if event["severe"]:
+        lines.append("a severe signal applied, so it could not be dismissed")
+    lines += [f"{code}: {EXPLANATIONS.get(code, 'UNEXPLAINED CODE')}"
+              for code in event["reason_codes"]]
+    return lines
+
+
+def _decide(fields, strategy, classifier, reasoner, timeout_s, instruction_rule):
+    """(Route, CheckedPayload or None)."""
     severe_codes = rule_signals(fields)
     if instruction_rule:
         severe_codes += boundaries.instruction_signals(fields)
@@ -177,24 +246,24 @@ def route(fields, strategy, *, classifier=None, reasoner=None, timeout_s=30.0,
     if payload is None:
         # The evidence gate refused: no model of any kind sees this.
         return Route("sensitive_data", HUMAN, ("evidence_gate_refused",) + gate_codes,
-                     (), True)
+                     (), True), None
 
     if strategy == RULES_ONLY:
-        return _finish(_rules_label(fields, severe_codes), severe_codes, (), ())
+        return _finish(_rules_label(fields, severe_codes), severe_codes, (), ()), payload
 
     calls, codes = [], []
     if strategy == RULES_PLUS_CLASSIFIER:
         calls.append("classifier")
         label, confidence, code = _ask(payload, classifier, timeout_s)
         if code is None and confidence >= CONFIDENCE_THRESHOLD:
-            return _finish(label, severe_codes, codes, calls, known_shape)
+            return _finish(label, severe_codes, codes, calls, known_shape), payload
         codes.append(code or "low_confidence")
 
     calls.append("reasoning")
     label, _confidence, code = _ask(payload, reasoner, timeout_s)
     if code is not None:
         codes.append(code)
-    return _finish(label, severe_codes, codes, calls, known_shape)
+    return _finish(label, severe_codes, codes, calls, known_shape), payload
 
 
 def evaluate(cases, strategy, *, classifier=None, reasoner=None, instruction_rule=True):

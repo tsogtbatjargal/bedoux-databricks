@@ -85,11 +85,12 @@ def test_an_action_off_the_list_is_refused_even_with_an_approval(log):
     incident_id = _incident(log)
     approval_id = _approve(log, incident_id)
     executor = FakeExecutor()
-    outcome = execute_recovery(log, incident_id, "drop_table", approval_id, executor)
+    # Not a prohibited name (drop_table would be: see test_boundaries.py).
+    outcome = execute_recovery(log, incident_id, "rebuild_everything", approval_id, executor)
     assert outcome.reason_codes == ("unknown_recovery_action",)
     assert executor.calls == []
     with pytest.raises(ValueError):
-        approve_recovery(log, incident_id, "drop_table", approver="ops-oncall",
+        approve_recovery(log, incident_id, "rebuild_everything", approver="ops-oncall",
                          payload_sha256="x")
 
 

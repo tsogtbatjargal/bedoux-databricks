@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.bedoux import model_call, tools
+from src.bedoux import boundaries, model_call, tools
 from src.bedoux.evidence import CANARY_MARKER
 from src.bedoux.incidents import IncidentLog
 from src.bedoux.model_call import PENDING, REPORTED
@@ -122,7 +122,9 @@ def test_a_tool_off_the_allowlist_is_refused_and_never_executed(log, name):
     assert name not in tools.ALLOWED_TOOLS
     [call] = IncidentLog(log.path).load()[incident_id].tool_calls
     assert call["request"] == {"tool": name, "args": {"source": "leads"}}  # kept as evidence
-    assert (call["status"], call["reason_codes"]) == (tools.REFUSED, ["tool_not_allowed"])
+    # Since chapter 06, a prohibited name is refused first, with its own code.
+    code = "prohibited_action" if boundaries.is_prohibited(name) else "tool_not_allowed"
+    assert (call["status"], call["reason_codes"]) == (tools.REFUSED, [code])
     # The model is told it was refused, and the investigation carries on.
     refused = json.loads(provider.calls[1])["tool_results"][0]
     assert (refused["status"], refused["result"]) == (tools.REFUSED, None)
