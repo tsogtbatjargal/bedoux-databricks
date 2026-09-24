@@ -263,7 +263,8 @@ tool request sent to them is just a `malformed_response`.
 
 - `read_gate_status(source)`: that source's `gate_status` rows.
 - `read_quarantine_sample(source, limit=5)`: up to 5 quarantined rows
-  (a larger `limit` is capped).
+  (`limit` must be 1–5; anything else is refused as
+  `invalid_tool_args` and the tool doesn't run).
 - `read_evidence_log(source)`: that source's `gate_evidence_log` rows.
 
 A model asks with `{"tool_request": {"tool": "...", "args": {...}}}`.
@@ -301,7 +302,7 @@ incident log. It holds the screened request, a status (`ran`, `refused`,
 result passed the gate — the checked payload that carried it. The log
 never holds a raw result or the raw fields.
 
-**What the tests prove** (`tests/test_tools.py`, 20 tests; 244 repo-wide;
+**What the tests prove** (`tests/test_tools.py`, 25 tests; 249 repo-wide;
 fake provider and fake tools only):
 - An allowed tool runs once with the requested arguments. Its result
   reaches the model inside the checked payload, the log stores that exact
@@ -309,7 +310,10 @@ fake provider and fake tools only):
 - Eight names off the allowlist — five recovery-style tools plus three
   near-misses — are refused and never executed, even though a recording
   implementation with that name is present. The request is logged.
-- Bad arguments are refused without executing the tool.
+- Bad arguments are refused without executing the tool, including a
+  sample `limit` of -1, 0, 6, or 50. A `limit` of -1 once got through:
+  the cap was `rows[:min(limit, 5)]`, so -1 sliced `rows[:-1]` and
+  returned every row but the last (39 of 40).
 - A tool result carrying the canary, or a secret copied into another
   field, is blocked. The provider is called once, never with the result,
   and neither value reaches the log. A sensitive field in a result is
@@ -320,7 +324,8 @@ fake provider and fake tools only):
   fails the allowed-tool test (and the limit test, which uses it).
   Removing the allowlist check fails all eight refusal cases. Sending tool
   results redacted but not gated fails both blocked-result cases.
-  Removing the limit fails both limit tests.
+  Removing the limit fails both limit tests. Going back to `min()`
+  without the range check fails all four out-of-range `limit` cases.
 
 **What this doesn't prove:**
 - **No real model has ever chosen a tool.** Every tool request in these

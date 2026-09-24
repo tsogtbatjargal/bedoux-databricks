@@ -8,7 +8,7 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 Chapters 00–03 are integrated into `main`, and so are chapter 04's first
 three increments; the fourth is an open PR. **224 tests pass on `main`,
-244 on `feat/04-read-only-tools`.** Posts for chapters 00–03 are drafted,
+249 on `feat/04-read-only-tools`.** Posts for chapters 00–03 are drafted,
 none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -67,7 +67,7 @@ none published, no tags.
   result carrying the canary or a secret is blocked
   (`tool_result_blocked`). The loop allows at most 3 tool calls, then
   stops `pending` (`tool_limit_reached`). Each call is a `tool_call` event
-  in the incident log, holding only the checked payload. 20 new tests.
+  in the incident log, holding only the checked payload. 25 new tests.
   No real model has ever chosen a tool.
 
 **Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s

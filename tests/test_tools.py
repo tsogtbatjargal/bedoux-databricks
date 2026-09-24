@@ -90,12 +90,12 @@ def test_an_allowed_tool_runs_and_its_result_is_sent(log):
 
 
 def test_a_tool_result_with_a_sensitive_field_is_redacted_not_raw(log):
-    provider = ScriptedProvider(_request("read_quarantine_sample", source="leads", limit=50),
+    provider = ScriptedProvider(_request("read_quarantine_sample", source="leads"),
                                 _report("tool_results[0].result[0].lead_id"))
     incident_id, outcome = investigate_with_tools(EVIDENCE, provider, log, FIXTURES)
     assert outcome.status == REPORTED
     rows = json.loads(provider.calls[1])["tool_results"][0]["result"]
-    assert len(rows) == tools.MAX_SAMPLE_ROWS  # limit=50 is capped
+    assert len(rows) == tools.MAX_SAMPLE_ROWS  # 8 rows in the fixture
     assert {row["ssn"] for row in rows} == {"[REDACTED]"}
     assert "123-45-6789" not in Path(log.path).read_text(encoding="utf-8")
 
@@ -138,6 +138,25 @@ def test_bad_arguments_are_refused_and_never_executed(args):
         {**tools.IMPLEMENTATIONS, "read_quarantine_sample": sample})
     assert (status, codes, result, sample.calls) == (
         tools.REFUSED, ("invalid_tool_args",), None, [])
+
+
+@pytest.mark.parametrize("limit", [-1, 0, tools.MAX_SAMPLE_ROWS + 1, 50])
+def test_a_sample_limit_outside_the_cap_is_refused_and_never_executed(limit):
+    """limit=-1 used to slice rows[:-1] -- every row but the last."""
+    rows = [{"lead_id": n} for n in range(40)]
+    sample = Recorder(tools.read_quarantine_sample)
+    status, codes, result = tools.execute_tool_request(
+        {"tool": "read_quarantine_sample", "args": {"source": "leads", "limit": limit}},
+        {"quarantine": {"leads": rows}},
+        {**tools.IMPLEMENTATIONS, "read_quarantine_sample": sample})
+    assert (status, codes, result, sample.calls) == (
+        tools.REFUSED, ("invalid_tool_args",), None, [])
+
+
+def test_a_sample_limit_inside_the_cap_is_honoured():
+    status, _, result = tools.execute_tool_request(
+        {"tool": "read_quarantine_sample", "args": {"source": "leads", "limit": 2}}, FIXTURES)
+    assert (status, len(result)) == (tools.RAN, 2)
 
 
 def test_without_tools_offered_a_tool_request_is_a_malformed_report():

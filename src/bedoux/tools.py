@@ -4,7 +4,8 @@ Three tools, all reading local synthetic fixtures passed in by the caller --
 never the workspace:
 
 - read_gate_status(source): that source's gate_status rows.
-- read_quarantine_sample(source, limit=5): up to 5 quarantined rows.
+- read_quarantine_sample(source, limit=5): up to 5 quarantined rows;
+  a limit outside 1..5 is refused.
 - read_evidence_log(source): that source's gate_evidence_log rows.
 
 Which tools may run is decided here, in code: ALLOWED_TOOLS is a fixed
@@ -43,7 +44,8 @@ def read_gate_status(fixtures, source):
 
 
 def read_quarantine_sample(fixtures, source, limit=MAX_SAMPLE_ROWS):
-    return list(fixtures.get("quarantine", {}).get(source, []))[:min(limit, MAX_SAMPLE_ROWS)]
+    # _args_ok has already refused a limit outside 1..MAX_SAMPLE_ROWS.
+    return list(fixtures.get("quarantine", {}).get(source, []))[:limit]
 
 
 def read_evidence_log(fixtures, source):
@@ -70,7 +72,11 @@ def _args_ok(tool, args):
         return False
     kinds = {**required, **optional}
     # bool is an int subclass; don't let `true` pass as a limit.
-    return all(isinstance(v, kinds[k]) and not isinstance(v, bool) for k, v in args.items())
+    if not all(isinstance(v, kinds[k]) and not isinstance(v, bool) for k, v in args.items()):
+        return False
+    # A negative limit would slice from the end ("rows[:-1]" is all but one
+    # row), bypassing the cap; refuse anything outside 1..MAX_SAMPLE_ROWS.
+    return 1 <= args.get("limit", 1) <= MAX_SAMPLE_ROWS
 
 
 def execute_tool_request(request, fixtures, implementations=IMPLEMENTATIONS):
