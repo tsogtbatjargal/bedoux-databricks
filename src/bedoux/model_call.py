@@ -25,6 +25,10 @@ from . import evidence
 BLOCKED = "blocked"   # the gate refused; the provider was never called
 PENDING = "pending"   # the provider was called but gave no usable report
 REPORTED = "reported"  # the provider returned a report that validated
+# The provider asked for a tool instead of reporting. Only returned when the
+# caller offered tools (send_payload's accept_tool_requests); never an
+# incident's final status.
+TOOL_REQUESTED = "tool_requested"
 
 # Required text fields of a report. `citations` is required too and checked
 # separately. Anything else in a response is dropped rather than passed
@@ -53,6 +57,7 @@ class CallOutcome:
     status: str
     reason_codes: tuple = ()
     report: dict | None = None
+    tool_request: dict | None = None  # only for TOOL_REQUESTED
 
 
 def serialize_packet(packet) -> str:
@@ -119,6 +124,29 @@ def _parse_report(raw):
         return None, "malformed_response"
     report["citations"] = list(citations)
     return report, None
+
+
+def _parse_tool_request(raw):
+    """Return {"tool": str, "args": dict} if `raw` is a JSON object of the
+    form {"tool_request": {"tool": "...", "args": {...}}}, else None. Only
+    the shape is checked here; whether the tool may run is decided by
+    tools.py's allowlist, never by the request itself. Arg values must be
+    JSON scalars."""
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else None
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict) or set(parsed) != {"tool_request"}:
+        return None
+    request = parsed["tool_request"]
+    if not isinstance(request, dict) or not set(request) <= {"tool", "args"}:
+        return None
+    tool, args = request.get("tool"), request.get("args", {})
+    if not isinstance(tool, str) or not tool.strip() or not isinstance(args, dict):
+        return None
+    if not all(isinstance(v, (str, int, float, bool)) or v is None for v in args.values()):
+        return None
+    return {"tool": tool, "args": dict(args)}
 
 
 _MISSING = object()
@@ -241,12 +269,18 @@ def prepare_payload(fields):
     return CheckedPayload(payload, sensitive_values, _token=_PREPARED), ()
 
 
-def send_payload(payload, provider, *, timeout_s: float = 30.0) -> CallOutcome:
+def send_payload(payload, provider, *, timeout_s: float = 30.0,
+                 accept_tool_requests: bool = False) -> CallOutcome:
     """Send a CheckedPayload once and classify the result. Raises TypeError
     for anything else -- including a plain string -- before the provider is
     touched. A report is returned only after its citations check out and
     it has been screened for the canary and copied secrets, so no caller
-    can receive an unscreened one."""
+    can receive an unscreened one.
+
+    With `accept_tool_requests`, a response that is a tool request comes
+    back as TOOL_REQUESTED -- screened the same way, since the request is
+    model output that gets recorded. Without it, a tool request is just a
+    malformed report."""
     if not isinstance(payload, CheckedPayload):
         raise TypeError("send_payload needs a CheckedPayload from prepare_payload")
     try:
@@ -255,6 +289,13 @@ def send_payload(payload, provider, *, timeout_s: float = 30.0) -> CallOutcome:
         return CallOutcome(PENDING, ("provider_timeout",))
     except Exception:
         return CallOutcome(PENDING, ("provider_error",))
+
+    if accept_tool_requests:
+        request = _parse_tool_request(raw)
+        if request is not None:
+            if _report_leaks(request, payload):
+                return CallOutcome(PENDING, ("tool_request_leak",))
+            return CallOutcome(TOOL_REQUESTED, (), tool_request=request)
 
     report, code = _parse_report(raw)
     if report is None:

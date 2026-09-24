@@ -12,10 +12,10 @@ CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`,
 increment (report citations) integrated** (PR #21, merge `8f9d1f5`, the
 tenth CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8
 unchanged`, `Files: 72 uploaded, 0 deleted`) — see "Report citations,"
-below. There is no real provider,
-agent, tool set, or recovery executor yet, and nothing in
-`bedoux_analytics_job`
-calls this code.
+below. **Fourth increment (read-only tools) is on
+`feat/04-read-only-tools`, PR open, not merged** — see "Read-only
+tools," below. There is no real provider or recovery executor, and
+nothing in `bedoux_analytics_job` calls this code.
 
 ## Why this increment first
 
@@ -251,17 +251,117 @@ person, or a later evaluation step — not a path lookup. Other limits: key
 names containing `.`, `[`, or `]` can't be cited; a real value that
 happens to be the string `[REDACTED]` is treated as redacted.
 
+## Read-only tools (fourth increment)
+
+`tools.investigate_with_tools(fields, provider, log, fixtures)` lets the
+provider ask for a tool instead of reporting. It's `investigate` with a
+bounded loop; `call_model` and `investigate` still offer no tools, and a
+tool request sent to them is just a `malformed_response`.
+
+**The tools** read local synthetic fixtures that the caller passes in
+(a dict), never the workspace:
+
+- `read_gate_status(source)`: that source's `gate_status` rows.
+- `read_quarantine_sample(source, limit=5)`: up to 5 quarantined rows
+  (`limit` must be 1–5; anything else is refused as
+  `invalid_tool_args` and the tool doesn't run).
+- `read_evidence_log(source)`: that source's `gate_evidence_log` rows.
+
+A model asks with `{"tool_request": {"tool": "...", "args": {...}}}`.
+
+**The allowlist decides, in code.** `ALLOWED_TOOLS` is a fixed
+`frozenset` of those three names. `execute_tool_request` checks it before
+anything else, and a name that isn't in it exactly is refused with
+`tool_not_allowed` and never executed. That covers restore, replay,
+deploy, write, and delete requests, and also near-misses like
+`READ_GATE_STATUS` or a trailing space. The model-supplied name is only
+compared against the set, never looked up with `getattr` or `globals`,
+and nothing in a response can add to it. Arguments are checked against
+each tool's fixed signature (`invalid_tool_args`). A refused request is
+still recorded in the incident log as evidence, and the model is told it
+was refused. There is no recovery tool at all; "recovery refused in code"
+means any request for one hits the allowlist.
+
+**Tool results are gated like the first payload.** A result is new
+evidence going to the model, so the next payload — the original evidence
+plus every tool result so far — goes through `prepare_payload` again:
+redaction, the gate, and the final serialized check. A sensitive field in
+a quarantined row (`ssn`) is redacted and sent. A result carrying the
+canary or a copied secret is blocked, not sent: the investigation stops
+as `pending` with `tool_result_blocked` plus the gate's code. A tool
+request echoing a secret is refused by `send_payload` as
+`tool_request_leak` before it's recorded.
+
+**The loop is bounded.** At most `MAX_TOOL_CALLS = 3` tool calls per
+investigation, refused ones included. A fourth request is recorded as
+`not_run` and the incident ends `pending` with `tool_limit_reached`.
+
+**What's recorded.** Each tool call is a `tool_call` event in the
+incident log. It holds the screened request, a status (`ran`, `refused`,
+`failed`, `blocked`, `not_run`), fixed reason codes, and — only if the
+result passed the gate — the checked payload that carried it. The log
+never holds a raw result or the raw fields.
+
+**What the tests prove** (`tests/test_tools.py`, 25 tests; 249 repo-wide;
+fake provider and fake tools only):
+- An allowed tool runs once with the requested arguments. Its result
+  reaches the model inside the checked payload, the log stores that exact
+  payload, and a report citing the result is `reported`.
+- Eight names off the allowlist — five recovery-style tools plus three
+  near-misses — are refused and never executed, even though a recording
+  implementation with that name is present. The request is logged.
+- Bad arguments are refused without executing the tool, including a
+  sample `limit` of -1, 0, 6, or 50. A `limit` of -1 once got through:
+  the cap was `rows[:min(limit, 5)]`, so -1 sliced `rows[:-1]` and
+  returned every row but the last (39 of 40).
+- A tool result carrying the canary, or a secret copied into another
+  field, is blocked. The provider is called once, never with the result,
+  and neither value reaches the log. A sensitive field in a result is
+  redacted, not stored raw.
+- Ten tool requests stop after three executions and four provider calls.
+  Refused requests count toward the limit.
+- Checked by mutation: dropping `read_gate_status` from the allowlist
+  fails the allowed-tool test (and the limit test, which uses it).
+  Removing the allowlist check fails all eight refusal cases. Sending tool
+  results redacted but not gated fails both blocked-result cases.
+  Removing the limit fails both limit tests. Going back to `min()`
+  without the range check fails all four out-of-range `limit` cases.
+
+**What this doesn't prove:**
+- **No real model has ever chosen a tool.** Every tool request in these
+  tests is scripted, so nothing here shows a model would ask for the
+  right tool, respect a refusal, or produce a sensible investigation.
+- The tools read in-memory fixtures shaped like `gate_status`,
+  quarantine, and `gate_evidence_log` rows. They have never read the
+  workspace, so nothing here shows the real tables' contents, sizes, or
+  permissions.
+- Read-only holds because the three functions only filter a dict. It is
+  not enforced by a database permission; a real tool reading Delta would
+  need a read-only identity for that.
+- The allowlist is a same-process check. Like `CheckedPayload`, it stops
+  mistakes and model requests, not hostile code in the process.
+- A tool call is recorded after it runs, so a process death during a
+  tool leaves the incident pending with no record of that call.
+- Prompt injection through tool results (instructions hidden in a row)
+  isn't tested; chapter 06 covers adversarial evaluation.
+
 ## Chapter 04 acceptance, mapped
 
 | Roadmap criterion | Status |
 | --- | --- |
 | Reports identify evidence and uncertainty | Implemented locally (third increment): `uncertainty` and `citations` are required, and every citation must resolve to non-redacted evidence in the sent payload. Checks that citations exist, not that they support the claim. |
 | Sensitive raw rows do not enter prompts | Implemented for this call site: gate + final payload check, tested with a fake. |
-| Recovery requires the defined approval | Not started. `proposed_recovery` is text only; nothing executes it. |
+| Recovery requires the defined approval | Partly (fourth increment, not merged): no recovery can run at all, because only three read-only tools are allowlisted and any other tool request is refused in code. `proposed_recovery` is text only. No approval path exists yet. |
 | Replay does not duplicate accepted records | Not started. |
 | Model failure leaves a visible pending incident | Implemented locally (second increment): the incident is saved before the call and stays `pending` through timeouts, errors, malformed responses, and process death. Fake provider only. |
 | Before/after business metric | Not started. |
-| Offline fixtures separate from live model runs | Holds trivially: there are no live runs. |
+| Offline fixtures separate from live model runs | Holds trivially: there are no live runs. Tools read in-memory synthetic fixtures. |
 
-Next increment, not authorized yet: a bounded read-only tool set with
-recovery denied by code.
+**What chapter 04 still needs**, none of it authorized:
+- A live run. That needs a real provider, which stays deliberately
+  deferred (see
+  [known-gaps.md](../known-gaps.md#chapter-04s-runtime-model-provider-is-deliberately-not-built)).
+  Until then, no real model has produced a report or chosen a tool.
+- Tools that read the real tables, with a read-only identity.
+- An approval path for recovery, and replay without duplicates.
+- The before/after business metric.

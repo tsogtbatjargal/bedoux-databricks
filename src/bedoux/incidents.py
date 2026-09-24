@@ -28,6 +28,7 @@ from . import model_call
 
 OPENED = "opened"
 OUTCOME = "outcome"
+TOOL_CALL = "tool_call"
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ class Incident:
     status: str  # model_call.PENDING until an outcome is recorded
     reason_codes: tuple = ()
     report: dict | None = None  # only for REPORTED
+    tool_calls: tuple = ()  # dicts, in order; see IncidentLog.record_tool_call
 
 
 class IncidentLog:
@@ -71,6 +73,23 @@ class IncidentLog:
             "report": outcome.report if outcome.status == model_call.REPORTED else None,
         })
 
+    def record_tool_call(self, incident_id, request, status, reason_codes,
+                         evidence_payload=None):
+        """Record a tool request and what happened to it (tools.py). The
+        request was screened by send_payload before it got here.
+        `evidence_payload` is the checked payload that carried the result to
+        the model -- None if the tool didn't run or its result was blocked,
+        so a raw result is never stored."""
+        self._append({
+            "event": TOOL_CALL,
+            "incident_id": incident_id,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "request": request,
+            "status": status,
+            "reason_codes": list(reason_codes),
+            "evidence_payload": evidence_payload,
+        })
+
     def load(self):
         """Replay the file into {incident_id: Incident}. A line that doesn't
         parse is skipped: a crash mid-write leaves a torn last line, and the
@@ -95,7 +114,16 @@ class IncidentLog:
                     incidents[incident_id] = Incident(
                         incident_id, opened.opened_ts, opened.evidence_payload,
                         event["status"], tuple(event["reason_codes"]),
-                        event.get("report"),
+                        event.get("report"), opened.tool_calls,
+                    )
+                elif event.get("event") == TOOL_CALL and incident_id in incidents:
+                    current = incidents[incident_id]
+                    call = {k: event[k] for k in
+                            ("request", "status", "reason_codes", "evidence_payload")}
+                    incidents[incident_id] = Incident(
+                        incident_id, current.opened_ts, current.evidence_payload,
+                        current.status, current.reason_codes, current.report,
+                        current.tool_calls + (call,),
                     )
         return incidents
 
