@@ -247,8 +247,10 @@ def test_the_comparison_on_scripted_fakes():
     nothing about Jev or a real reasoning model. They pin the harness's
     arithmetic, including a negative result: the classifier route dismisses
     h07, the embedded instruction, which is a severe miss."""
+    # instruction_rule=False: chapter 05's rules, so its recorded numbers
+    # stay reproducible. Chapter 06's rule is scored in test_boundaries.py.
     results = {s: routing.evaluate(HELD_OUT, s, classifier=ScriptedModel(CLASSIFIER),
-                                   reasoner=ScriptedModel(REASONER))
+                                   reasoner=ScriptedModel(REASONER), instruction_rule=False)
                for s in STRATEGIES}
     pick = ("severe_misses", "false_alerts", "correct_labels", "escalations", "to_human",
             "classifier_calls", "reasoning_calls", "est_cost_units")

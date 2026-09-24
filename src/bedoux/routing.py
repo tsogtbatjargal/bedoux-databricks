@@ -26,6 +26,10 @@ Rules the models can't override:
   dismissed by a model either: a "healthy" answer goes to a person
   (`unrecognized_evidence`). Dismissal is the one outcome nobody looks at
   again, so it needs the rules to have understood the evidence.
+- Instruction-like text anywhere in the evidence (boundaries.py, chapter
+  06) is a severe signal too: `instruction_in_evidence`, labelled
+  suspicious_instruction by the rules. It's a regex flag and easy to evade;
+  see boundaries.py for what it does and doesn't catch.
 - Unknown / low-confidence / invalid / unavailable never becomes a
   dismissal; with nothing better, it goes to a human.
 - Routing decides where an incident goes. It never approves recovery
@@ -38,7 +42,7 @@ not measured at all offline. Only fakes exist for both models.
 
 from dataclasses import dataclass
 
-from . import model_call
+from . import boundaries, model_call
 from .model_call import CLASSIFIED
 
 LABELS = ("data_quality", "sensitive_data", "suspicious_instruction", "healthy")
@@ -110,6 +114,8 @@ def recognized(fields):
 
 
 def _rules_label(fields, severe_codes):
+    if severe_codes == (boundaries.INSTRUCTION_IN_EVIDENCE,):
+        return "suspicious_instruction"
     if severe_codes:
         return "data_quality"
     if fields.get("gate_passed") is True and fields.get("conserved") is True:
@@ -155,10 +161,16 @@ def _finish(label, severe_codes, codes, calls, known_shape=True):
     return Route(label, RUNBOOK, tuple(codes), tuple(calls))
 
 
-def route(fields, strategy, *, classifier=None, reasoner=None, timeout_s=30.0):
+def route(fields, strategy, *, classifier=None, reasoner=None, timeout_s=30.0,
+          instruction_rule=True):
+    """`instruction_rule=False` reproduces chapter 05's rules exactly, so
+    its recorded comparison stays reproducible. Nothing else should turn it
+    off."""
     if strategy not in STRATEGIES:
         raise ValueError("unknown strategy")
     severe_codes = rule_signals(fields)
+    if instruction_rule:
+        severe_codes += boundaries.instruction_signals(fields)
     known_shape = recognized(fields)
 
     payload, gate_codes = model_call.prepare_payload(fields)
@@ -185,12 +197,13 @@ def route(fields, strategy, *, classifier=None, reasoner=None, timeout_s=30.0):
     return _finish(label, severe_codes, codes, calls, known_shape)
 
 
-def evaluate(cases, strategy, *, classifier=None, reasoner=None):
+def evaluate(cases, strategy, *, classifier=None, reasoner=None, instruction_rule=True):
     """Score one strategy on labelled cases: [{"case_id", "fields",
     "expected_label", "severe"}]. With fake models, these numbers describe
     the fakes' scripted answers and this harness -- nothing about Jev or a
     real reasoning model."""
-    routes = [route(c["fields"], strategy, classifier=classifier, reasoner=reasoner)
+    routes = [route(c["fields"], strategy, classifier=classifier, reasoner=reasoner,
+                    instruction_rule=instruction_rule)
               for c in cases]
     n = len(cases)
     classifier_calls = sum(r.calls.count("classifier") for r in routes)

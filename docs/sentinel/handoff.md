@@ -6,7 +6,8 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–05 are integrated into `main`. **310 tests pass on `main`.**
+Chapters 00–05 are integrated into `main`. **310 tests pass on `main`; 339 on
+`series/06-agent-boundaries`.**
 Posts for chapters 00–05 are drafted, none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -75,38 +76,58 @@ hand.
   See [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md#closing-decision)
   and [known-gaps.md](known-gaps.md#chapter-05s-comparison-is-a-harness-without-a-result).
 
+- **Chapter 06, first step: on `series/06-agent-boundaries`, PR #26 open,
+  not merged** (merging deploys: it changes `src/**`).
+  - Instructions inside evidence are data, never commands. Tests put the
+    instruction in evidence and tool results and show it can't dismiss an
+    incident, add a tool, approve or trigger a recovery, or clear a
+    failed gate.
+  - New `src/bedoux/boundaries.py`: a regex flag, `instruction_in_evidence`,
+    made a severe, non-dismissable routing signal. It's easy to evade
+    (paraphrase, another language, split fields) and was written after
+    seeing `h07` and `t04`; the doc says so.
+  - `h07` is no longer dismissed under any route. The classifier route
+    still labels it `healthy` but sends it to a person.
+  - Chapter 05's held-out set, hash, and numbers are unchanged. Its
+    comparison test now passes `instruction_rule=False`, which
+    reproduces chapter 05's rules; the chapter 06 result is recorded
+    separately.
+  - 29 new tests (339 total), each mutation-checked.
+  - Criterion map in
+    [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md).
+    Not built yet, offline: an explicit prohibited-action list (export,
+    delete, grant) and an audit record of routing decisions.
+
 [known-gaps.md](known-gaps.md) is current.
 
 ## Branches and PRs
 
-Remote branches: `main`, `docs/05-close-and-post` (merged), and the six
-retained chapter branches
+Remote branches: `main`, the six retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
-`series/04-investigate-recover`, `series/05-jev-routing`). The chapter
-05 branch was kept after PR #24 merged, like the others; GitHub's
-delete-head-branch-on-merge setting is off. See
+`series/04-investigate-recover`, `series/05-jev-routing`), and
+`series/06-agent-boundaries` (chapter 06, PR open). The merged working
+branch `docs/05-close-and-post` was deleted locally and on the server
+after confirming it in `git branch -r --merged origin/main`. See
 [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main`, plus the merged working branch
-`docs/05-close-and-post` (PR #25, merge `f61f4be`). It also exists on the
-server; deleting it wasn't authorized, so both copies remain. `series/04-investigate-recover` (`864876b`)
-and `series/05-jev-routing` (`4196330`) were deleted locally with `git
-branch -d` after branch-workflow.md's checks passed: each exists on the
-server, its local tip equalled the remote tip, and it's an ancestor of
-`main` and `origin/main`. Their remote branches are untouched.
+Local branches: `main` and `series/06-agent-boundaries`.
 
-**No open PRs.**
+**Open PR:** #26, chapter 06's first step, from `series/06-agent-boundaries`.
+Not merged. Wait for Unit tests to pass on the PR head before any merge,
+docs-only PRs included; PR #25 merged before its checks finished.
 
 ## Exact next useful task
 
-**Chapter 06 ("Establish rules of command", `series/06-agent-boundaries`)
-is next. It is not authorized.** Start it from integrated `main` per
-branch-workflow.md, and read its roadmap entry first. Its natural first
-case is chapter 05's known gap: routing dismisses an embedded instruction
-(`h07`) that no rule recognises (see
-[known-gaps.md](known-gaps.md#routing-can-dismiss-an-instruction-no-rule-recognises)).
+Review chapter 06's first-step PR. Merging it deploys and is not
+authorized. After it, offline chapter 06 work that could follow, none of
+it authorized:
+- an explicit prohibited-action list at the executors, with its own
+  refusal code;
+- writing routing decisions to the incident log as an audit record
+  (codes only, no evidence text);
+- a failure analysis written from the fakes, labelled that way.
 
 Still deferred and not authorized: the live provider work for chapters
-04 and 05 (a Jev access path, a reasoning model, frozen versions, a
-spend cap), publishing any post, and tagging.
+04–06 (a Jev access path, a reasoning model, frozen versions, a spend
+cap), publishing any post, and tagging.
