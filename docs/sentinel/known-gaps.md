@@ -238,3 +238,16 @@ Covering this gap in the post or video version, rather than building it,
 is the plan — spend the demonstration budget on showing the boundary
 holds under a fake provider's timeouts and malformed responses, not on
 proving a real vendor's API works.
+
+**What this leaves deferred, now that chapter 04 is closed.** The user
+closed chapter 04 as acceptance-complete at code level, not demonstrated
+live. Two things are deliberately deferred together because both need a
+real provider: the live run, and the roadmap's "record the before/after
+business metric." A metric computed from fixtures would be invented, not
+measured. Also not built, as scope rather than acceptance criteria:
+- tools that read the real tables (they read in-memory fixtures);
+- a real recovery executor (only test fakes exist);
+- an approver identity behind `approve_recovery`'s name string.
+
+See
+[chapters/04-investigate-recover.md](chapters/04-investigate-recover.md#roadmap-acceptance-mapping).

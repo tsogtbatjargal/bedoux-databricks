@@ -2,7 +2,14 @@
 
 Strategic theme: respond and adapt (see [README.md](../README.md)).
 
-Status: **first increment integrated into `main`** (PR #18, merge
+Status: **acceptance-complete at code level, not demonstrated live** —
+the user's decision after all five increments merged. Five criteria are
+met at code level and one holds trivially. The before/after business
+metric and the live run are deliberately deferred together, because both
+need a real provider. See "Roadmap acceptance mapping," at the end. No
+real model has been called, and nothing has run against the real tables.
+
+Increments: **first increment integrated into `main`** (PR #18, merge
 `b347a1c`, the eighth CI deployment: `Resources: 0 created, 0 changed, 0
 deleted, 8 unchanged`, `Files: 70 uploaded, 0 deleted`). It builds the
 guarded model-call path with an injected fake provider. **Second increment
@@ -16,9 +23,10 @@ below. **Fourth increment (read-only tools) integrated** (PR #22, merge
 `3fa08a9`, the eleventh CI deployment: `Resources: 0 created, 0 changed,
 0 deleted, 8 unchanged`, `Files: 74 uploaded, 0 deleted`) — see
 "Read-only tools," below. **Fifth increment (recovery approval and
-duplicate-free replay) is on `feat/04-recovery-approval`, PR open, not
-merged** — see "Recovery approval and replay," below. Per-criterion
-status is in "Roadmap acceptance mapping," at the end. There is no real
+duplicate-free replay) integrated** (PR #23, merge `c9b9815`, the twelfth
+CI deployment: `Resources: 0 created, 0 changed, 0 deleted, 8
+unchanged`, `Files: 77 uploaded, 0 deleted`) — see "Recovery approval
+and replay," below. There is no real
 provider and no real recovery executor (only test fakes), and nothing in
 `bedoux_analytics_job` calls this code.
 
@@ -512,18 +520,16 @@ metric. Keep offline fixtures separate from live model runs." Per
 criterion, using four states: **met at code level** (with the test that
 proves it), **met live**, **not built**, or **deliberately deferred**. No
 criterion is met live, because no real model has ever been called. This
-section lays the chapter out; it doesn't decide what closes it. The
-recovery and replay rows reflect the fifth increment, which is in review,
-not merged.
+section lays the chapter out; the closing decision is at its end.
 
 | Roadmap criterion | State | Proof or gap |
 | --- | --- | --- |
 | Reports identify evidence and uncertainty | Met at code level | `test_citations_that_resolve_in_the_sent_payload_are_reported`, `test_a_citation_that_does_not_resolve_in_the_payload_is_refused`, `test_citations_resolve_against_what_was_sent_not_the_original_fields`; a missing or blank `uncertainty` is refused in `test_malformed_response_is_pending`. Proves citations exist in what was sent, not that they support the claim. |
 | Sensitive raw rows do not enter prompts | Met at code level | `test_canary_blocks_with_zero_provider_calls`, `test_copied_secret_blocks_with_zero_provider_calls`, `test_final_serialized_check_catches_what_the_dict_gate_cannot`, `test_sent_payload_is_exactly_the_redacted_serialization`; for tool results, `test_a_tool_result_carrying_the_canary_or_a_secret_is_blocked_not_sent` and `test_a_tool_result_with_a_sensitive_field_is_redacted_not_raw`. Bounded by `evidence.py`'s own limits: a sensitive value under an unrecognized key name, in freeform text, or too short or non-string, isn't caught (see [known-gaps.md](../known-gaps.md#freeform-sensitive-text-with-no-recognized-marker-is-invisible-to-evidencepy)). |
-| Recovery requires the defined approval | Met at code level (fifth increment, not merged) | The approval is defined in "The defined approval," above. `test_no_approval_means_no_execution`, the four mismatch tests (incident, action, payload, stale payload), `test_a_used_approval_is_refused`, and `test_a_model_proposal_cannot_approve`. The model can't reach recovery through tools either (`test_a_tool_off_the_allowlist_is_refused_and_never_executed`). Only fake executors exist, and the approver's identity isn't verified. |
-| Replay does not duplicate accepted records | Met at code level, offline (fifth increment, not merged) | `test_replaying_the_same_batch_twice_duplicates_nothing`, `test_a_replay_whose_rows_shift_position_still_duplicates_nothing`, and `test_fault_then_restore_then_replay_leaves_each_lead_once`, keyed on `lead_id` against an in-memory store. An approved replay retried runs once (`test_an_approved_replay_retried_runs_once_and_duplicates_nothing`). Proves nothing about Spark/DLT. Chapter 03's `gate_evidence_log` retry duplicate is a separate gap and still open. |
+| Recovery requires the defined approval | Met at code level | The approval is defined in "The defined approval," above. `test_no_approval_means_no_execution`, the four mismatch tests (incident, action, payload, stale payload), `test_a_used_approval_is_refused`, and `test_a_model_proposal_cannot_approve`. The model can't reach recovery through tools either (`test_a_tool_off_the_allowlist_is_refused_and_never_executed`). Only fake executors exist, and the approver's identity isn't verified. |
+| Replay does not duplicate accepted records | Met at code level, offline | `test_replaying_the_same_batch_twice_duplicates_nothing`, `test_a_replay_whose_rows_shift_position_still_duplicates_nothing`, and `test_fault_then_restore_then_replay_leaves_each_lead_once`, keyed on `lead_id` against an in-memory store. An approved replay retried runs once (`test_an_approved_replay_retried_runs_once_and_duplicates_nothing`). Proves nothing about Spark/DLT. Chapter 03's `gate_evidence_log` retry duplicate is a separate gap and still open. |
 | Model failure leaves a visible pending incident | Met at code level | `test_process_death_during_the_call_leaves_a_pending_incident` (a real subprocess dies mid-call), `test_outcome_is_recorded_against_the_incident` (timeout, provider error, malformed response), `test_restart_keeps_earlier_incidents`; bounded tool loops end `pending` too (`test_the_call_limit_stops_the_loop`). Process death only, not a machine crash. |
-| Record the before/after business metric | Deliberately deferred, with the live run | No metric is chosen or measured. A before/after number from fixtures would be invented, not measured. |
+| Record the before/after business metric | Deliberately deferred, with the live run | No metric is chosen or measured. A before/after number from fixtures would be invented, not measured. It needs a real provider, like the live run; the user will cover both in the post or video instead of building them. |
 | Keep offline fixtures separate from live model runs | Holds trivially | Everything is offline: a fake provider and in-memory synthetic fixtures. There is no live run to keep separate yet, so this says nothing about how the separation would be done. |
 
 The roadmap's scope sentence adds two things that aren't acceptance
@@ -534,18 +540,89 @@ is **partly built**: three tools cover quality results (`gate_status`,
 quarantine samples, the evidence log). None covers contracts, runbooks,
 or job status.
 
-**Where the handoff's open items fall:**
+**Where the open items fall:**
 
 | Open item | State | Criteria it affects |
 | --- | --- | --- |
 | Live run | Deliberately deferred: it needs a real provider, and the user chose not to build one. | It would move the code-level criteria toward met live, and make the offline/live separation meaningful. No criterion requires it by wording. |
 | Real-table reads | Not built. Tools read in-memory fixtures; real reads would need a read-only identity and a workspace call. | None directly. It's scope ("bounded tools"), and it would strengthen the sensitive-rows criterion by testing real row shapes. |
-| Recovery approval path | Built at code level, with fake executors (fifth increment, in review). | Recovery requires the defined approval. |
-| Replay without duplicates | Built at code level, offline, against an in-memory store (fifth increment, in review). | Replay does not duplicate accepted records. |
+| Recovery approval path | Met at code level, with fake executors (PR #23). | Recovery requires the defined approval. |
+| Replay without duplicates | Met at code level, offline, against an in-memory store (PR #23). | Replay does not duplicate accepted records. |
 | Before/after business metric | Deliberately deferred with the live run. | Record the before/after business metric. |
 
-**The decision left to the user:** if the fifth increment merges, five
-criteria are met at code level and one holds trivially. The business
-metric is deliberately deferred with the live run, and none is met live.
-This doc doesn't decide whether chapter 04 closes at code level the way
-chapter 03 did, or waits for a live run.
+**Chapter 04 is acceptance-complete at code level, not demonstrated
+live.** This was the user's decision, made after PR #23 merged:
+- Five criteria are met at code level: evidence and uncertainty,
+  sensitive rows, recovery approval, replay, and pending incident.
+- The offline/live separation holds trivially.
+- The before/after business metric and the live run are deliberately
+  deferred together. Both need a real provider, which the user will
+  cover in the post or video instead of building.
+
+None of this is demonstrated live. No real model has been called, no
+real executor exists, and no tool has read a real table. It is the same
+level at which chapter 03 closed.
+
+## Draft status
+
+Chapter 04 is closed at code level, so this draft describes a finished
+chapter at that level. Like chapter 03's, it must say plainly that no
+real model has been called and that nothing has run against the real
+tables. Drafting is not publishing.
+
+## LinkedIn draft
+
+Chapter 04 of Bedoux Sentinel lets a model investigate a data incident.
+Most of the code is about what the model is not allowed to do.
+
+The model only sees evidence after chapter 03's gate has redacted and
+checked it. It can answer in two ways: a report, or a request for a
+tool. A report only counts if every citation points at a value it was
+actually sent, not a redacted one. A tool only runs if its name is on a
+fixed list of three read-only tools, and whatever the tool returns goes
+back through the same gate before the model sees it. A request to
+restore, replay, or deploy is refused and written to the incident log.
+
+Recovery is a separate path the model can't reach. A person records an
+approval tied to one incident, one action, and a hash of the exact
+evidence they reviewed. It works once, and it goes stale if new evidence
+arrives. A report that says "APPROVED" and invents an approval id is
+still just text in a report. Model output is evidence, not permission.
+
+Replay merges accepted leads by `lead_id`, so running the same batch
+twice leaves each lead once.
+
+That's 273 unit tests, the important ones checked by breaking the code
+on purpose. Review still found a gap: a sample limit of -1 returned 39 of
+40 rows instead of at most five.
+
+What isn't proven: no real model has been called, and nothing has run
+against the real tables. The provider is a test fake by choice, so the
+before/after business metric waits for a live run that isn't planned.
+
+## Before posting
+
+- Have the author edit any sentence that doesn't sound like them.
+- Decide whether to mention AI assistance. The implementation was
+  written with Claude Code under the author's direction and review
+  (writing.md: "Mention AI assistance when relevant").
+- Suggested visual: two incident-log lines from a test run: a refused
+  `tool_call` for `restore_source` (`tool_not_allowed`), and a refused
+  `recovery_requested` (`no_approval`). They're synthetic test output
+  and should be labeled that way.
+- Every number traces to this file or the tests:
+  - 273 tests (`uv run --locked python -m pytest -q` on `main` after
+    PR #23).
+  - Three read-only tools and a five-row sample cap ("Read-only tools").
+  - 39 of 40 rows for `limit=-1` ("What the tests prove," read-only
+    tools).
+  - No cost, incident, metric, or quote is claimed.
+- No `post/04-investigate-recover` tag exists. Tagging is a separate,
+  authorized publication step. Until then, the verifiable references are
+  PRs #18 (`b347a1c`), #20 (`27e20c1`), #21 (`8f9d1f5`), #22 (`3fa08a9`),
+  and #23 (`c9b9815`), plus this chapter doc on `main`. Add the tag and
+  update this note with the permalink before publishing.
+- Keep this draft unpublished until the user requests publication; no
+  assistant posts it automatically. The post must keep saying that no
+  real model has been called and nothing has run against the real
+  tables.

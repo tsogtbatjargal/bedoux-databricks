@@ -36,15 +36,16 @@ deployed with its post still unpublished):
 - **Integrated, not yet demonstrated live**: chapter 01 ("Know your
   platform") — the platform/threat map. See
   [chapters/01-know-your-platform.md](chapters/01-know-your-platform.md).
-- **In progress**: chapter 04 ("Investigate and recover") — first
-  increment integrated: the guarded model-call path with a fake provider.
-  Second increment integrated too: a local incident log saved before each
-  model call. Third increment integrated too: report citations checked
-  against what was sent. Fourth increment integrated: read-only tools,
-  recovery refused in code. Fifth increment (recovery approval,
-  duplicate-free replay) is in review, not merged. None of the criteria
-  is met live; closing the chapter is the user's decision.
-  See [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
+- **Integrated into `main`, acceptance-complete at code level, not
+  demonstrated live**: chapter 04 ("Investigate and recover"). It has
+  five increments: a guarded model-call path, a local incident log,
+  report citations, read-only tools with recovery refused in code, and
+  approved recovery with duplicate-free replay. All run against a fake
+  provider and synthetic fixtures. The before/after business metric and
+  the live run are deliberately deferred together, because both need a
+  real provider. No real model has been called, and nothing has run
+  against the real tables. See
+  [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
 - **Planned**: chapters 05–07.
 
 The story follows one campaign batch through validation, evidence handling,
@@ -76,7 +77,7 @@ The final video brings those pieces together.
 - [Chapter 01: Know your platform](chapters/01-know-your-platform.md): the platform/threat map.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
 - [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test; acceptance-complete at code level.
-- [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): in progress — the guarded model-call path (fake provider only) is integrated.
+- [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): guarded model call, incident log, cited reports, read-only tools, approved recovery, and replay — acceptance-complete at code level, fake provider only, not demonstrated live.
 
 ## Docs lifecycle
 

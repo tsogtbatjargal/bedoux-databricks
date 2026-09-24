@@ -43,7 +43,7 @@ data quality, sensitive-data handling, and agent-assisted incident
 investigation. The theme comes from applying ideas in *The Art of War* to a
 modern data platform.
 
-**Chapters 00–03 are integrated into `main`.** Chapter 02 ("Defend before
+**Chapters 00–04 are integrated into `main`.** Chapter 02 ("Defend before
 damage spreads," the publication gate) is deployed and demonstrated live —
 a full fault → restore → replay sequence against the real workspace, review-
 closed against two follow-on findings. Chapter 03 ("Protect what matters")
@@ -52,8 +52,12 @@ implemented and unit-tested, guards an append-only evidence log confirmed
 live, and — since chapter 04's first increment — a model-call site that
 refuses to call its provider when the check fails. That last part is unit-
 tested against a fake provider only; no evidence has been sent to a real
-model, by design. Chapter 04 ("Investigate and recover") is in progress;
-chapters 05–07 are planned. Build status is tracked
+model, by design. Chapter 04 ("Investigate and recover") is also
+acceptance-complete at code level, not demonstrated live. It covers a
+guarded model call, an incident log, cited reports, read-only tools, and
+approved recovery with duplicate-free replay, all against a fake provider
+and synthetic fixtures. Its before/after business metric and live run are
+deliberately deferred. Chapters 05–07 are planned. Build status is tracked
 separately from publication status: **no chapter's post has been published
 yet**, including chapter 02's, even though it's fully demonstrated. Each
 chapter keeps its own retained remote branch as a stable reference; working/

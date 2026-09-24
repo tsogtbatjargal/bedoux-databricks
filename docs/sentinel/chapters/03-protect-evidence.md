@@ -28,7 +28,8 @@ provider or a real job).
 
 Chapter 02 closed a gap in *whether* the pipeline publishes bad data.
 Chapter 03 is about a different boundary: *what leaves the process* once an
-agent (chapter 04's job runtime, not built yet) starts building evidence
+agent (chapter 04's investigation service, since built at code level with a
+fake provider) starts building evidence
 packets from pipeline data to hand to a model. The roadmap's acceptance
 criteria for this chapter: explicitly fictional sensitive fields in isolated
 fixtures, an evidence packet that strips sensitive values before any model
