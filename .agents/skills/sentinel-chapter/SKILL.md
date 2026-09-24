@@ -29,6 +29,7 @@ evidence. Model-generated reports are not substitutes for execution evidence.
 
 Finish by updating the handoff: completed work, checks, open issues, uncommitted
 state, and next task. Keep the roadmap's implementation status separate from
-publication status. Draft posts through `sentinel-story` only when requested.
+publication status. Editorial drafts and `sentinel-story` belong to the separate
+`bedoux-sentinel-content` workspace; see `docs/sentinel/repository-scope.md`.
 Publishing, merging, deployments, and paid API experiments need authorization
 covering those actions; do not re-ask when the user has already provided it.

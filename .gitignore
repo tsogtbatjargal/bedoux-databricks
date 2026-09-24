@@ -1,5 +1,9 @@
 .databricks/
 .claude/settings.local.json
+# Personal assistant preferences; shared instructions and skills stay tracked.
+/.codex/config.toml
+AGENTS.local.md
+workspace.local.md
 .venv/
 __pycache__/
 *.pyc

@@ -1,4 +1,0 @@
-# Keep model choice, credentials, sandbox and approvals in the user's settings.
-# A moderate reasoning budget is the starting point for ordinary chapter work;
-# use the model picker or a CLI override when a task needs more.
-model_reasoning_effort = "medium"

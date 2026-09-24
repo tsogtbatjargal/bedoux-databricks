@@ -49,9 +49,10 @@ requests simultaneous implementations. Reviewers report findings before editing.
 Jev is optional advisory classification; its absence must not block local work.
 See `docs/sentinel/agent-setup.md` for invocation and review prompts.
 
-Use `sentinel-chapter` for chapter implementation/review/handoff and
-`sentinel-story` for posts and demo scripts. Claude adapters load the same skill
-bodies as Codex. Read only the references needed for the current task.
+Use `sentinel-chapter` for technical implementation, review and handoff.
+Claude's adapter loads the same shared skill body as Codex. Keep editorial work
+in the separate `bedoux-sentinel-content` workspace, which owns `sentinel-story`.
+See `docs/sentinel/repository-scope.md`; do not add posts or narration here.
 
 ## Checks and context
 
@@ -65,5 +66,6 @@ bodies as Codex. Read only the references needed for the current task.
   require authorization covering the actual workspace action.
 - For documentation/configuration work, check links, syntax, skills, and diff
   whitespace. Do not add tests that merely restate prose.
-- Write plainly. Prefer a concrete problem, decision, result, and limitation to
-  slogans. Follow `docs/sentinel/writing.md` for public-facing material.
+- Write technical docs plainly: problem, decision, evidence and limitation.
+- Commit shared technical agent instructions and skills. Keep personal model
+  preferences, credentials and machine-local settings ignored.

@@ -83,10 +83,9 @@ the external call" criterion, which names a model-API call. That gated
 call site is chapter 04's `model_call.call_model`, tested against a fake
 provider only. It stays out of the ASCII
 diagram above as its own box because it's a sub-step inside
-`bedoux_gate_task`, not a new task — but both maintained diagrams now show
-it: `architecture.drawio`'s `gate2` cell names the sub-step in its label,
-and `architecture-context.svg`'s `bedoux-publication-gate` group and its
-accessibility `<desc>` do the same at that diagram's coarser detail. See
+`bedoux_gate_task`, not a new task. The technical `architecture.drawio`'s
+`gate2` cell names the sub-step in its label. The separate introductory SVG
+is maintained in the content workspace, outside this repo. See
 [`sentinel/chapters/03-protect-evidence.md`](sentinel/chapters/03-protect-evidence.md)
 for what it does and doesn't close.
 
