@@ -6,8 +6,9 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–03 are integrated into `main`, and so are chapter 04's four
-increments. **249 tests pass on `main`.** Posts for chapters 00–03 are drafted,
+Chapters 00–03 are integrated into `main`, and so are chapter 04's first
+four increments; the fifth is an open PR. **249 tests pass on `main`, 273
+on `feat/04-recovery-approval`.** Posts for chapters 00–03 are drafted,
 none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
@@ -70,12 +71,29 @@ none published, no tags.
   stops `pending` (`tool_limit_reached`). Each call is a `tool_call` event
   in the incident log, holding only the checked payload. 25 new tests.
   No real model has ever chosen a tool.
+- **Chapter 04, fifth increment: open PR from
+  `feat/04-recovery-approval`, not merged** (merging deploys).
+  - `src/bedoux/recovery.py` defines "the defined approval." There's a
+    fixed list of two actions, and executors are injected; only
+    recording test fakes exist.
+  - A human-side `approve_recovery` names the approver and binds one
+    incident, one action, and the SHA-256 of the incident's current
+    payload, for a single use. `execute_recovery` refuses anything else
+    with a fixed code and zero executor calls. A model's
+    `proposed_recovery` never counts as approval.
+  - `recovery_started` is fsynced before execution, so a retry runs at
+    most once.
+  - `src/bedoux/replay.py` merges accepted leads keyed on `lead_id`, so
+    replaying a batch twice leaves each lead once. This is offline and
+    in memory, not Spark or DLT.
+  - 24 new tests, each rule mutation-checked. Chapter 03's
+    `gate_evidence_log` retry duplicate is a different gap and still
+    open.
 - **Chapter 04 acceptance** is mapped per criterion in
   [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md#roadmap-acceptance-mapping).
-  Three criteria are met at code level: evidence and uncertainty,
-  sensitive rows, and pending incident. Offline/live separation holds
-  trivially. Three aren't built: recovery approval, replay without
-  duplicates, and the business metric. None is met live.
+  If the fifth increment merges, five criteria are met at code level and
+  the offline/live separation holds trivially. The business metric is
+  deliberately deferred with the live run. None is met live.
 
 **Left for the user, deliberately:** the diagrams. `architecture-context.svg`'s
 `<desc>` still says "no such call site exists yet in this project" — out of
@@ -94,23 +112,24 @@ brief — delete or archive it when the next chapter-04 increment starts
 Remote branches: `main`; the five retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
-`series/04-investigate-recover`). `feat/04-read-only-tools` was deleted
-locally and remotely after confirming it was merged into `origin/main`.
-See [branch-workflow.md](branch-workflow.md).
+`series/04-investigate-recover`); and the working branch
+`feat/04-recovery-approval` (the open PR). The local
+`docs/04-acceptance-mapping`, which had no commits beyond `main` and was
+never pushed, was deleted with `git branch -d`. See
+[branch-workflow.md](branch-workflow.md).
 
-Local branches: `main` and `series/04-investigate-recover`.
+Local branches: `main`, `series/04-investigate-recover`, and
+`feat/04-recovery-approval`.
 
-**No open PRs.**
+**One open PR:** chapter 04's fifth increment, from
+`feat/04-recovery-approval`. Not merged — merging deploys.
 
 ## Exact next useful task
 
-The user decides what closes chapter 04, using the acceptance mapping.
-The open items, none authorized:
+Review the recovery-approval PR and decide whether to merge it (a
+deployment). Then the user decides whether chapter 04 closes, using the
+acceptance mapping. The remaining items, none authorized:
 - Live run: deliberately deferred, since it needs a real provider.
-- Real-table reads: not built. This is scope, not an acceptance
-  criterion.
-- Recovery approval path: not built. Affects "recovery requires the
-  defined approval."
-- Replay without duplicates: not built. Affects "replay does not
-  duplicate accepted records."
-- Before/after business metric: not built. Affects its own criterion.
+- Before/after business metric: deferred with the live run.
+- Real-table reads and a real recovery executor: not built. Both are
+  scope, not acceptance criteria.
