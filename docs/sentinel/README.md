@@ -55,7 +55,12 @@ deployed with its post still unpublished):
   live three-way comparison is deliberately deferred with the other
   provider work. See
   [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md).
-- **Planned**: chapters 06–07.
+- **In progress**: chapter 06 ("Establish rules of command"). The first
+  step, on its chapter branch and not merged, shows that instructions
+  inside evidence can't dismiss an incident, add a tool, approve a
+  recovery, or clear a failed gate. Fake providers only. See
+  [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md).
+- **Planned**: chapter 07.
 
 The story follows one campaign batch through validation, evidence handling,
 investigation, and recovery. Each chapter adds something a reader can reproduce.
@@ -88,6 +93,7 @@ The final video brings those pieces together.
 - [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test; acceptance-complete at code level.
 - [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): guarded model call, incident log, cited reports, read-only tools, approved recovery, and replay — acceptance-complete at code level, fake provider only, not demonstrated live.
 - [Chapter 05: Spend intelligence carefully](chapters/05-spend-intelligence.md): routing with fake models through chapter 04's gate, a frozen held-out set, and a scoring harness — acceptance-complete at code level; the live comparison is deferred.
+- [Chapter 06: Establish rules of command](chapters/06-rules-of-command.md): in progress — instructions inside evidence are data, never commands.
 
 ## Docs lifecycle
 
