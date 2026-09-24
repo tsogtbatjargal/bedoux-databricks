@@ -46,9 +46,14 @@ deployed with its post still unpublished):
   real provider. No real model has been called, and nothing has run
   against the real tables. See
   [chapters/04-investigate-recover.md](chapters/04-investigate-recover.md).
-- **In progress**: chapter 05 ("Spend intelligence carefully"). The first
-  step is integrated: rules, a cheap classifier, and selective
-  escalation, all through chapter 04's gate, with fake models only. See
+- **Integrated into `main`, acceptance-complete at code level, not
+  demonstrated live**: chapter 05 ("Spend intelligence carefully"). Rules,
+  a cheap classifier, and selective escalation, all through chapter 04's
+  gate, with fake models only, plus a frozen held-out set and a scoring
+  harness. The chapter's central result is a measurement, so closing it
+  at code level means the harness exists but the result doesn't: the
+  live three-way comparison is deliberately deferred with the other
+  provider work. See
   [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md).
 - **Planned**: chapters 06–07.
 
@@ -82,7 +87,7 @@ The final video brings those pieces together.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
 - [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test; acceptance-complete at code level.
 - [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): guarded model call, incident log, cited reports, read-only tools, approved recovery, and replay — acceptance-complete at code level, fake provider only, not demonstrated live.
-- [Chapter 05: Spend intelligence carefully](chapters/05-spend-intelligence.md): in progress — routing with fake models through chapter 04's gate.
+- [Chapter 05: Spend intelligence carefully](chapters/05-spend-intelligence.md): routing with fake models through chapter 04's gate, a frozen held-out set, and a scoring harness — acceptance-complete at code level; the live comparison is deferred.
 
 ## Docs lifecycle
 
