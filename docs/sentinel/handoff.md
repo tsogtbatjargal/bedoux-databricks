@@ -87,19 +87,23 @@ Remote branches: `main` and the six retained chapter branches
 delete-head-branch-on-merge setting is off. See
 [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main`, `series/04-investigate-recover`, and
-`series/05-jev-routing`. The last two are merged and could be removed
-locally under branch-workflow.md's checks, but no branch deletion was
-authorized this session.
+Local branches: `main` only. `series/04-investigate-recover` (`864876b`)
+and `series/05-jev-routing` (`4196330`) were deleted locally with `git
+branch -d` after branch-workflow.md's checks passed: each exists on the
+server, its local tip equalled the remote tip, and it's an ancestor of
+`main` and `origin/main`. Their remote branches are untouched.
 
 **No open PRs.**
 
 ## Exact next useful task
 
-Chapter 05 continues. None of the following is authorized:
-- The live comparison needs real providers: a Jev access path and a
-  reasoning model, with frozen versions and a spend cap.
-- Offline follow-ups that could come first:
-  - wire the reasoning model's chapter 04 report into routing;
-  - add runbooks behind the labels;
-  - grow the held-out set, which only matters once real models exist.
+**Chapter 06 ("Establish rules of command", `series/06-agent-boundaries`)
+is next. It is not authorized.** Start it from integrated `main` per
+branch-workflow.md, and read its roadmap entry first. Its natural first
+case is chapter 05's known gap: routing dismisses an embedded instruction
+(`h07`) that no rule recognises (see
+[known-gaps.md](known-gaps.md#routing-can-dismiss-an-instruction-no-rule-recognises)).
+
+Still deferred and not authorized: the live provider work for chapters
+04 and 05 (a Jev access path, a reasoning model, frozen versions, a
+spend cap), publishing any post, and tagging.
