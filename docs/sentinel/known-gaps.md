@@ -311,3 +311,23 @@ deliberately left as they are:
 
 See
 [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md#honest-failure-analysis).
+
+## Chapter 07's end-to-end run is local; its live half is recorded, not rerun
+
+The user chose no new live runs for chapter 07. `scripts/full_demo.py`
+runs chapter 02's fault case through every control locally, with fake
+models, in-memory tools, and executors that change only local state. The
+Databricks half (the gate refusing leads at 32.8%, the append-only
+evidence row, the restore and replay) is backed by runs recorded in
+chapters 02 and 03, not by this run. Three gaps it makes visible:
+- **The live replay had no approval step.** Chapter 02's replay was an
+  operator rerunning the job; only the local replay is approved.
+- **Rules-only routing runs before the incident is opened.** `route()`
+  doesn't open an incident, so a routing decision made before
+  investigation isn't in the audit record, and routing through a model
+  first would call it before anything is saved.
+- **Redaction isn't in the end-to-end path.** This case holds no
+  sensitive field, and the roadmap's composed finale (all faults in one
+  batch) isn't built.
+
+See [chapters/07-full-demo.md](chapters/07-full-demo.md#whats-live-and-whats-fake).
