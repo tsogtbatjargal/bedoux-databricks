@@ -7,7 +7,7 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 ## Current state
 
 Chapters 00–04 are integrated into `main`. Chapter 05 has started on
-`series/05-jev-routing`, with an open PR. **273 tests pass on `main`, 301
+`series/05-jev-routing`, with an open PR. **273 tests pass on `main`, 310
 on `series/05-jev-routing`.** Posts for chapters 00–04 are drafted, none
 published, no tags.
 
@@ -59,8 +59,10 @@ hand.
     escalation.
   - Every model call goes through `prepare_payload` and `send_payload`,
     which gained an `expect="classification"` mode.
-  - Severe deterministic signals can't be dismissed. Unknown or
-    unusable classifier answers escalate.
+  - Severe deterministic signals can't be dismissed, in both the flat
+    and the `gate_evidence_log` shape. A model can't dismiss evidence
+    the rules don't recognise. Unknown or unusable classifier answers
+    escalate.
   - A frozen, synthetic held-out set (hash pinned) and a scoring harness.
   - Fake models only. Costs are relative *estimate* units, and latency
     isn't measured.
@@ -69,7 +71,7 @@ hand.
     labels, the unknown path, the frozen held-out set, non-dismissable
     signals, and the harness work offline. Every measurement, and the
     comparison itself, needs real providers.
-  - 28 new tests.
+  - 37 new tests.
   - Folded in: `evidence.py`'s module docstring now names `model_call.py`
     as its gated caller, and `claude-implementation.md` is deleted.
 

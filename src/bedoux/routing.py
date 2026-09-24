@@ -19,7 +19,13 @@ kind is called. There's no separate "lightweight" serialization.
 Rules the models can't override:
 - A severe deterministic signal (the publication gate failed, rows weren't
   conserved, or the evidence gate refused) is non-dismissable: whatever a
-  model says, the incident isn't dismissed.
+  model says, the incident isn't dismissed. rule_signals reads two shapes:
+  flat gate_status-style fields, and gate_evidence_log records (top-level
+  `passed`, per-source values under `sources[]`).
+- Evidence the rules don't recognise at all -- neither shape -- can't be
+  dismissed by a model either: a "healthy" answer goes to a person
+  (`unrecognized_evidence`). Dismissal is the one outcome nobody looks at
+  again, so it needs the rules to have understood the evidence.
 - Unknown / low-confidence / invalid / unavailable never becomes a
   dismissal; with nothing better, it goes to a human.
 - Routing decides where an incident goes. It never approves recovery
@@ -66,21 +72,51 @@ class Route:
     severe: bool = False
 
 
+def _source_entries(fields):
+    sources = fields.get("sources")
+    if not isinstance(sources, list):
+        return []
+    return [entry for entry in sources if isinstance(entry, dict)]
+
+
 def rule_signals(fields):
-    """Deterministic severe signals from the evidence itself. `is False`,
+    """Deterministic severe signals from the evidence itself, in either
+    shape: flat gate_status-style fields, or a gate_evidence_log record
+    (top-level `passed`, per-source values under `sources[]`). `is False`,
     not falsiness: a missing field is not a signal either way."""
     codes = []
     if fields.get("gate_passed") is False:
         codes.append("gate_failed")
     if fields.get("conserved") is False:
         codes.append("not_conserved")
+    if fields.get("passed") is False:
+        codes.append("run_failed")
+    entries = _source_entries(fields)
+    if any(entry.get("gate_passed") is False for entry in entries):
+        codes.append("source_gate_failed")
+    if any(entry.get("conserved") is False for entry in entries):
+        codes.append("source_not_conserved")
     return tuple(codes)
+
+
+def recognized(fields):
+    """True if the rules understand this evidence's shape: a boolean
+    gate_passed/conserved/passed at the top, or a sources[] entry carrying
+    a boolean gate_passed/conserved."""
+    if any(isinstance(fields.get(k), bool) for k in ("gate_passed", "conserved", "passed")):
+        return True
+    return any(isinstance(entry.get(k), bool)
+               for entry in _source_entries(fields) for k in ("gate_passed", "conserved"))
 
 
 def _rules_label(fields, severe_codes):
     if severe_codes:
         return "data_quality"
     if fields.get("gate_passed") is True and fields.get("conserved") is True:
+        return "healthy"
+    entries = _source_entries(fields)
+    if fields.get("passed") is True and entries and all(
+            e.get("gate_passed") is True and e.get("conserved") is True for e in entries):
         return "healthy"
     return UNKNOWN
 
@@ -100,7 +136,7 @@ def _ask(payload, provider, timeout_s):
     return label, outcome.classification["confidence"], None
 
 
-def _finish(label, severe_codes, codes, calls):
+def _finish(label, severe_codes, codes, calls, known_shape=True):
     codes = list(codes)
     if severe_codes:
         codes = list(severe_codes) + codes
@@ -110,6 +146,9 @@ def _finish(label, severe_codes, codes, calls):
             return Route(label, HUMAN, tuple(codes), tuple(calls), True)
         return Route(label, RUNBOOK, tuple(codes), tuple(calls), True)
     if label == "healthy":
+        if not known_shape:
+            codes.append("unrecognized_evidence")
+            return Route(label, HUMAN, tuple(codes), tuple(calls))
         return Route(label, DISMISS, tuple(codes), tuple(calls))
     if label == UNKNOWN:
         return Route(label, HUMAN, tuple(codes), tuple(calls))
@@ -120,6 +159,7 @@ def route(fields, strategy, *, classifier=None, reasoner=None, timeout_s=30.0):
     if strategy not in STRATEGIES:
         raise ValueError("unknown strategy")
     severe_codes = rule_signals(fields)
+    known_shape = recognized(fields)
 
     payload, gate_codes = model_call.prepare_payload(fields)
     if payload is None:
@@ -135,14 +175,14 @@ def route(fields, strategy, *, classifier=None, reasoner=None, timeout_s=30.0):
         calls.append("classifier")
         label, confidence, code = _ask(payload, classifier, timeout_s)
         if code is None and confidence >= CONFIDENCE_THRESHOLD:
-            return _finish(label, severe_codes, codes, calls)
+            return _finish(label, severe_codes, codes, calls, known_shape)
         codes.append(code or "low_confidence")
 
     calls.append("reasoning")
     label, _confidence, code = _ask(payload, reasoner, timeout_s)
     if code is not None:
         codes.append(code)
-    return _finish(label, severe_codes, codes, calls)
+    return _finish(label, severe_codes, codes, calls, known_shape)
 
 
 def evaluate(cases, strategy, *, classifier=None, reasoner=None):

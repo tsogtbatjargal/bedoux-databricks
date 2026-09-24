@@ -127,6 +127,77 @@ def test_a_severe_signal_is_not_dismissed_whatever_the_model_says(strategy):
 
 
 # ---------------------------------------------------------------------------
+# The project's own evidence-log shape (review regression; deliberately NOT
+# in the held-out set -- that set is frozen, and adding a case because a
+# review found it would be tuning on the test set)
+# ---------------------------------------------------------------------------
+
+# Shaped like chapter-03-evidence.md's Run 3 gate_evidence_log row.
+RUN_3 = {
+    "run_start_ms": 1790132411535,
+    "passed": False,
+    "problems": ["leads: gate_passed is false (quarantine rate 32.8%)"],
+    "sources": [
+        {"source": "leads", "total": 500, "quarantined_rows": 164, "accepted_rows": 336,
+         "quarantine_rate": 0.328, "gate_passed": False, "conserved": True},
+        {"source": "ops_events", "total": 365, "quarantined_rows": 8, "accepted_rows": 357,
+         "quarantine_rate": 0.021917808219178082, "gate_passed": True, "conserved": True},
+        {"source": "web_events", "total": 2000, "quarantined_rows": 46, "accepted_rows": 1954,
+         "quarantine_rate": 0.023, "gate_passed": True, "conserved": True},
+    ],
+}
+
+
+class AlwaysHealthy:
+    def __init__(self):
+        self.calls = []
+
+    def complete(self, payload, *, timeout_s):
+        self.calls.append(payload)
+        return json.dumps(_c("healthy", 0.95))
+
+
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_an_evidence_log_record_of_a_failed_run_is_never_dismissed(strategy):
+    model = AlwaysHealthy()
+    result = route(RUN_3, strategy, classifier=model, reasoner=model)
+    assert result.action != DISMISS
+    assert result.severe
+    if strategy != RULES_ONLY:
+        assert result.action in (HUMAN, RUNBOOK)
+        assert "severe_signal_not_dismissable" in result.reason_codes
+
+
+@pytest.mark.parametrize("record, codes", [
+    (RUN_3, ("run_failed", "source_gate_failed")),
+    ({"passed": False, "sources": []}, ("run_failed",)),
+    ({"passed": True, "sources": [{"source": "leads", "gate_passed": True, "conserved": False}]},
+     ("source_not_conserved",)),
+    ({"passed": True, "sources": [{"source": "leads"}]}, ()),  # missing isn't a signal
+])
+def test_evidence_log_signals(record, codes):
+    assert routing.rule_signals(record) == codes
+
+
+def test_a_passing_evidence_log_record_can_be_dismissed():
+    passing = {**RUN_3, "passed": True, "problems": [],
+               "sources": [{**s, "gate_passed": True} for s in RUN_3["sources"]]}
+    assert route(passing, RULES_ONLY).action == DISMISS
+    model = AlwaysHealthy()
+    assert route(passing, RULES_PLUS_CLASSIFIER, classifier=model).action == DISMISS
+
+
+def test_a_model_cannot_dismiss_evidence_the_rules_do_not_recognise():
+    unfamiliar = {"source": "leads", "status": "FAILED", "failed_sources": ["leads"]}
+    assert routing.rule_signals(unfamiliar) == () and not routing.recognized(unfamiliar)
+    model = AlwaysHealthy()
+    for strategy in (RULES_PLUS_CLASSIFIER, RULES_PLUS_REASONING):
+        result = route(unfamiliar, strategy, classifier=model, reasoner=model)
+        assert result.action == HUMAN
+        assert "unrecognized_evidence" in result.reason_codes
+
+
+# ---------------------------------------------------------------------------
 # Unknown, low-confidence, invalid, or unavailable escalates
 # ---------------------------------------------------------------------------
 

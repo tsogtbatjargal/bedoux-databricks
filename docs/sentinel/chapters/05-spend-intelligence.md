@@ -25,7 +25,7 @@ adapter/fixture work, but does not justify claiming a live comparison."
 | Explicit labels and an unknown path | Yes | Built: four labels plus `unknown`; unknown, low-confidence, invalid, or unavailable answers escalate or go to a person. |
 | Three strategies on the same held-out set | The harness, yes. The comparison, no: it needs a real classifier and a real reasoning model. | Harness built and run on scripted fakes. |
 | Held-out examples reserved before tuning | Yes | A frozen held-out set (SHA-256 pinned in a test), disjoint from a tuning set. The threshold isn't tuned at all yet. |
-| Severe deterministic signals non-dismissable | Yes | Built and mutation-checked. |
+| Severe deterministic signals non-dismissable | Yes | Built and mutation-checked for both evidence shapes the project produces: flat `gate_status`-style fields, and `gate_evidence_log` records (top-level `passed`, per-source values under `sources[]`). Evidence the rules recognise in neither shape can't be dismissed by a model. |
 | Severe misses, false alerts, routing quality, escalation rate | Computed offline, but only real models make the numbers mean anything | The harness computes them; on fakes they describe the fakes. |
 | Latency | No: needs real calls | Not measured; reported as `None`. |
 | Cost with inputs/model versions | No: needs real calls and billing | Only relative *estimate* units from fixed inputs. No price, no measured spend. |
@@ -63,9 +63,20 @@ deleted when this chapter started; it's in Git history) and still apply:
 a label, an action (`dismiss`, `runbook`, or `human`), fixed reason
 codes, and which model stages were called.
 
-1. **Rules first.** `rule_signals` finds deterministic severe signals:
-   `gate_passed is False` (`gate_failed`) or `conserved is False`
-   (`not_conserved`).
+1. **Rules first.** `rule_signals` finds deterministic severe signals in
+   either evidence shape:
+   - flat fields: `gate_passed is False` (`gate_failed`) or
+     `conserved is False` (`not_conserved`);
+   - a `gate_evidence_log` record: `passed is False` (`run_failed`), or
+     any `sources[]` entry with `gate_passed is False`
+     (`source_gate_failed`) or `conserved is False`
+     (`source_not_conserved`).
+
+   It's always `is False`, so a missing field isn't a signal. The first
+   version only read the flat shape, which is what the test cases use. A
+   review found that a record shaped like chapter-03-evidence.md's Run 3
+   (`passed` false, `leads` `gate_passed` false at 32.8%) got no signals,
+   and both model routes dismissed it when the fakes said "healthy".
 2. **Gate once.** `model_call.prepare_payload(fields)` runs once per
    incident. If it refuses (the canary, a copied secret), the route is
    `human` with `evidence_gate_refused`, and **no model of either kind is
@@ -85,6 +96,16 @@ codes, and which model stages were called.
    runbook, and `unknown` goes to a person. **A severe signal is never
    dismissed:** if a model says `healthy` anyway, the route goes to a
    person with `severe_signal_not_dismissable`.
+5. **Unrecognised evidence isn't dismissed either.** The rules may find
+   neither shape: no boolean `gate_passed`, `conserved`, or `passed` at
+   the top, and no `sources[]` entry with one. Then a model's "healthy"
+   goes to a person with `unrecognized_evidence`. The reason:
+   - Dismissal is the one outcome nobody looks at again.
+   - The Run 3 bug was a reshaped record slipping past the rules, and a
+     future shape would slip past the same way.
+
+   The cost is more human routing for unfamiliar shapes. A model can
+   still send them to a runbook.
 
 **The cheap route can't get around the gate.** Both models are called
 with the same `CheckedPayload` through `send_payload`, which gained an
@@ -122,7 +143,7 @@ would fit the threshold to answers written by hand.
 
 ## What the tests prove
 
-`tests/test_routing.py`, 28 tests (301 repo-wide), scripted fakes only:
+`tests/test_routing.py`, 37 tests (310 repo-wide), scripted fakes only:
 - If the evidence gate refuses, no model is called, under all three
   strategies.
 - The classifier and the reasoning model each receive exactly
@@ -138,6 +159,12 @@ would fit the threshold to answers written by hand.
   back, a person decides.
 - Malformed classifications are `pending`, and classification mode
   still refuses an unchecked payload.
+- **A regression test for the Run 3 evidence-log shape.** No strategy
+  dismisses it, and both model routes send it to a person even when
+  both fakes answer "healthy" at 0.95. Per-source `conserved: false`
+  and a top-level `passed: false` are signals too, and a missing field
+  isn't. A passing evidence-log record can still be dismissed. A model
+  can't dismiss a record in a shape the rules don't recognise.
 
 **Checked by mutation:**
 
@@ -147,6 +174,16 @@ would fit the threshold to answers written by hand.
 | Severe signals made dismissable | Both severe-signal tests and the comparison test |
 | Confidence threshold ignored | The low-confidence case, the exact-payload case for `h06`, and the comparison test |
 | An unusable answer treated as `healthy` | 7 |
+| `rule_signals` reverted to the flat shape only | 6: both model routes dismiss the Run 3 record, the rules-only case loses its severe flag, and three signal cases |
+| Models allowed to dismiss unrecognised evidence | The unrecognised-evidence test |
+
+**The held-out set is unchanged.** Its hash and the comparison numbers
+below are the same as before the Run 3 fix. The Run 3 case is a separate
+regression test, deliberately not added to the held-out set: that set is
+frozen so nothing gets added after seeing results, and adding a case
+because a review found it would be exactly that. No held-out case uses
+the evidence-log shape or an unrecognised one, so the fix doesn't change
+any of their routes.
 
 **The comparison, on scripted fakes.** These numbers describe answers
 written by hand for the fakes, and the harness's arithmetic. They say
