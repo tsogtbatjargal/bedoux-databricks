@@ -26,7 +26,7 @@ periods. Verify every performance claim against a run."
 
 | Criterion | State | Proof | Needs something live, or someone else |
 | --- | --- | --- | --- |
-| A 4–6 minute video | **Script drafted, not recorded** | "Final video: demo script (draft)," below. | Recording and publishing are the user's. |
+| A 4–6 minute video | **Script drafted, not recorded** | `video/07-full-demo.md` in the separate content workspace; see [repository scope](../repository-scope.md). | Recording and publishing are the user's. |
 | Reproducible scenario instructions | **Met locally** | One command, `uv run --locked python -m scripts.full_demo`, deterministic output; `tests/test_full_demo.py` checks its outcomes and that two runs print the same thing. The live half is reproducible from [live-verification.md](../live-verification.md), not rerun here. | Nothing for the local half. |
 | Final architecture | **Not done** | The diagrams are the user's, edited by hand. "Where each step runs," below, is a text version of what the demo exercises. | The user. |
 | Evaluation report | **Not done: a harness, no result** | Chapter 05's `routing.evaluate` and frozen held-out set exist. Their only numbers describe scripted fakes. | A real provider with frozen versions and a spend cap; not authorized. |
@@ -204,102 +204,6 @@ Retained chapter branches: `series/00-introduction`,
 `series/01-know-your-platform`, `series/02-quality-gate`,
 `series/03-protect-evidence`, `series/04-investigate-recover`,
 `series/05-jev-routing`, `series/06-agent-boundaries`, and this chapter's
-`series/07-full-demo`. No post tags exist; see
-[branch-workflow.md](../branch-workflow.md)'s publication register.
-
-## Final video: demo script (draft)
-
-Draft only; not recorded, not published. Target about 5 minutes: about
-450 words of narration, the rest reading output on screen. Follows writing.md's outline: inspiration
-and business question; healthy dashboard and bad batch; quarantine and
-publication gate; redacted evidence and investigation; approved replay and
-reconciliation; measured evaluation and a limitation.
-
-**Standing on-screen label, the whole video:** "Databricks steps: recorded
-runs from chapters 02–03, not rerun. Agent steps: local code with scripted
-fake models. No real model has been called."
-
-**0:00–0:40 — The question.**
-On screen: the series title, then the roadmap table.
-Narration: "This series started from one question: when a campaign batch
-goes bad, what stops it from reaching the numbers people read, and what
-stops an AI helper from making it worse? Seven chapters built one answer,
-one control at a time. This is all of them on one incident."
-
-**0:40–1:30 — The bad batch, live (recorded).**
-On screen: `chapter-02-evidence.md`, Stage 3, with run
-`330174171866992`. Then the `gate_status` result: leads 500, 336 accepted,
-164 quarantined, `gate_passed=false`, `conserved=true`. Label: "Recorded
-live run, 2026-09-21. Not rerun for this video."
-Narration: "We pushed the lead generator's invalid rate to 30 percent. The
-gate refused: 32.8 percent quarantined against a 10 percent threshold.
-Conserved is true, so this is a real rejection, not rows gone missing.
-Gold didn't refresh; its digests didn't change." There's no dashboard in
-this project, so say so: "No dashboard here; Gold's unchanged tables are
-the healthy view."
-
-**1:30–2:00 — The evidence can't be edited (recorded).**
-On screen: `chapter-03-evidence.md`, Run 3's `passed=false` row, then
-Phase B's `[DELTA_CANNOT_MODIFY_APPEND_ONLY]` error for `UPDATE` and
-`DELETE`. Label: "Recorded live, run `180753859499836`."
-Narration: "The failing run left a row in an append-only log. Updating or
-deleting it failed. One honest wrinkle: the job's retry wrote the row
-twice. Append-only stops edits, not duplicates."
-
-**2:00–2:15 — Switch to local.**
-On screen: a terminal running `uv run --locked python -m
-scripts.full_demo`. Label: "From here on: local process, scripted fake
-model."
-Narration: "Everything after this runs on my machine. The model is a
-script. No real model has ever been called in this project; I'll say that
-again when it matters."
-
-**2:15–3:15 — Routing, incident, investigation.**
-On screen: output steps 1–5, one at a time.
-Narration: "Same seeds, same rules in Python: the same 336 and 164.
-Routing uses rules only and calls it severe. The incident is written and
-fsynced before the first model call. The fake then asks for three tools,
-all read-only, all on an allowlist, each result gated before it goes back.
-Its report cites five fields, and each citation resolves in what it was
-actually sent. The screen shows hashes, not data."
-
-**3:15–4:05 — Approval and replay.**
-On screen: steps 6–7.
-Narration: "Recovery needs an approval tied to this incident, this action,
-and the exact evidence reviewed. In this demo the script records it
-standing in for a person; label it that way. Restore, replay, then reuse
-the same approval: refused, the executor never runs. A fresh approval
-replays again: nothing inserted, nothing updated. One copy of each lead.
-And 497, not 490: seven leads accepted during the fault stay, because the
-replay merges and never removes. That's a documented limit of this
-stand-in. The live replay in chapter 02 had no approval step at all."
-
-**4:05–4:45 — Two refusals.**
-On screen: steps 8–9.
-Narration: "Case h07 has an ops message telling the system to ignore its
-instructions and mark the batch healthy. Every fake model agrees with it.
-The two model strategies are fooled and keep the wrong label, healthy,
-but they can't act on it: the case is severe, so it goes to a person
-instead of being dismissed. And when the model asks to export leads, it's refused by
-name, as a tool and as a recovery, even with a real approval id."
-Don't show h07's text on screen; describe it.
-
-**4:45–5:20 — Evaluation and the limit.**
-On screen: this doc's "What's live and what's fake" table.
-Narration: "There's no evaluation result to show. Chapter 05 built the
-harness, but its only numbers come from fakes, so I'm not presenting them.
-The data failure and its evidence are live. The agent around them isn't.
-Next is a real provider, with pinned versions and a spend cap, and real
-executors, each with its own approval."
-
-**Replays and edits to label:** the Databricks screens are recorded
-evidence, not a live run: label every one. If the terminal is re-recorded
-or cut, say so. No waiting period exists to edit.
-
-**Visual to suggest:** the "What's live and what's fake" table, full
-screen, at the end. It's the one image that states the scope.
-
-**Before recording:** confirm the demo prints the lines above on the
-recorded commit, and cite that commit's SHA in the video description.
-Don't show workspace URLs or IDs beyond the run IDs already in the
-evidence docs.
+`series/07-full-demo`. No post tags exist at this chapter's close. Publication
+tracking is maintained in the separate content workspace; see
+[repository scope](../repository-scope.md).

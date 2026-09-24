@@ -7,10 +7,11 @@ but optional. Do not run two writers in one checkout.
 ## What is configured
 
 - `AGENTS.md` is the shared project guide. `CLAUDE.md` imports it.
-- `.agents/skills/` holds the chapter and story workflows Codex discovers.
+- `.agents/skills/` holds the shared technical chapter workflow.
 - `.claude/skills/` contains small adapters that read those same skill bodies.
-- `.codex/config.toml` sets medium reasoning effort for routine work. It leaves
-  model selection, credentials, sandbox, approvals, and external tools to the user.
+- `.codex/config.toml` is an ignored local preference, not a repository requirement.
+  The existing local file is preserved. Model choice, reasoning effort,
+  credentials, sandbox, approvals and external tools belong to each contributor.
 - `handoff.md` holds current state. It is the continuity mechanism across providers;
   private assistant memory is not required to understand the project.
 
@@ -36,9 +37,15 @@ codex -m gpt-6-astra
 claude
 ```
 
-Use `$sentinel-chapter` in Codex or `/sentinel-chapter` in Claude Code. The writing
-equivalents are `$sentinel-story` and `/sentinel-story`. If discovery fails, ask the
-assistant to read the corresponding `.agents/skills/.../SKILL.md` directly.
+Use `$sentinel-chapter` in Codex or `/sentinel-chapter` in Claude Code. If discovery
+fails, ask the assistant to read `.agents/skills/sentinel-chapter/SKILL.md` directly.
+For writing, open the separate `bedoux-sentinel-content` workspace and use its
+`sentinel-story` skill. See [repository scope](repository-scope.md).
+
+Commit `AGENTS.md`, `CLAUDE.md`, the shared technical skill and its thin adapter:
+they describe how to work on this project and contain no credentials. Neither
+assistant is required to run the project's code or tests. Do not blanket-ignore
+`.agents/` or `.claude/skills/`; ignore personal settings separately.
 
 Suggested continuation prompt:
 
@@ -87,7 +94,8 @@ Python, coding-agent installations, and Databricks compute. A docs-only change c
 be checked with `git diff --check`, local-link checks, and skill/config validation.
 Live bundle checks and model calls must be reported separately.
 
-Configuration sources checked on 2026-09-21:
+Codex configuration and skill locations rechecked on 2026-09-24; Claude adapter
+behaviour is unchanged from the existing setup:
 
 - [Codex project configuration](https://learn.chatgpt.com/docs/config-file/config-basic)
 - [Codex skill discovery](https://learn.chatgpt.com/docs/build-skills)

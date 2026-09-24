@@ -6,8 +6,7 @@ The existing medallion pipelines are the starting point.
 
 **Build status, current as of this writing** (full detail and acceptance
 criteria in [roadmap.md](roadmap.md); build status is tracked separately
-from publication status, since a chapter can be fully implemented and
-deployed with its post still unpublished):
+from editorial publication, which is tracked in the separate content workspace):
 
 - **Deployed and demonstrated live**, not just implemented: chapter 02
   ("Defend before damage spreads") — five full job runs in `dev`, a complete
@@ -68,7 +67,7 @@ deployed with its post still unpublished):
   One command runs chapter 02's fault case through every control from
   chapters 02–06 locally, with fake models, and the doc says which steps
   match live runs already recorded. No new live runs, by the user's choice.
-  The video script is a draft. See
+  Video narration is maintained in the content workspace. See
   [chapters/07-full-demo.md](chapters/07-full-demo.md).
 
 The story follows one campaign batch through validation, evidence handling,
@@ -81,7 +80,7 @@ The final video brings those pieces together.
 - [Branch workflow](branch-workflow.md): retained remote branches, local cleanup, and post tags.
 - [Local development](../development.md): isolated uv environment and dependency updates.
 - [Agent setup](agent-setup.md): Codex, Claude Code, and optional Jev development.
-- [Writing guide](writing.md): voice, evidence, and the final video outline.
+- [Repository scope](repository-scope.md): technical files, shared agent setup and the separate editorial workspace.
 - [Live verification](live-verification.md): credential setup, what deploys
   automatically, and the demonstration procedure chapter 02 used (and a
   future chapter will reuse).
@@ -96,14 +95,14 @@ The final video brings those pieces together.
   not-fixed gaps — testing boundaries, evidence durability, unexercised
   code paths.
 - [Session handoff](handoff.md): where the next session should begin.
-- [Chapter 00: The challenge](chapters/00-introduction.md): an unpublished launch post.
+- [Chapter 00: Shared development setup](chapters/00-introduction.md): technical instructions, skills and workflow.
 - [Chapter 01: Know your platform](chapters/01-know-your-platform.md): the platform/threat map.
 - [Chapter 02: Defend before damage spreads](chapters/02-quality-gate.md): the publication gate, demonstrated live.
 - [Chapter 03: Protect what matters](chapters/03-protect-evidence.md): redaction/canary logic and the append-only evidence log, deployed and confirmed live including a negative mutation test; acceptance-complete at code level.
 - [Chapter 04: Investigate and recover](chapters/04-investigate-recover.md): guarded model call, incident log, cited reports, read-only tools, approved recovery, and replay — acceptance-complete at code level, fake provider only, not demonstrated live.
 - [Chapter 05: Spend intelligence carefully](chapters/05-spend-intelligence.md): routing with fake models through chapter 04's gate, a frozen held-out set, and a scoring harness — acceptance-complete at code level; the live comparison is deferred.
 - [Chapter 06: Establish rules of command](chapters/06-rules-of-command.md): instructions inside evidence are data, never commands; audit record, prohibited actions, and a failure analysis — acceptance-complete at code level, fake providers only.
-- [Chapter 07: The complete demonstration](chapters/07-full-demo.md): one local command runs the fault case end to end with fakes; which steps match recorded live evidence; the video script draft — integrated at code level, fake models only.
+- [Chapter 07: The complete demonstration](chapters/07-full-demo.md): one local command runs the fault case end to end with fakes; which steps match recorded live evidence; narration maintained in the content workspace — integrated at code level, fake models only.
 
 ## Docs lifecycle
 
@@ -122,69 +121,16 @@ The final video brings those pieces together.
   and the full text is in Git history. A future brief should say at its
   top that it expires, and should be deleted rather than kept current.
 
-## Inspiration
+## Technical architecture
 
-[IBM Technology's video](https://www.youtube.com/watch?v=kjoQPn--F7A) connects eight
-themes from Sun Tzu's *The Art of War* to cybersecurity. This project adapts those
-themes to data contracts, publication gates, evidence, and agent permissions.
-The controls are modern engineering choices, not historical prescriptions.
+[architecture.drawio](../architecture.drawio) is the technical source covering
+both tracks, pipelines, tables, jobs and platform constraints. Its editing and
+export workflow is documented in [architecture.md](../architecture.md).
 
-The book is traditionally attributed to Sun Tzu. "Roughly 2,500 years old" is an
-introductory framing; its authorship and dating are debated. See the
-[Library of Congress description](https://www.loc.gov/resource/gdcwdl.wdl_11410_001/?sp=10).
-
-[Ray Amjad's Jev video](https://www.youtube.com/watch?v=ScvXFi4MUSc) inspired the
-experiment with inexpensive classification and selective escalation. We will
-measure whether that extra step helps on our incidents.
-
-| Strategic theme | Where it appears |
-| --- | --- |
-| Know yourself and the threat | Part 01: assets, trust boundaries, incident scenarios |
-| Prevent damage early | Part 02: validation and publication gates |
-| Use deception | Part 03: synthetic canary marker; optional AWS decoy later |
-| Respond and adapt | Part 04: investigation and controlled recovery |
-| Prioritize critical assets | Parts 01 and 03: business impact and sensitive evidence |
-| Maintain visibility and separation | Parts 01 and 06: dependency map, audit trail, permissions |
-| Establish responsibility | Part 06: ownership, approvals, incident review |
-| Use resources carefully | Part 05: measured Jev routing and escalation |
-
-## Diagrams
-
-Two hand-maintained diagrams exist, and they are not duplicates of each
-other despite both depicting parts of this system — checked directly:
-`architecture-context.svg` embeds no `mxfile` data, so it is not exported
-from the `.drawio` file; each is authored and updated independently.
-
-- **`../architecture.drawio`** is the canonical technical architecture
-  source, documented in [`../architecture.md`](../architecture.md). It
-  covers **both** tracks (Track 1 TPC-H and Track 2 Bedoux) at full
-  technical detail — every pipeline, table, job, and Free Edition
-  constraint. Edit it in draw.io desktop or diagrams.net; regenerate any
-  exported PNG per `architecture.md`'s instructions. This is the source of
-  truth for the platform's actual architecture.
-- **`../architecture-context.svg`** is a separate, deliberately narrower
-  illustration: Track 2 (Bedoux) only, styled as a single system-context
-  image for external use (the chapter 00 introduction post), not an
-  attempt at technical completeness. It is hand-authored SVG, not derived
-  from the `.drawio` file, and is updated by hand when the introduction
-  narrative changes — most recently to drop a stray TPC-H reference and
-  restore full Bedoux pipeline/gate detail. It currently has no rendered
-  PNG checked into this repo; an exported copy lives in the author's
-  external content folder for the post itself.
-
-**Both diagrams now show chapter 03's evidence-redaction boundary.**
-`src/bedoux/evidence.py` has a real call site — `gate_check.py` calls into
-it via `evidence_log.py` as a sub-step inside `bedoux_gate_task`, deployed
-at `7856b78` and run live twice (see
-[chapters/03-protect-evidence.md](chapters/03-protect-evidence.md)).
-`architecture.drawio`'s `gate2` cell names that sub-step in its label
-rather than drawing it as a peer box, matching `architecture.md`'s
-argument that it's a sub-step, not a new task.
-`architecture-context.svg`'s `bedoux-publication-gate` group and its
-accessibility `<desc>` do the same at that diagram's coarser detail.
-Neither diagram draws or implies a model-call arrow. Chapter 04's
-`model_call.py` is a call site, but its only provider is a test fake and
-nothing in the job calls it, so there is still no model call to draw.
+The separate introduction illustration, `architecture-context.svg`, moved to
+`assets/` in the content workspace. It was hand-authored, not an export of
+the technical diagram. Editorial graphics and book/video inspiration belong
+there; see [repository scope](repository-scope.md).
 
 ## Scope
 
@@ -199,4 +145,4 @@ against every way data might leave the platform.
 
 The [current Free Edition limits](https://docs.databricks.com/aws/en/getting-started/free-edition-limitations)
 must be checked before designing around external storage or enterprise security.
-All implementation and publication states are tracked in the roadmap.
+The roadmap tracks implementation; the content workspace tracks publication.

@@ -37,18 +37,19 @@ of them is covered by "retain the remote branch" above:
   checklist), never a working-branch name or URL.
 
 The one exception, stated so it's not a surprise later: if a fix branch's
-commit ever becomes *the* demonstrated commit cited in the [publication
-register](#publication-register) below — i.e. the branch itself, not just its
+commit ever becomes *the* demonstrated commit cited in the content workspace's
+publication register — i.e. the branch itself, not just its
 already-merged SHA, is what a live publication points a reader at — treat that
 one branch as archival from that point on. Nothing currently published makes
-this apply to any existing branch; the publication register is still empty.
+this apply to any existing branch. See [repository scope](repository-scope.md).
 
 ## Chapter lifecycle
 
 1. Inspect the checkout and preserve unfinished changes. Start the next chapter
    from `main` after the preceding chapter has been integrated.
-2. Implement and verify the chapter. Save its evidence and post draft; update
-   the handoff with observed results and remaining work.
+2. Implement and verify the chapter. Save technical evidence and update the
+   handoff with observed results and remaining work. Keep editorial drafts in
+   the separate content workspace.
 3. Commit/push/open a PR within the user's authorization. Wait for `Unit tests`
    to pass on the PR's head commit before merging, docs-only PRs included.
    Prefer a merge commit so the chapter's commits remain ancestors of `main`.
@@ -136,9 +137,12 @@ Reference patterns (use only after verifying the remote refs):
 - Snapshot: `https://github.com/tsogtbatjargal/bedoux-databricks/tree/post/02-quality-gate`
 - Exact code: a GitHub permalink using the full commit SHA.
 
-## Publication register
+## Editorial references
 
-No chapter has been published by this workflow yet. Add a row per publication:
+The publication register lives in `PUBLICATIONS.md` in `bedoux-sentinel-content`.
+Use it to check whether a branch is externally cited before deleting a working
+branch. Archival chapter branches remain retained regardless. The technical repo
+keeps source SHAs, PRs and run evidence; post text and URLs are maintained there.
 
-| Part | Branch | Demonstrated commit | Post tag | PR | Evidence path | LinkedIn URL |
-| --- | --- | --- | --- | --- | --- | --- |
+The editorial separation applies to new work from the cleaned main. It does not
+rewrite old chapter snapshots or remove files from their history.

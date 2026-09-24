@@ -139,12 +139,16 @@ docs/
   genie.md                          # Genie CLI usage + space setup
   sentinel/                         # Art of Data Defense: roadmap, workflow, handoff,
                                    #   live-verification runbook, chapters
-.agents/skills/                    # shared chapter/story skill bodies
+.agents/skills/                    # shared technical chapter skill
 .claude/skills/                    # Claude Code adapters onto those same bodies
-.codex/config.toml                 # Codex project settings (reasoning effort only)
 scripts/genie.sh                   # thin wrapper over `databricks genie ...`
 .github/workflows/ci.yml           # local tests always; workspace jobs gated by changes
 ```
+
+LinkedIn drafts, video narration, publication tracking and editorial graphics
+live in the separate `bedoux-sentinel-content` workspace. This repository keeps
+technical documentation and reproducible evidence; see
+[repository scope](docs/sentinel/repository-scope.md).
 
 ## Getting started
 
