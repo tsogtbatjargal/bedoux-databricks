@@ -133,19 +133,18 @@ hand.
 
 ## Branches and PRs
 
-Remote branches: `main`, the seven retained chapter branches
+Remote branches: `main` and the eight retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
 `series/04-investigate-recover`, `series/05-jev-routing`,
-`series/06-agent-boundaries`), `series/07-full-demo`, and the docs
-working branch `docs/07-integrated` (this handoff's PR). Deleting remote
-branches wasn't authorized this round, so it stays after merging. See
+`series/06-agent-boundaries`, `series/07-full-demo`). The merged docs
+working branches `docs/07-integrated` and `docs/align-after-07` were
+removed from the remote after merging. See
 [branch-workflow.md](branch-workflow.md).
 
-Local branches: `main`, `series/07-full-demo` (merged; kept, no deletion
-authorized), and `docs/07-integrated`. `series/06-agent-boundaries` was
-deleted locally with `git branch -d` after checking that its remote copy
-exists, has the same tip, and is an ancestor of `main` and `origin/main`.
+Local branches: `main` only. `series/07-full-demo`, `docs/07-integrated`
+and `docs/align-after-07` were deleted locally with `git branch -d` after
+merging; the chapter branch keeps its remote copy.
 
 Wait for Unit tests to pass on a PR's head before merging it, docs-only
 PRs included.

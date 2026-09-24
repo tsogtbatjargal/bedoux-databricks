@@ -1,7 +1,8 @@
 # Part 00 — The challenge
 
-Status: draft only. The setup branch is local; there is no post tag or LinkedIn URL.
-The defensive capabilities described below are planned.
+Status: draft only. The chapter branch `series/00-introduction` is on the remote;
+there is no post tag or LinkedIn URL. The defensive capabilities described below
+are now built at code level (chapters 03–07), not demonstrated live.
 
 ## LinkedIn draft
 

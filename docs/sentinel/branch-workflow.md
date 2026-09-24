@@ -21,7 +21,8 @@ of them is covered by "retain the remote branch" above:
   **archival and retained unconditionally, remote, forever** — they're what the
   "Reference patterns" section below gives a citable URL for, and what a
   published post or a future reader might browse directly.
-- **Working branches** — everything else in the `series/` namespace: fix
+- **Working branches** — everything else in the `series/` namespace, plus
+  every `feat/` and `docs/` branch: fix
   rounds (`series/02-quality-gate-fixes`, `series/03-evidence-leak-fix`),
   draft/housekeeping rounds (`series/02-post-draft`), and cross-cutting prep
   work (`series/00-claude-efficiency`, `series/docs-alignment`). These exist
@@ -48,8 +49,9 @@ this apply to any existing branch; the publication register is still empty.
    from `main` after the preceding chapter has been integrated.
 2. Implement and verify the chapter. Save its evidence and post draft; update
    the handoff with observed results and remaining work.
-3. Commit/push/open a PR within the user's authorization. Prefer a merge commit
-   so the chapter's commits remain ancestors of `main`.
+3. Commit/push/open a PR within the user's authorization. Wait for `Unit tests`
+   to pass on the PR's head commit before merging, docs-only PRs included.
+   Prefer a merge commit so the chapter's commits remain ancestors of `main`.
 4. Keep the remote PR head branch after merging. Check GitHub's automatic
    head-branch deletion setting before the first merge; disable it when settings
    changes are authorized. Do not use PR-tool options that delete the head branch.

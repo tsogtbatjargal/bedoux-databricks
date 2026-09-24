@@ -79,8 +79,9 @@ call site. `gate_check.py` imports `evidence_log`, which calls
 row to `workspace.bedoux_silver.gate_evidence_log` — deployed at `7856b78`
 and run live twice. This guards a durable Delta write, not a network
 egress, so it does **not** close the roadmap's "a failed check prevents
-the external call" criterion, which names a model-API call; no such call
-site exists anywhere in this project yet. It stays out of the ASCII
+the external call" criterion, which names a model-API call. That gated
+call site is chapter 04's `model_call.call_model`, tested against a fake
+provider only. It stays out of the ASCII
 diagram above as its own box because it's a sub-step inside
 `bedoux_gate_task`, not a new task — but both maintained diagrams now show
 it: `architecture.drawio`'s `gate2` cell names the sub-step in its label,
@@ -88,6 +89,14 @@ and `architecture-context.svg`'s `bedoux-publication-gate` group and its
 accessibility `<desc>` do the same at that diagram's coarser detail. See
 [`sentinel/chapters/03-protect-evidence.md`](sentinel/chapters/03-protect-evidence.md)
 for what it does and doesn't close.
+
+**The local agent layer (chapters 04–07).** `src/bedoux/model_call.py`,
+`incidents.py`, `tools.py`, `recovery.py`, `replay.py`, `routing.py` and
+`boundaries.py` hold the investigation, recovery, routing and permission
+logic. `scripts/full_demo.py` chains them end to end. All of it runs locally
+against fake providers and fixtures; none of it is deployed, and no job or
+pipeline calls it. See
+[where each step runs](sentinel/chapters/07-full-demo.md#where-each-step-runs).
 
 ## Why it's shaped this way
 
