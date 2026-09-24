@@ -290,4 +290,24 @@ original gap still stands. See
 [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md#a-new-rule-flag-instruction-like-text).
 
 A line break inside one field used to get past the flag too. Chapter 06's
-second step (not merged) adds `re.DOTALL` and a test for it.
+second step (PR #27, merged) adds `re.DOTALL` and a test for it.
+
+## Chapter 06's boundaries are enforced by fakes, names, and a local file
+
+The user closed chapter 06 as acceptance-complete at code level, not
+demonstrated live. Its boundaries hold in code, but four things are
+deliberately left as they are:
+- **The approver is a name string.** `approve_recovery` requires a
+  non-blank name; nothing verifies who wrote it. That needs a real
+  identity provider.
+- **The audit log is an editable local file.** An audit record is written
+  only when the caller passes a log, and nothing forces one. Nothing makes
+  the file tamper-evident.
+- **The prohibited check only sees names.** A write under a name with no
+  prohibited verb falls to the allowlists instead.
+- **Only fakes exist.** No real model has seen instruction text, no real
+  executor sits behind the checks, and nothing has touched the real
+  tables.
+
+See
+[chapters/06-rules-of-command.md](chapters/06-rules-of-command.md#honest-failure-analysis).

@@ -6,9 +6,8 @@ bind resources, publish, or spend on model APIs. Inspect Git first.
 
 ## Current state
 
-Chapters 00–05 and chapter 06's first step are integrated into `main`.
-**339 tests pass on `main`; 362 on `feat/06-audit-and-prohibited`.**
-Posts for chapters 00–05 are drafted, none published, no tags.
+Chapters 00–06 are integrated into `main`. **362 tests pass on `main`.**
+Posts for chapters 00–06 are drafted, none published, no tags.
 
 - **Chapter 02** is demonstrated live — see
   [chapter-02-evidence.md](chapter-02-evidence.md).
@@ -76,52 +75,28 @@ hand.
   See [chapters/05-spend-intelligence.md](chapters/05-spend-intelligence.md#closing-decision)
   and [known-gaps.md](known-gaps.md#chapter-05s-comparison-is-a-harness-without-a-result).
 
-- **Chapter 06, first step: integrated** (PR #26 from
-  `series/06-agent-boundaries`, merge `db3d0e9`, the fourteenth CI
-  deployment: `Files: 83 uploaded, 0 deleted`, `Resources: 0 created, 0
-  changed, 0 deleted, 8 unchanged`).
-  - Instructions inside evidence are data, never commands. Tests put the
-    instruction in evidence and tool results and show it can't dismiss an
-    incident, add a tool, approve or trigger a recovery, or clear a
-    failed gate.
-  - New `src/bedoux/boundaries.py`: a regex flag, `instruction_in_evidence`,
-    made a severe, non-dismissable routing signal. It's easy to evade
-    (paraphrase, another language, split fields) and was written after
-    seeing `h07` and `t04`; the doc says so.
-  - `h07` is no longer dismissed under any route. The classifier route
-    still labels it `healthy` but sends it to a person.
-  - Chapter 05's held-out set, hash, and numbers are unchanged. Its
-    comparison test now passes `instruction_rule=False`, which
-    reproduces chapter 05's rules; the chapter 06 result is recorded
-    separately.
-  - 29 new tests (339 total), each mutation-checked.
-  - Criterion map in
-    [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md).
-    Not built yet, offline: an explicit prohibited-action list (export,
-    delete, grant) and an audit record of routing decisions.
+- **Chapter 06 is acceptance-complete at code level, not demonstrated
+  live** (the user's decision after PR #27 merged).
+  - First step: PR #26 from `series/06-agent-boundaries`, merge
+    `db3d0e9`, fourteenth CI deployment. Instructions inside evidence
+    can't dismiss an incident, add a tool, approve or trigger a recovery,
+    or clear a failed gate. A regex flag, `instruction_in_evidence`,
+    makes such text a severe signal; it's easy to evade and says so.
+  - Second step: PR #27 from `feat/06-audit-and-prohibited`, merge
+    `cb709bb`, fifteenth CI deployment: `Files: 83 uploaded, 0 deleted`,
+    `Resources: 0 created, 0 changed, 0 deleted, 8 unchanged`. An audit
+    record of routing decisions (written only when the caller passes a
+    log; nothing forces one), a prohibited-action rule, and `re.DOTALL`.
+  - The rule: writes outside the incident log are prohibited, except
+    `replay_batch` and `restore_lead_invalid_rate`, and those only with a
+    matching, unused approval (chapter 04).
+  - The honest failure analysis is written in the chapter doc, based on
+    fakes. The LinkedIn draft is there too, unpublished.
+  - Only fakes exist. No real model has seen instruction text, and
+    nothing has touched the real tables.
 
-- **Chapter 06, second step: on `feat/06-audit-and-prohibited`, PR #27 open,
-  not merged** (merging deploys: it changes `src/**`).
-  - Audit record: `route(..., log=...)` appends a `route_decision` event
-    (strategy, instruction_rule, label, action, reason codes, calls,
-    severe, checked-payload SHA-256). `routing.explain` rebuilds the
-    decision from the event alone. No raw fields, model text, or
-    instruction text; tested against the canary, sensitive values, and
-    `h07`/`t04` text.
-  - Prohibited actions: `boundaries.is_prohibited` (name words against
-    `PROHIBITED_VERBS`) is checked first in the tool path,
-    `approve_recovery`, and `execute_recovery`, and refuses with
-    `prohibited_action` even if allowlisted, implemented, or approved.
-    The two recovery actions are the deliberate, approval-only exception.
-    Name-based: a write under an innocuous name falls to the allowlists.
-  - `re.DOTALL` on the instruction patterns (a line break inside one
-    field used to get past).
-  - Two chapter 04 test expectations changed: prohibited example names
-    now expect `prohibited_action`; none weakened.
-  - 23 new tests (362 total), each mutation-checked.
-  - Chapter 06's criterion map marks the audit record and the
-    prohibited-action criterion met at code level. The chapter isn't
-    closed; the user decides that.
+  See [chapters/06-rules-of-command.md](chapters/06-rules-of-command.md#closing-decision)
+  and [known-gaps.md](known-gaps.md#chapter-06s-boundaries-are-enforced-by-fakes-names-and-a-local-file).
 
 [known-gaps.md](known-gaps.md) is current.
 
@@ -131,27 +106,29 @@ Remote branches: `main`, the seven retained chapter branches
 (`series/00-introduction`, `series/01-know-your-platform`,
 `series/02-quality-gate`, `series/03-protect-evidence`,
 `series/04-investigate-recover`, `series/05-jev-routing`,
-`series/06-agent-boundaries`), and the working branch
-`feat/06-audit-and-prohibited` (PR open). The chapter 06 branch was kept
-after PR #26 merged. See [branch-workflow.md](branch-workflow.md).
+`series/06-agent-boundaries`), and the docs working branch
+`docs/06-close-and-post` (this closing PR). `feat/06-audit-and-prohibited`
+was deleted locally and on the server after PR #27 merged, once it
+appeared in `git branch -r --merged origin/main`. See
+[branch-workflow.md](branch-workflow.md).
 
 Local branches: `main`, `series/06-agent-boundaries` (merged; kept, no
-deletion authorized), and `feat/06-audit-and-prohibited`.
+deletion authorized), and `docs/06-close-and-post`. Deleting the docs
+branch after it merges wasn't authorized, so both copies remain.
 
-**Open PR:** #27, chapter 06's second step, from `feat/06-audit-and-prohibited`.
-Not merged. Wait for Unit tests and Validate to pass on the PR head
-before any merge, docs-only PRs included.
+Wait for Unit tests to pass on a PR's head before merging it, docs-only
+PRs included.
 
 ## Exact next useful task
 
-Review chapter 06's second-step PR. Merging it deploys and is not
-authorized. Then the user decides whether chapter 06 closes at code
-level. What's left:
-- the failure analysis, written from the fakes and labelled that way
-  (publishing isn't authorized);
-- anything live: real executors, a verified approver identity, a real
-  audit store, and how a real model reacts to instruction text.
+**Chapter 07 ("The complete demonstration", `series/07-full-demo`) is
+next. It is not authorized.** Start it from integrated `main` per
+branch-workflow.md, and read its roadmap entry first: one incident end to
+end, a 4–6 minute video, and an evaluation report, with cached model
+responses labelled. Chapters 03–06 all closed at code level, not
+demonstrated live; the user said the deferred provider work would be
+covered in the post or video. How much of it runs live (a real provider
+with frozen versions and a spend cap, real executors, the real tables) is
+the user's decision, and each part needs its own authorization.
 
-Still deferred and not authorized: the live provider work for chapters
-04–06 (a Jev access path, a reasoning model, frozen versions, a spend
-cap), publishing any post, and tagging.
+Also not authorized: publishing any post, tagging, and the diagrams.
