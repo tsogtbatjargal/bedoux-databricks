@@ -1,0 +1,114 @@
+# Track 3: Regulated Gaming & Retail Lakehouse (docs/contracts-aglc.md).
+# Manual trigger only (no schedule), same as Track 2, to stay inside Free Edition quota.
+resources:
+  pipelines:
+    aglc_bronze_pipeline:
+      name: aglc_bronze_pipeline
+      catalog: ${var.catalog}
+      schema: aglc_bronze
+      serverless: true
+      continuous: false
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+      libraries:
+        - file:
+            path: ../src/aglc/bronze.py
+
+    aglc_silver_pipeline:
+      name: aglc_silver_pipeline
+      catalog: ${var.catalog}
+      schema: aglc_silver
+      serverless: true
+      continuous: false
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        aglc.catalog: ${var.catalog}
+        aglc.enforce_governance: ${var.aglc_enforce_governance}
+      libraries:
+        - file:
+            path: ../src/aglc/silver.py
+
+    aglc_gold_pipeline:
+      name: aglc_gold_pipeline
+      catalog: ${var.catalog}
+      schema: aglc_gold
+      serverless: true
+      continuous: false
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        aglc.catalog: ${var.catalog}
+        aglc.enforce_governance: ${var.aglc_enforce_governance}
+      libraries:
+        - file:
+            path: ../src/aglc/gold.py
+
+  jobs:
+    aglc_lakehouse_job:
+      name: aglc_lakehouse_job
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      tasks:
+        - task_key: aglc_governance_functions_task
+          timeout_seconds: 600
+          notebook_task:
+            notebook_path: ../src/aglc/governance_task.py
+            base_parameters:
+              source_path: ${workspace.file_path}/src
+              catalog: ${var.catalog}
+              step: functions
+
+        - task_key: aglc_bronze_task
+          depends_on:
+            - task_key: aglc_governance_functions_task
+          timeout_seconds: 3600
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.aglc_bronze_pipeline.id}
+
+        - task_key: aglc_silver_task
+          depends_on:
+            - task_key: aglc_bronze_task
+          timeout_seconds: 3600
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.aglc_silver_pipeline.id}
+
+        - task_key: aglc_gold_task
+          depends_on:
+            - task_key: aglc_silver_task
+          timeout_seconds: 3600
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.aglc_gold_pipeline.id}
+
+        # Independent of the lakehouse: the "old system" export.
+        - task_key: aglc_legacy_task
+          timeout_seconds: 600
+          notebook_task:
+            notebook_path: ../src/aglc/legacy_task.py
+            base_parameters:
+              source_path: ${workspace.file_path}/src
+              catalog: ${var.catalog}
+              inject_discrepancy: ${var.aglc_inject_discrepancy}
+
+        # Cutover gate: fails the run if new and legacy disagree.
+        - task_key: aglc_reconcile_task
+          depends_on:
+            - task_key: aglc_gold_task
+            - task_key: aglc_legacy_task
+          timeout_seconds: 600
+          notebook_task:
+            notebook_path: ../src/aglc/reconcile_task.py
+            base_parameters:
+              source_path: ${workspace.file_path}/src
+              catalog: ${var.catalog}
+
+        - task_key: aglc_governance_grants_task
+          depends_on:
+            - task_key: aglc_gold_task
+          timeout_seconds: 600
+          notebook_task:
+            notebook_path: ../src/aglc/governance_task.py
+            base_parameters:
+              source_path: ${workspace.file_path}/src
+              catalog: ${var.catalog}
+              step: grants
+              apply_grants: ${var.aglc_apply_grants}

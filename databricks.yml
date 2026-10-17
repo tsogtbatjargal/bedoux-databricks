@@ -11,6 +11,15 @@ variables:
   catalog:
     description: Unity Catalog catalog used by all three layers
     default: workspace
+  aglc_enforce_governance:
+    description: "Track 3: declare UC column masks and the domain row filter in DLT tables (true/false)"
+    default: "true"
+  aglc_apply_grants:
+    description: "Track 3: apply grants to aglc_* groups; groups must exist (true/false)"
+    default: "false"
+  aglc_inject_discrepancy:
+    description: "Track 3 demo: none | revenue | missing_row; restore to none"
+    default: "none"
 
 targets:
   dev:

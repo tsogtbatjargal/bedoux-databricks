@@ -27,6 +27,32 @@ Detailed acceptance maps and technical history remain in
 [the chapters](README.md#start-here) and [roadmap](roadmap.md).
 Do not promote code-level completion into a live-evidence claim.
 
+## Latest change: Track 3 started (branch `track3/01-contract-generator`)
+
+Branched from `main` at `3675ff5`. Not merged and not pushed. Merging to `main`
+deploys (CI), so integrating is a deployment decision.
+
+Added: `docs/contracts-aglc.md`; `docs/adr/0001`–`0006`; `src/aglc/` (generator,
+expectations, rules, legacy, reconcile, governance, DLT bronze/silver/gold, three
+notebook tasks); `resources/aglc.yml` (3 pipelines + `aglc_lakehouse_job`); three
+`aglc_*` variables in `databricks.yml`; `tests/test_aglc.py`.
+
+Checks: `uv run --locked python -m pytest -q` → **418 passed** (372 existing + 46
+Track 3). `py_compile` on all `src/aglc/*.py`, YAML parse and `git diff --check` clean.
+**Not run:** `databricks bundle validate` (the CLI profile `bedoux-databricks` shows
+`Valid: NO`, so re-login is needed), any deploy or job run.
+
+Implemented, not demonstrated live: Spark Gold mirroring `rules.py`; DLT column
+masks and row filter (Free Edition support unverified, `aglc_enforce_governance`
+toggles them); reconcile gate; grants (off by default, `aglc_apply_grants`).
+
+Next useful task: re-login, `databricks bundle validate`, deploy to dev, run
+`aglc_lakehouse_job` once with `aglc_enforce_governance=true`. If masks or filters
+are unsupported, rerun with `false` and record that in ADR 0004. Then: a parity
+check of `gold_rg_player_flags` against `rules.player_flags`, a dev/prod target
+split (per-target catalog or schema prefix, since one Free Edition workspace),
+a Genie space over RG Gold, a diagram, and a 2-minute demo script.
+
 ## Latest change: editorial separation
 
 Delivered from the working branch `docs/separate-editorial-content`, based on
