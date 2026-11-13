@@ -1,0 +1,213 @@
+# Track 4 SQL-modernization cases. `legacy` is T-SQL. `reference` is an
+# independently written DuckDB query that encodes the legacy semantics; it is
+# the oracle, not SQLGlot. `must_flag: true` cases contain constructs that must
+# never be auto-translated. `expected_status` is the outcome a correct
+# workflow should reach; scripts/adp_eval.py reports any disagreement.
+- id: sql01_isnull
+  category: null_handling
+  legacy: SELECT order_id, ISNULL(status, 'unknown') AS status FROM orders
+  reference: SELECT order_id, COALESCE(status, 'unknown') AS status FROM orders
+  expected_status: validated
+
+- id: sql02_top_ordered
+  category: paging
+  legacy: SELECT TOP 3 order_id, order_date FROM orders ORDER BY order_date DESC, order_id DESC
+  reference: SELECT order_id, order_date FROM orders ORDER BY order_date DESC, order_id DESC LIMIT 3
+  expected_status: validated
+
+- id: sql03_convert_date
+  category: date_conversion
+  legacy: |
+    SELECT CONVERT(date, updated_at) AS update_day, COUNT(*) AS n
+    FROM orders GROUP BY CONVERT(date, updated_at)
+  reference: SELECT CAST(updated_at AS DATE) AS update_day, COUNT(*) AS n FROM orders GROUP BY 1
+  expected_status: validated
+
+- id: sql04_dateadd
+  category: date_conversion
+  legacy: SELECT order_id, DATEADD(day, 30, order_date) AS due_date FROM orders
+  reference: SELECT order_id, CAST(order_date + INTERVAL 30 DAY AS DATE) AS due_date FROM orders
+  expected_status: validated
+
+- id: sql05_datediff_day
+  category: date_conversion
+  legacy: |
+    SELECT o.order_id, DATEDIFF(day, o.order_date, p.settled_date) AS days_to_pay
+    FROM orders o INNER JOIN payments p ON p.order_id = o.order_id
+  reference: |
+    SELECT o.order_id, date_diff('day', o.order_date, p.settled_date) AS days_to_pay
+    FROM orders o JOIN payments p ON p.order_id = o.order_id
+  expected_status: validated
+
+- id: sql06_iif_null
+  category: null_handling
+  legacy: SELECT payment_id, IIF(amount >= 50, 'large', 'small') AS size FROM payments
+  reference: SELECT payment_id, CASE WHEN amount >= 50 THEN 'large' ELSE 'small' END AS size FROM payments
+  expected_status: validated
+
+- id: sql07_string_plus
+  category: string_functions
+  legacy: SELECT order_id, 'ORD-' + CAST(order_id AS VARCHAR(10)) AS order_code FROM orders
+  reference: SELECT order_id, 'ORD-' || CAST(order_id AS VARCHAR) AS order_code FROM orders
+  expected_status: validated
+
+- id: sql08_len_trailing_spaces
+  category: string_functions
+  legacy: SELECT customer_id, LEN(name) AS name_len FROM customers
+  reference: SELECT customer_id, length(rtrim(name)) AS name_len FROM customers
+  expected_status: validated
+
+- id: sql09_latest_order_window
+  category: window_functions
+  legacy: |
+    SELECT customer_id, order_id FROM (
+      SELECT customer_id, order_id,
+             ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC) AS rn
+      FROM orders) t
+    WHERE rn = 1
+  reference: |
+    SELECT customer_id, order_id FROM orders
+    QUALIFY row_number() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC) = 1
+  expected_status: validated
+
+- id: sql10_running_total
+  category: window_functions
+  legacy: |
+    SELECT payment_id, SUM(amount) OVER (ORDER BY settled_date, payment_id ROWS UNBOUNDED PRECEDING) AS running
+    FROM payments WHERE settled_date IS NOT NULL
+  reference: |
+    SELECT payment_id, sum(amount) OVER (ORDER BY settled_date, payment_id
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running
+    FROM payments WHERE settled_date IS NOT NULL
+  expected_status: validated
+
+- id: sql11_revenue_having
+  category: aggregation
+  legacy: |
+    SELECT o.customer_id, SUM(l.quantity * l.unit_price) AS revenue
+    FROM orders o JOIN order_lines l ON l.order_id = o.order_id
+    WHERE o.status IN ('paid', 'shipped')
+    GROUP BY o.customer_id HAVING SUM(l.quantity * l.unit_price) > 100
+  reference: |
+    SELECT o.customer_id, sum(l.quantity * l.unit_price) AS revenue
+    FROM orders o JOIN order_lines l USING (order_id)
+    WHERE o.status IN ('paid', 'shipped') GROUP BY 1 HAVING revenue > 100
+  expected_status: validated
+
+- id: sql12_unpaid_antijoin
+  category: multi_table_join
+  legacy: |
+    SELECT o.order_id FROM orders o
+    LEFT JOIN payments p ON p.order_id = o.order_id
+    WHERE p.payment_id IS NULL AND o.status IN ('paid', 'shipped')
+  reference: |
+    SELECT order_id FROM orders o WHERE status IN ('paid', 'shipped')
+      AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = o.order_id)
+  expected_status: validated
+
+- id: sql13_integer_division
+  category: arithmetic
+  legacy: SELECT order_id, line_no, quantity / 2 AS half_qty FROM order_lines
+  reference: SELECT order_id, line_no, quantity // 2 AS half_qty FROM order_lines
+  expected_status: validated
+
+- id: sql14_cte_daily
+  category: aggregation
+  legacy: |
+    WITH daily AS (
+      SELECT o.order_date, SUM(l.quantity * l.unit_price) AS revenue
+      FROM orders o JOIN order_lines l ON l.order_id = o.order_id
+      WHERE o.status <> 'cancelled' GROUP BY o.order_date)
+    SELECT order_date, revenue FROM daily
+  reference: |
+    SELECT o.order_date, sum(l.quantity * l.unit_price) AS revenue
+    FROM orders o JOIN order_lines l USING (order_id)
+    WHERE o.status <> 'cancelled' GROUP BY 1
+  expected_status: validated
+
+- id: sql15_nolock
+  category: hints
+  legacy: SELECT order_id, status FROM orders WITH (NOLOCK) WHERE customer_id = 2
+  reference: SELECT order_id, status FROM orders WHERE customer_id = 2
+  expected_status: validated
+
+- id: sql16_count_distinct_case
+  category: aggregation
+  legacy: |
+    SELECT order_date,
+           COUNT(DISTINCT customer_id) AS customers,
+           SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS paid_orders
+    FROM orders GROUP BY order_date
+  reference: |
+    SELECT order_date, count(DISTINCT customer_id) AS customers,
+           sum(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS paid_orders
+    FROM orders GROUP BY 1
+  expected_status: validated
+
+- id: sql17_datediff_month
+  category: date_conversion
+  must_flag: true
+  # T-SQL counts month boundaries crossed (Oct 1 -> Nov 1 00:00 is 1); Databricks
+  # DATEDIFF(MONTH) counts whole months (0). DuckDB counts boundaries too, so the
+  # local check alone validated this. Kept as a regression case for the hazard rule.
+  legacy: |
+    SELECT customer_id, DATEDIFF(month, created_at, CAST('2026-11-01' AS DATETIME)) AS months
+    FROM customers
+  reference: |
+    SELECT customer_id, date_diff('month', created_at, TIMESTAMP '2026-11-01') AS months
+    FROM customers
+  expected_status: needs_manual_redesign
+
+- id: sql18_getdate
+  category: nondeterministic
+  must_flag: true
+  legacy: SELECT order_id, DATEDIFF(day, order_date, GETDATE()) AS age_days FROM orders
+  expected_status: needs_manual_redesign
+
+- id: sql19_cursor_proc
+  category: procedural
+  must_flag: true
+  legacy: |
+    CREATE PROCEDURE dbo.flag_late_orders AS
+    BEGIN
+      DECLARE @id INT;
+      DECLARE c CURSOR FOR SELECT order_id FROM orders WHERE status = 'placed';
+      OPEN c; FETCH NEXT FROM c INTO @id;
+      WHILE @@FETCH_STATUS = 0
+      BEGIN
+        UPDATE orders SET status = 'late' WHERE order_id = @id;
+        FETCH NEXT FROM c INTO @id;
+      END
+      CLOSE c; DEALLOCATE c;
+    END
+  expected_status: needs_manual_redesign
+
+- id: sql20_temp_table_try_catch
+  category: procedural
+  must_flag: true
+  legacy: |
+    BEGIN TRY
+      BEGIN TRANSACTION;
+      SELECT order_id, SUM(amount) AS paid INTO #paid FROM payments GROUP BY order_id;
+      DELETE FROM orders WHERE order_id NOT IN (SELECT order_id FROM #paid);
+      IF @@ROWCOUNT > 100 ROLLBACK ELSE COMMIT;
+    END TRY
+    BEGIN CATCH
+      ROLLBACK;
+    END CATCH
+  expected_status: needs_manual_redesign
+
+- id: sql21_dynamic_sql
+  category: procedural
+  must_flag: true
+  legacy: |
+    DECLARE @t NVARCHAR(100) = N'orders';
+    EXEC sp_executesql N'SELECT COUNT(*) FROM ' + @t;
+  expected_status: needs_manual_redesign
+
+- id: sql22_concat_null
+  category: string_functions
+  # T-SQL with CONCAT_NULL_YIELDS_NULL ON: NULL + 'x' is NULL.
+  legacy: SELECT customer_id, region + '-' + name AS label FROM customers
+  reference: SELECT customer_id, region || '-' || name AS label FROM customers
+  expected_status: validated

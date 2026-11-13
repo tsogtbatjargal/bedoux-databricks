@@ -1,0 +1,24 @@
+# Track 4 dataset spec (docs/contracts-adp.md). Concepts adapted from the
+# metadata-driven ingestion pattern credited in THIRD_PARTY_NOTICES.md; the
+# schema and code are this repository's own.
+dataset_id: sales.orders
+contract_version: orders_v1
+source:
+  type: postgres            # simulated by src/adp/generator.py
+  table: public.orders
+ingestion:
+  mode: incremental
+  cursor_column: updated_at
+  primary_key: [order_id]
+  lookback_hours: 24
+  deletion_strategy: tombstone
+  max_quarantine_ratio: 0.02
+target:
+  bronze_name: bronze_orders
+columns:
+  order_id: {type: int, required: true}
+  customer_id: {type: int, required: true}
+  status: {type: enum, values: [placed, paid, shipped, cancelled], required: true}
+  order_date: {type: date, required: true}
+  updated_at: {type: timestamp, required: true}
+  is_deleted: {type: bool, required: false}

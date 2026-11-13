@@ -57,6 +57,9 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run --locked python -m pytest -q
+      # Track 4 offline eval: fake provider, fails on any forbidden tool
+      # execution or SQL status regression.
+      - run: uv run --locked python scripts/adp_eval.py
 
   validate:
     name: Validate bundle

@@ -9,7 +9,8 @@ Track 2 through a series called **The Art of Data Defense**. Its data is fiction
 2. Check `git status --short --branch`. Preserve existing work. The checkout is
    evidence; a branch name recorded in a document may be stale.
 3. Read the relevant chapter in `docs/sentinel/roadmap.md`. Before pipeline work,
-   read `docs/contracts.md` for Track 1 or `docs/contracts-bedoux.md` for Track 2,
+   read `docs/contracts.md` for Track 1, `docs/contracts-bedoux.md` for Track 2,
+   `docs/contracts-aglc.md` for Track 3 or `docs/contracts-adp.md` for Track 4,
    plus the affected resource YAML. Flag contract/code disagreements explicitly.
 4. Continue the task the user authorized. An approved plan does not need repeated
    approval for ordinary local edits and checks. A handoff records context, not

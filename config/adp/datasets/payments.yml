@@ -1,0 +1,21 @@
+dataset_id: sales.payments
+contract_version: payments_v1
+source:
+  type: csv                 # nightly settlement file, simulated
+  table: settlements/payments.csv
+ingestion:
+  mode: incremental
+  cursor_column: updated_at
+  primary_key: [payment_id]
+  lookback_hours: 24
+  deletion_strategy: tombstone
+  max_quarantine_ratio: 0.02
+target:
+  bronze_name: bronze_payments
+columns:
+  payment_id: {type: int, required: true}
+  order_id: {type: int, required: true}
+  amount: {type: decimal, scale: 2, required: true}
+  settled_date: {type: date, required: true}
+  updated_at: {type: timestamp, required: true}
+  is_deleted: {type: bool, required: false}

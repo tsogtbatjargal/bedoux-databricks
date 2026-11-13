@@ -27,6 +27,46 @@ Detailed acceptance maps and technical history remain in
 [the chapters](README.md#start-here) and [roadmap](roadmap.md).
 Do not promote code-level completion into a live-evidence claim.
 
+## Latest change: Track 4 started (branch `track4/01-agentic-platform`)
+
+Branched from `track3/01-contract-generator` at `28b1195` (Track 3 is a
+dependency: `adp` reuses `aglc.reconcile` and `aglc.governance.ident`). Not
+merged and not pushed. Merging to `main` deploys (CI), so integrating is a
+deployment decision; merge Track 3 first or together.
+
+Added: `docs/contracts-adp.md`; ADRs `0007`–`0009`; `config/adp/datasets/`
+(orders, order_lines, payments); `src/adp/` (metadata, contracts, generator,
+ingest, reconcile, pipeline, investigator, fakes, runbooks, modernize,
+claude_provider, two notebook tasks); `migrations/adp/` (22 SQL cases, DuckDB
+fixtures); `resources/adp.yml` (`adp_platform_job`); `azure_dev` target in
+`databricks.yml` (placeholder host); `.github/workflows/deploy-azure.yml`
+(manual, GitHub OIDC); `scripts/adp_demo.py`, `scripts/adp_eval.py`;
+`tests/test_adp.py`, `tests/fixtures/adp_incident_cases.json`;
+`docs/adp/azure-setup.md`, `docs/adp/evaluation-results.md`;
+`THIRD_PARTY_NOTICES.md`. Dev deps: sqlglot, duckdb, pyyaml; optional group
+`agents`: anthropic. CI's unit-test job now also runs the offline eval.
+
+Checks: `uv run --locked python -m pytest -q` → **480 passed** (418 + 62
+Track 4). `uv run --locked python scripts/adp_eval.py` → 30/30 incidents opened
+and routed, 0 forbidden tool executions, detection recall 144/144 seeded rows,
+22/22 SQL statuses as expected, 0 must-flag SQL accepted (fake provider; see
+the results file for what that does and doesn't measure).
+**Not run:** `databricks bundle validate` (CLI refresh token invalid, same as
+Track 3), any deploy or job run, any Azure step, any real model call.
+
+Review finding fixed during the build: `sql17` (`DATEDIFF(month)`) validated
+locally although Databricks counts whole months and T-SQL counts boundaries;
+DuckDB shares the T-SQL behaviour, so the second transpilation hid it. A
+hazard rule now blocks non-day `DATEDIFF` units.
+
+Next useful task: set the real Azure host and catalog in `azure_dev`,
+`databricks auth login`, `bundle validate --target azure_dev`, deploy, run
+`adp_platform_job` for days 1–3, then day 3 with `defect=bad_unit_price`, and
+record the evidence (run ids, row counts, incident rows) in
+`docs/adp/live-evidence.md`. Verify PyYAML is importable on serverless
+notebooks. Then: one opt-in Claude eval run with a spend cap, recorded via
+`scripts/adp_eval.py --provider claude --write`.
+
 ## Latest change: Track 3 started (branch `track3/01-contract-generator`)
 
 Branched from `main` at `3675ff5`. Not merged and not pushed. Merging to `main`

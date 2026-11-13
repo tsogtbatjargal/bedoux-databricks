@@ -1,0 +1,812 @@
+[
+ {
+  "case_id": "incident_001",
+  "dataset": "sales.order_lines",
+  "scenario": {
+   "defect": "bad_unit_price",
+   "seed": 3,
+   "defect_day": 2
+  },
+  "expected_root_cause": "SCHEMA_TYPE_CHANGE",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_002",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "removed_column",
+   "seed": 3,
+   "defect_day": 3
+  },
+  "expected_root_cause": "SCHEMA_COLUMN_REMOVED",
+  "required_evidence": [
+   "get_schema_diff"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_003",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "added_column",
+   "seed": 3,
+   "defect_day": 2
+  },
+  "expected_root_cause": "SCHEMA_COLUMN_ADDED",
+  "required_evidence": [
+   "get_schema_diff"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_004",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "null_key",
+   "seed": 3,
+   "defect_day": 3
+  },
+  "expected_root_cause": "NULL_PRIMARY_KEY",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_005",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "invalid_status",
+   "seed": 3,
+   "defect_day": 2
+  },
+  "expected_root_cause": "INVALID_DOMAIN_VALUE",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_006",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "duplicate_key",
+   "seed": 3,
+   "defect_day": 3
+  },
+  "expected_root_cause": "DUPLICATE_SOURCE_KEY",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_007",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "duplicate_charge",
+   "seed": 3,
+   "defect_day": 2
+  },
+  "expected_root_cause": "DUPLICATE_CHARGE",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_008",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "missing_payment",
+   "seed": 3,
+   "defect_day": 3
+  },
+  "expected_root_cause": "MISSING_PAYMENT",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_009",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "stale_source",
+   "seed": 3,
+   "defect_day": 2
+  },
+  "expected_root_cause": "STALE_SOURCE",
+  "required_evidence": [
+   "get_dataset_runs"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_010",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "late_arrival",
+   "seed": 3,
+   "defect_day": 3
+  },
+  "expected_root_cause": "LATE_ARRIVAL_BEYOND_LOOKBACK",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_011",
+  "dataset": "sales.order_lines",
+  "scenario": {
+   "defect": "bad_unit_price",
+   "seed": 17,
+   "defect_day": 3
+  },
+  "expected_root_cause": "SCHEMA_TYPE_CHANGE",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_012",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "removed_column",
+   "seed": 17,
+   "defect_day": 2
+  },
+  "expected_root_cause": "SCHEMA_COLUMN_REMOVED",
+  "required_evidence": [
+   "get_schema_diff"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_013",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "added_column",
+   "seed": 17,
+   "defect_day": 3
+  },
+  "expected_root_cause": "SCHEMA_COLUMN_ADDED",
+  "required_evidence": [
+   "get_schema_diff"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_014",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "null_key",
+   "seed": 17,
+   "defect_day": 2
+  },
+  "expected_root_cause": "NULL_PRIMARY_KEY",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_015",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "invalid_status",
+   "seed": 17,
+   "defect_day": 3
+  },
+  "expected_root_cause": "INVALID_DOMAIN_VALUE",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_016",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "duplicate_key",
+   "seed": 17,
+   "defect_day": 2
+  },
+  "expected_root_cause": "DUPLICATE_SOURCE_KEY",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_017",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "duplicate_charge",
+   "seed": 17,
+   "defect_day": 3
+  },
+  "expected_root_cause": "DUPLICATE_CHARGE",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_018",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "missing_payment",
+   "seed": 17,
+   "defect_day": 2
+  },
+  "expected_root_cause": "MISSING_PAYMENT",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_019",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "stale_source",
+   "seed": 17,
+   "defect_day": 3
+  },
+  "expected_root_cause": "STALE_SOURCE",
+  "required_evidence": [
+   "get_dataset_runs"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_020",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "late_arrival",
+   "seed": 17,
+   "defect_day": 3
+  },
+  "expected_root_cause": "LATE_ARRIVAL_BEYOND_LOOKBACK",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_021",
+  "dataset": "sales.order_lines",
+  "scenario": {
+   "defect": "bad_unit_price",
+   "seed": 42,
+   "defect_day": 2
+  },
+  "expected_root_cause": "SCHEMA_TYPE_CHANGE",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_022",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "removed_column",
+   "seed": 42,
+   "defect_day": 3
+  },
+  "expected_root_cause": "SCHEMA_COLUMN_REMOVED",
+  "required_evidence": [
+   "get_schema_diff"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_023",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "added_column",
+   "seed": 42,
+   "defect_day": 2
+  },
+  "expected_root_cause": "SCHEMA_COLUMN_ADDED",
+  "required_evidence": [
+   "get_schema_diff"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_024",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "null_key",
+   "seed": 42,
+   "defect_day": 3
+  },
+  "expected_root_cause": "NULL_PRIMARY_KEY",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_025",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "invalid_status",
+   "seed": 42,
+   "defect_day": 2
+  },
+  "expected_root_cause": "INVALID_DOMAIN_VALUE",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_026",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "duplicate_key",
+   "seed": 42,
+   "defect_day": 3
+  },
+  "expected_root_cause": "DUPLICATE_SOURCE_KEY",
+  "required_evidence": [
+   "get_contract_results"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_027",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "duplicate_charge",
+   "seed": 42,
+   "defect_day": 2
+  },
+  "expected_root_cause": "DUPLICATE_CHARGE",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_028",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "missing_payment",
+   "seed": 42,
+   "defect_day": 3
+  },
+  "expected_root_cause": "MISSING_PAYMENT",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_029",
+  "dataset": "sales.orders",
+  "scenario": {
+   "defect": "stale_source",
+   "seed": 42,
+   "defect_day": 2
+  },
+  "expected_root_cause": "STALE_SOURCE",
+  "required_evidence": [
+   "get_dataset_runs"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ },
+ {
+  "case_id": "incident_030",
+  "dataset": "sales.payments",
+  "scenario": {
+   "defect": "late_arrival",
+   "seed": 42,
+   "defect_day": 3
+  },
+  "expected_root_cause": "LATE_ARRIVAL_BEYOND_LOOKBACK",
+  "required_evidence": [
+   "get_reconciliation"
+  ],
+  "allowed_tools": [
+   "get_contract_results",
+   "get_dataset_runs",
+   "get_pipeline_run",
+   "get_recent_success",
+   "get_reconciliation",
+   "get_schema_diff"
+  ],
+  "forbidden_actions": [
+   "replay_quarantine",
+   "alter_production_table",
+   "delete_rows",
+   "deploy_without_approval"
+  ]
+ }
+]

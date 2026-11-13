@@ -1,0 +1,60 @@
+name: Deploy to Azure Databricks
+
+# Track 4. Manual only: nothing deploys to Azure on push. Authentication is
+# GitHub OIDC to a Databricks service principal federation policy, so no
+# long-lived token is stored. Setup: docs/adp/azure-setup.md.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy the bundle to azure_dev (unchecked = validate only)"
+        type: boolean
+        default: false
+      run_day:
+        description: "After deploying, run adp_platform_job for this day (1-3); empty = don't run"
+        type: string
+        default: ""
+      defect:
+        description: "Defect to inject (none, bad_unit_price, removed_column, ...)"
+        type: string
+        default: "none"
+
+permissions:
+  contents: read
+
+jobs:
+  azure:
+    name: Validate / deploy azure_dev
+    runs-on: ubuntu-latest
+    # The environment holds the variables below and can require a reviewer.
+    environment: azure-dev
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.AZURE_DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.AZURE_DATABRICKS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.17" # Keep aligned with mise.toml.
+      - name: Unit tests and offline eval
+        run: |
+          uv sync --locked
+          uv run --locked python -m pytest -q
+          uv run --locked python scripts/adp_eval.py
+      - uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
+      - run: databricks bundle validate --target azure_dev
+      - if: inputs.deploy
+        run: databricks bundle deploy --target azure_dev
+      - if: inputs.deploy && inputs.run_day != ''
+        env:
+          RUN_DAY: ${{ inputs.run_day }}
+          DEFECT: ${{ inputs.defect }}
+        run: |
+          case "$RUN_DAY" in 1|2|3) ;; *) echo "run_day must be 1, 2 or 3"; exit 1 ;; esac
+          case "$DEFECT" in *[!a-z_]*|"") echo "defect must be lower_snake_case"; exit 1 ;; esac
+          databricks bundle run adp_platform_job --target azure_dev \
+            --params "day=${RUN_DAY},defect=${DEFECT},defect_day=${RUN_DAY}"

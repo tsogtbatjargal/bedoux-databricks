@@ -31,6 +31,17 @@ against a simulated legacy report before "cutover". Contract:
 [`docs/contracts-aglc.md`](docs/contracts-aglc.md). Decisions:
 [`docs/adr/`](docs/adr/). All data is synthetic.
 
+**Track 4: Agentic Data Platform** (in progress) adds a metadata-driven
+incremental ingestion engine (composite cursor, lookback, quarantine, audit
+records), deterministic Decimal reconciliation, and three bounded agent
+workflows: an incident investigator that reuses Sentinel's guarded model path,
+a reconciliation tool, and a SQLGlot-based T-SQL → Databricks SQL modernizer
+validated against independent reference queries. It deploys to Azure Databricks
+through a manual OIDC workflow as well as to Free Edition. Contract:
+[`docs/contracts-adp.md`](docs/contracts-adp.md). Measured offline results:
+[`docs/adp/evaluation-results.md`](docs/adp/evaluation-results.md). Local demo:
+`uv run --locked python scripts/adp_demo.py`. Not yet run in a workspace.
+
 Full architecture, diagram, and the Free-Edition trade-offs behind each design
 choice: [`docs/architecture.md`](docs/architecture.md).
 

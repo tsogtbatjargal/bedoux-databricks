@@ -1,0 +1,43 @@
+# Track 4: Agentic Data Platform, order-to-cash (docs/contracts-adp.md).
+# Manual trigger only. Run one simulated source day at a time, for example:
+#   databricks bundle run adp_platform_job --target <t> --params day=1
+#   databricks bundle run adp_platform_job --target <t> --params day=2,defect=bad_unit_price,defect_day=2
+# Re-running a day is a no-op by design (idempotent merge, watermark rules).
+resources:
+  jobs:
+    adp_platform_job:
+      name: adp_platform_job
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      parameters:
+        - name: seed
+          default: "7"
+        - name: day
+          default: "1"
+        - name: defect
+          default: "none"
+        - name: defect_day
+          default: "3"
+      tasks:
+        - task_key: adp_ingest_task
+          timeout_seconds: 900
+          notebook_task:
+            notebook_path: ../src/adp/ingest_task.py
+            base_parameters:
+              source_path: ${workspace.file_path}/src
+              config_path: ${workspace.file_path}/config/adp/datasets
+              catalog: ${var.catalog}
+
+        # ALL_DONE: a failed ingestion is exactly when incidents must be recorded.
+        - task_key: adp_reconcile_task
+          depends_on:
+            - task_key: adp_ingest_task
+          run_if: ALL_DONE
+          timeout_seconds: 900
+          notebook_task:
+            notebook_path: ../src/adp/reconcile_task.py
+            base_parameters:
+              source_path: ${workspace.file_path}/src
+              config_path: ${workspace.file_path}/config/adp/datasets
+              catalog: ${var.catalog}
