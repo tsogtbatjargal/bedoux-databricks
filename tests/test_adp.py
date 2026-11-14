@@ -300,3 +300,58 @@ def test_rewrites_are_reported():
     report = modernize.translate("SELECT region + '-' + name AS l, LEN(name) AS n FROM customers")
     assert report["rewrites"] == ["len_ignores_trailing_spaces", "string_plus_to_concat"]
     assert "||" in report["databricks_sql"] and "RTRIM" in report["databricks_sql"]
+
+
+# --- spend cap for opt-in model runs ---------------------------------------
+
+def test_budget_refuses_a_call_that_could_cross_the_cap():
+    from src.adp.budget import Budget, BudgetExceeded
+    b = Budget(0.35)
+    worst = b.reserve("claude-opus-5-5", prompt_chars=4000, max_tokens=16000)
+    assert worst == pytest.approx((4000 / 2 + 1000) * 4 / 1e6 + 16000 * 20 / 1e6)
+    b.charge("claude-opus-5-5", input_tokens=3000, output_tokens=1500)
+    assert b.spent_usd == pytest.approx(0.042)
+    with pytest.raises(BudgetExceeded):
+        b.reserve("claude-opus-5-5", prompt_chars=4000, max_tokens=16000)
+
+
+def test_budget_will_not_price_an_unknown_model():
+    from src.adp.budget import Budget
+    with pytest.raises(ValueError):
+        Budget(5).charge("claude-fable-5-2", 10, 10)
+
+
+class _FakeMessages:
+    def __init__(self, model):
+        self.model, self.kwargs = model, None
+
+    def create(self, **kwargs):
+        self.kwargs = kwargs
+        usage = type("U", (), {"input_tokens": 2000, "output_tokens": 500})()
+        block = type("B", (), {"type": "text", "text": '{"ok": 1}'})()
+        return type("R", (), {"model": self.model, "usage": usage, "stop_reason": "end_turn",
+                              "content": [block]})()
+
+
+class _FakeClient:
+    def __init__(self, model="claude-opus-5-5"):
+        self.messages = _FakeMessages(model)
+        self.beta = self
+
+    def with_options(self, **_):
+        return self
+
+
+def test_claude_provider_charges_the_budget_and_can_pin_the_model():
+    pytest.importorskip("anthropic")
+    from src.adp.budget import Budget, BudgetExceeded
+    from src.adp.claude_provider import ClaudeProvider
+    budget, client = Budget(1.0), _FakeClient()
+    provider = ClaudeProvider(client=client, budget=budget, fallback=False)
+    assert provider.complete("{}", timeout_s=5) == '{"ok": 1}'
+    assert "fallbacks" not in client.messages.kwargs and "betas" not in client.messages.kwargs
+    assert provider.usage[0]["cost_usd"] == pytest.approx(0.018) == budget.spent_usd
+    with pytest.raises(BudgetExceeded):  # nothing is sent once the cap could be crossed
+        ClaudeProvider(client=_FakeClient(), budget=Budget(0.01), fallback=False).complete("{}", timeout_s=5)
+    with pytest.raises(ValueError):  # a reply from an unpriced model stops the run
+        ClaudeProvider(client=_FakeClient("other-model"), budget=Budget(1.0)).complete("{}", timeout_s=5)

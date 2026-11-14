@@ -12,6 +12,8 @@ Every call is billed; scripts/adp_eval.py asks for --provider claude
 explicitly.
 """
 
+import time
+
 SYSTEM = """You investigate data pipeline incidents for a synthetic order-to-cash lakehouse.
 
 Each message is one JSON packet: the incident, the allowed root-cause labels, the
@@ -36,33 +38,46 @@ insufficient, still report, choose the best-supported label, and say so in
 uncertainty."""
 
 MODEL = "claude-opus-5-5"
+MAX_TOKENS = 16000
 
 
 class ClaudeProvider:
-    def __init__(self, model=MODEL, effort="medium", client=None):
+    """budget: an adp.budget.Budget; every call is reserved against it first.
+    fallback: server-side fallback to another model on overload. The eval turns
+    it off so every reply comes from the pinned model at a known price."""
+
+    def __init__(self, model=MODEL, effort="medium", client=None, budget=None, fallback=True):
         import anthropic  # deferred: the agents group is optional
 
         self._anthropic = anthropic
         self.client = client or anthropic.Anthropic()
         self.model = model
         self.effort = effort
+        self.budget = budget
+        self.fallback = fallback
         self.usage = []  # one dict per call, for the eval's cost record
 
     def complete(self, payload, *, timeout_s):
         anthropic = self._anthropic
+        if self.budget is not None:
+            self.budget.reserve(self.model, len(SYSTEM) + len(payload), MAX_TOKENS)
+        extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"} if self.fallback else {}
+        started = time.monotonic()
         try:
             response = self.client.with_options(timeout=timeout_s, max_retries=1).beta.messages.create(
                 model=self.model,
-                max_tokens=16000,
+                max_tokens=MAX_TOKENS,
                 system=SYSTEM,
                 messages=[{"role": "user", "content": payload}],
                 output_config={"effort": self.effort},
-                betas=["server-side-fallback-2026-07-01"],
-                fallbacks="default",
+                **extra,
             )
         except anthropic.APITimeoutError as exc:
             raise TimeoutError from exc
+        cost = (self.budget.charge(response.model, response.usage.input_tokens, response.usage.output_tokens)
+                if self.budget is not None else None)
         self.usage.append({
+            "seconds": round(time.monotonic() - started, 2), "cost_usd": cost,
             "model": response.model, "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens, "stop_reason": response.stop_reason,
             "request_id": getattr(response, "_request_id", None),

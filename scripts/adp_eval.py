@@ -2,8 +2,8 @@
 
     uv run --locked python scripts/adp_eval.py                 # offline, fake agent
     uv run --locked python scripts/adp_eval.py --write         # also record docs/adp/evaluation-results.md
-    uv sync --group agents && uv run --group agents python scripts/adp_eval.py --provider claude
-                                                               # real model; billed, opt-in
+    uv run --group agents python scripts/adp_eval.py --provider claude --max-usd 5 --cases one-per-defect --write
+                                                               # real model; billed, opt-in, hard cap
 
 Three levels, reported separately so one can't hide another:
 1. Rules: the deterministic classifier and the detection checks (no model).
@@ -28,10 +28,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.adp import fakes, generator, investigator, modernize, pipeline  # noqa: E402
+from src.adp.budget import Budget  # noqa: E402
+
+MODEL, MAX_TOKENS = "claude-opus-5-5", 16000  # mirrors claude_provider; it imports anthropic
 from src.bedoux.incidents import IncidentLog  # noqa: E402
 
 CASES = ROOT / "tests" / "fixtures" / "adp_incident_cases.json"
 RESULTS = ROOT / "docs" / "adp" / "evaluation-results.md"
+RESULTS_CLAUDE = ROOT / "docs" / "adp" / "evaluation-results-claude.md"
 
 
 def _primary_incident(case):
@@ -69,9 +73,31 @@ def _detected_keys(scenario, store, recon):
     return (len(keys), len(keys & found))
 
 
-def run_incidents(provider_factory, log_dir):
+def select_cases(spec):
+    cases = json.loads(CASES.read_text())
+    if spec == "all":
+        return cases
+    if spec == "one-per-defect":
+        seen, picked = set(), []
+        for c in cases:
+            if c["scenario"]["defect"] not in seen:
+                seen.add(c["scenario"]["defect"])
+                picked.append(c)
+        return picked
+    wanted = spec.split(",")
+    picked = [c for c in cases if c["case_id"] in wanted]
+    if len(picked) != len(wanted):
+        raise SystemExit(f"unknown case ids in {spec!r}")
+    return picked
+
+
+def run_incidents(provider_factory, log_dir, cases, budget=None):
     rows = []
-    for case in json.loads(CASES.read_text()):
+    for case in cases:
+        if budget is not None and budget.spent_usd + Budget.worst_case(MODEL, 40000, MAX_TOKENS) > budget.cap_usd:
+            rows.append({"case_id": case["case_id"], "incident_opened": False, "detection": None,
+                         "skipped": "budget"})
+            continue
         scenario, store, recon, incidents = _primary_incident(case)
         detection = _detected_keys(scenario, store, recon)
         if not incidents:
@@ -114,6 +140,7 @@ def run_sql():
 def summarize(inc, sql):
     opened = [r for r in inc if r["incident_opened"]]
     n = len(opened)
+    calls = [u for r in opened for u in r["usage"]]
     det = [r["detection"] for r in inc if r["detection"]]
     injected = sum(d[0] for d in det)
     found = sum(d[1] for d in det)
@@ -135,6 +162,11 @@ def summarize(inc, sql):
         "sql_validated": sum(r["status"] == modernize.VALIDATED for r in sql),
         "sql_must_flag_accepted": sum(r["must_flag"] and r["status"] == modernize.VALIDATED for r in sql),
         "input_tokens": tokens_in, "output_tokens": tokens_out,
+        "model_calls": len(calls),
+        "cost_usd": round(sum(u.get("cost_usd") or 0 for u in calls), 4),
+        "mean_seconds_per_call": round(sum(u.get("seconds", 0) for u in calls) / len(calls), 2) if calls else 0,
+        "agent_pending": sum(r["status"] != "reported" for r in opened),
+        "cases_skipped_for_budget": sum(r.get("skipped") == "budget" for r in inc),
     }
 
 
@@ -147,7 +179,8 @@ def render(summary, inc, sql, provider_name, command):
         f"- Environment: Python {platform.python_version()}, local fixtures, no Databricks workspace",
         f"- Provider: `{provider_name}`" + (
             " (deterministic fake: these agent numbers measure the harness, not a model)"
-            if provider_name == "fake" else ""), "",
+            if provider_name == "fake" else
+            " (claude-opus-5-5, effort medium, no server-side fallback, hard spend cap)"), "",
         "## Summary", "", "| Metric | Result |", "|---|---|",
     ]
     lines += [f"| {k} | {round(v, 3) if isinstance(v, float) else v} |" for k, v in summary.items()]
@@ -155,6 +188,9 @@ def render(summary, inc, sql, provider_name, command):
               "| Case | Defect | Expected | Rules | Agent | Decision | Evidence | Cited |",
               "|---|---|---|---|---|---|---|---|"]
     for r in inc:
+        if r.get("skipped"):
+            lines.append(f"| {r['case_id']} | — | skipped: {r['skipped']} cap | | | | | |")
+            continue
         if not r["incident_opened"]:
             lines.append(f"| {r['case_id']} | — | no incident opened | | | | | |")
             continue
@@ -179,16 +215,23 @@ def main():
     parser.add_argument("--provider", choices=("fake", "claude"), default="fake")
     parser.add_argument("--write", action="store_true", help=f"write {RESULTS.relative_to(ROOT)}")
     parser.add_argument("--json", action="store_true", help="print raw rows as JSON")
+    parser.add_argument("--cases", default="all", help="all | one-per-defect | comma-separated case ids")
+    parser.add_argument("--max-usd", type=float, help="hard spend cap; required with --provider claude")
     args = parser.parse_args()
 
+    budget = None
     if args.provider == "claude":
+        if not args.max_usd:
+            parser.error("--provider claude needs --max-usd")
         from src.adp.claude_provider import ClaudeProvider
-        factory = ClaudeProvider
+        budget = Budget(args.max_usd)
+        def factory():
+            return ClaudeProvider(budget=budget, fallback=False)
     else:
         factory = fakes.PlaybookAgent
 
     with tempfile.TemporaryDirectory() as log_dir:
-        inc = run_incidents(factory, log_dir)
+        inc = run_incidents(factory, log_dir, select_cases(args.cases), budget)
     sql = run_sql()
     summary = summarize(inc, sql)
     if args.json:
@@ -196,10 +239,10 @@ def main():
     else:
         print(json.dumps(summary, indent=1))
     if args.write:
-        command = "uv run --locked python scripts/adp_eval.py --write" + (
-            f" --provider {args.provider}" if args.provider != "fake" else "")
-        RESULTS.write_text(render(summary, inc, sql, args.provider, command))
-        print(f"wrote {RESULTS.relative_to(ROOT)}")
+        command = " ".join(["uv run --locked python scripts/adp_eval.py"] + sys.argv[1:])
+        out = RESULTS_CLAUDE if args.provider == "claude" else RESULTS
+        out.write_text(render(summary, inc, sql, args.provider, command))
+        print(f"wrote {out.relative_to(ROOT)}")
     failed = (summary["forbidden_tool_executions"] or summary["sql_must_flag_accepted"]
               or summary["sql_status_matches_expected"] != summary["sql_cases"])
     return 1 if failed else 0
