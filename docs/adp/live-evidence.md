@@ -25,6 +25,7 @@ timestamps are UTC, 2026-11-14 01:31–01:38). Fake data only; no model was call
 | 2 | `day=2` | `405637222205278` | SUCCESS | 51 s | ingest 36 s, reconcile 10 s |
 | 3 | `day=2` (repeat) | `77696391076074` | FAILED, as designed | 70 s | ingest 38 s; reconcile 12 s + automatic retry 10 s |
 | 4 | `day=3,defect=bad_unit_price,defect_day=3` | `767978114792943` | FAILED, as designed | 54 s | ingest 38 s, reconcile 11 s |
+| 5 | same as 4 (retry check, after the fix) | `910590590998406` | FAILED, as designed | 68 s | ingest 50 s, reconcile 12 s, no retries |
 
 A failed run is the alert: run 3 opened `no_new_data` incidents, run 4 opened
 `ingestion_failed`. The reconcile task ran after the failed ingest in run 4
@@ -80,13 +81,20 @@ Run 4 was not retried.
 Fix: `disable_auto_optimization: true` and `max_retries: 0` on both tasks in
 `resources/adp.yml`. These failures are deliberate signals, not transient errors.
 Redeployed; `databricks jobs get 971448448678386` shows both settings on both
-tasks. **Not yet exercised:** no failing run has executed since the change. The
-duplicate rows written before the fix remain in the tables.
+tasks. The duplicate rows written before the fix remain in the tables.
+
+Retry check, run 5 (`910590590998406`, `day=3,defect=bad_unit_price,defect_day=3`
+again): FAILED as designed in 68 s; ingest and reconcile each ran attempt 0
+only. It added exactly one `reconcile_runs` row and one row per incident
+(`day3:sales.order_lines:ingestion_failed`, `day3:sales.orders:no_new_data`,
+`day3:sales.payments:no_new_data`). `order_lines` failed again on the same 27
+`N/A` prices (quarantined under `sales.order_lines:day3:5`) with its watermark
+still at 2026-11-03T19:59:07; orders and payments read 0 new rows.
 
 ## Cost evidence
 
-- Compute used: serverless job compute, 4 runs, about 232 s of total run time
-  (task execution 206 s); serverless SQL warehouse (Small) for the checks, which
+- Compute used: serverless job compute, 5 runs, about 300 s of total run time
+  (task execution 268 s); serverless SQL warehouse (Small) for the checks, which
   stops after 10 idle minutes.
 - `system.billing.usage` is not readable by this user (no `USE SCHEMA` on
   `system.billing`), and Azure Cost Management had no data yet for the new

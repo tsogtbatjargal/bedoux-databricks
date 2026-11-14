@@ -59,8 +59,17 @@ Edition `dev`, stored secrets) passed on both. The user merged both on
 Remote branches `track3/01-contract-generator` and `track4/01-agentic-platform`
 are kept.
 
-Next useful task: the GitHub OIDC service principal setup
-(`docs/adp/azure-setup.md` §3); then one capped, opt-in Claude eval run. If the
+Retry fix verified in Azure (run `910590590998406`, attempt 0 only, one audit
+row per incident; `docs/adp/live-evidence.md`). GitHub OIDC set up the
+Azure-native way, because the workspace owner is not a Databricks account admin:
+managed identity `id-adp-github-deploy` + federated credential (immutable
+subject), added as a workspace service principal with no UC grants; GitHub
+environment `azure-dev` (main only). `deploy-azure.yml` now uses `azure/login`
+and `DATABRICKS_AUTH_TYPE: azure-cli` (branch `track4/02-azure-oidc`).
+
+Next useful task: if CI should deploy/run, propose (and get approval for) the
+service principal's UC grants and decide how a development-mode SP deploy should
+coexist with the user's copy; then one capped, opt-in Claude eval run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
 

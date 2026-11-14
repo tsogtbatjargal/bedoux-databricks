@@ -48,21 +48,33 @@ Run days in order (1, 2, 3). Re-running a day is a no-op. Inject a defect with
 `--params day=2,defect=bad_unit_price,defect_day=2`. To start over, drop the
 `adp_meta`, `adp_bronze` and `adp_gold` schemas (destructive; your call).
 
-## 3. CI deploy with GitHub OIDC (no stored token)
+## 3. CI deploy with GitHub OIDC (no stored secret)
 
-1. Create a Databricks service principal in the workspace and grant it
-   `CAN MANAGE` on the bundle's workspace folder and `USE CATALOG`,
-   `CREATE SCHEMA` on the catalog.
-2. Add a federation policy to the service principal for GitHub Actions:
-   issuer `https://token.actions.githubusercontent.com`, audience as the
-   Databricks docs specify for your account, subject
-   `repo:tsogtbatjargal/bedoux-databricks:environment:azure-dev`.
-3. In GitHub, create environment `azure-dev` (optionally with a required
-   reviewer) and set variables `AZURE_DATABRICKS_HOST` and
-   `AZURE_DATABRICKS_CLIENT_ID` (the service principal's application id).
-4. Run the "Deploy to Azure Databricks" workflow manually. Unchecked `deploy`
-   validates only.
+Set up 2026-11-13. Databricks-native federation policies need a Databricks
+account admin, which the workspace owner is not, so CI uses Azure-native
+workload identity federation instead:
 
-Check the current Azure Databricks documentation for "workload identity
-federation" before step 2: field names and audience values are defined there,
-and this repo has not yet been run against them.
+| Piece | Value |
+|---|---|
+| Entra identity | user-assigned managed identity `id-adp-github-deploy` in `rg-adp-dev`, client id `f7545e16-39c2-4302-8235-acc66c69f617`, no Azure RBAC roles |
+| Federated credential | `github-azure-dev`: issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, subject `repo:tsogtbatjargal@122837521/bedoux-databricks@1317616316:environment:azure-dev` |
+| Workspace principal | service principal `id-adp-github-deploy` (same application id), no Unity Catalog grants |
+| GitHub environment | `azure-dev`, deployable from `main` only; variables `AZURE_DATABRICKS_HOST`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` |
+
+The subject uses GitHub's immutable form (owner and repo with numeric ids)
+because this repository has `use_immutable_subject: true`
+(`gh api repos/tsogtbatjargal/bedoux-databricks/actions/oidc/customization/sub`).
+The `owner/repo` form would never match.
+
+`.github/workflows/deploy-azure.yml` signs in with `azure/login` (OIDC), then
+the Databricks CLI uses `DATABRICKS_AUTH_TYPE: azure-cli`. Run it manually from
+`main`; unchecked `deploy` validates only.
+
+Before CI deploys: `azure_dev` is `mode: development`, so a deploy as the
+service principal creates its own `[dev id-adp-github-deploy]` copy of every
+resource, and running its job needs Unity Catalog grants on `adb_adp_dev` that
+have not been given. Grants are a separate, reviewed change.
+
+To remove: `az identity delete -g rg-adp-dev -n id-adp-github-deploy`, then
+`databricks service-principals delete <id> --profile ADP_AZURE` and the GitHub
+environment.
