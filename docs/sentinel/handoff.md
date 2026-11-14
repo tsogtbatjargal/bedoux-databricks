@@ -51,8 +51,13 @@ to install that way; use `az resource` / `az rest`). Credit: US$200 sign-up
 credit, expires 2026-12-13. Trial SKU ends about 2026-11-28. NAT gateway +
 public IP in the managed resource group bill hourly while the workspace exists.
 
-Next useful task: decide the PR order (Track 3, then Track 4) and push only
-with approval; then the GitHub OIDC service principal setup
+PRs: #33 (Track 3) and #34 (Track 4, base `main`, depends on #33), both
+pushed with the user's approval; CI `Unit tests` and `Validate bundle` (Free
+Edition `dev`, stored secrets) passed on both. Merging either deploys to Free
+Edition `dev` via CI; merging is the user's decision.
+
+Next useful task: after the user merges #33 then #34, confirm the CI deploy
+on `main`; then the GitHub OIDC service principal setup
 (`docs/adp/azure-setup.md` §3); then one capped, opt-in Claude eval run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
