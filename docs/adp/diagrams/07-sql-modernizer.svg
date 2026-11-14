@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="632" viewBox="0 0 960 632" role="img" aria-labelledby="t d">
+  <title id="t">Agent C: T-SQL → Databricks SQL, proven on fixtures</title>
+  <desc id="d">A legacy T-SQL query passes a blocker scan, SQLGlot transpilation, a semantic-hazard check and rewrite rules, then is validated on DuckDB fixtures against an independent reference query; each stage can exit to a status.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb; --blue-f:#eff6ff; --teal:#0e7490; --teal-f:#ecfeff;
+      --violet:#7c3aed; --violet-f:#f5f3ff; --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb; --red:#b91c1c; --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    svg{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .ttl{font-size:20px;font-weight:700;fill:var(--ink)}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lb{font-size:14px;font-weight:600;fill:var(--ink)}
+    .dt{font-size:12px;fill:var(--ink)}
+    .mu{fill:var(--muted)}
+    .sm{font-size:11px;fill:var(--muted)}
+    .tag{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .code{font-size:13px;font-weight:600;fill:var(--ink)}
+    .cx{font-size:11px;fill:var(--ink)}
+    .c{text-anchor:middle}
+    .n{stroke-width:1.5px}
+    .blue{fill:var(--blue-f);stroke:var(--blue)}       .tb{fill:var(--blue)}
+    .slate{fill:var(--slate-f);stroke:var(--slate)}   .ts{fill:var(--slate)}
+    .violet{fill:var(--violet-f);stroke:var(--violet)} .tv{fill:var(--violet)}
+    .green{fill:var(--green-f);stroke:var(--green)}   .tg{fill:var(--green)}
+    .amber{fill:var(--amber-f);stroke:var(--amber)}   .ta{fill:var(--amber)}
+    .red{fill:var(--red-f);stroke:var(--red)}         .tr{fill:var(--red)}
+    .chip{fill:var(--bg);stroke:var(--violet);stroke-width:1px}
+    .strip{fill:var(--slate-f);stroke:var(--grid);stroke-width:1.5px}
+    .ln{stroke:var(--line);stroke-width:1.5px;fill:none}
+    .track{stroke:var(--grid);stroke-width:2px;stroke-dasharray:2 6;fill:none}
+    .ah{fill:var(--line)}
+    .flow{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-12}}
+    /* 12 s story: card visits each stage, chips flip at stage 5, result pulses */
+    .st{animation:st 12s linear infinite}
+    .st5{animation:st5 12s linear infinite}
+    @keyframes st{0%,8%{stroke-width:3px}9%,100%{stroke-width:1.5px}}
+    @keyframes st5{0%,16%{stroke-width:3px}17%,100%{stroke-width:1.5px}}
+    .fromT{animation:fromT 12s linear infinite}
+    .toD{animation:toD 12s linear infinite}
+    @keyframes fromT{0%,3%{opacity:1}7%,30%{opacity:.35}34%,100%{opacity:1}}
+    @keyframes toD{0%,3%{fill:var(--ink)}7%,30%{fill:var(--green)}34%,100%{fill:var(--ink)}}
+    .pv{animation:pv 12s linear infinite}
+    @keyframes pv{0%,82%{opacity:1;stroke-width:1.5px}86%{opacity:.45;stroke-width:3px}90%{opacity:1;stroke-width:3px}94%{opacity:.45;stroke-width:3px}98%,100%{opacity:1;stroke-width:1.5px}}
+    .d15{animation-delay:1.5s} .d3{animation-delay:3s} .d45{animation-delay:4.5s}
+    .d6{animation-delay:6s} .d64{animation-delay:6.4s} .d68{animation-delay:6.8s} .d85{animation-delay:8.5s}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="631" rx="16"/>
+
+  <!-- Title -->
+  <text class="ttl" x="32" y="44">Agent C: T-SQL → Databricks SQL, proven on fixtures</text>
+  <text class="sub" x="32" y="68">Deterministic SQLGlot pipeline; validation runs against an independently written reference query.</text>
+
+  <!-- Card track -->
+  <path class="track" d="M96,108 H860"/>
+
+  <!-- Stage 1: input -->
+  <rect class="n blue st" x="32" y="128" width="128" height="184" rx="10"/>
+  <text class="tag tb" x="48" y="150">1 · INPUT</text>
+  <text class="lb" x="48" y="170">Legacy T-SQL</text>
+  <g class="cx mono">
+    <text x="48" y="196">SELECT TOP 3</text>
+    <text x="48" y="212">'C-' + CAST(id</text>
+    <text x="48" y="228">AS VARCHAR)</text>
+    <text x="48" y="244">...</text>
+  </g>
+
+  <!-- Stage 2: blocker scan -->
+  <rect class="n slate st d15" x="184" y="128" width="104" height="184" rx="10"/>
+  <text class="tag ts" x="200" y="150">2</text>
+  <text class="lb" x="200" y="170">Blocker</text>
+  <text class="lb" x="200" y="188">scan</text>
+  <text class="dt mu" x="200" y="210">before</text>
+  <text class="dt mu" x="200" y="226">parsing</text>
+
+  <!-- Stage 3: parse + transpile -->
+  <rect class="n slate st d3" x="312" y="128" width="144" height="184" rx="10"/>
+  <text class="tag ts" x="328" y="150">3</text>
+  <text class="lb" x="328" y="170">Parse +</text>
+  <text class="lb" x="328" y="188">transpile</text>
+  <text class="dt mu" x="328" y="210">SQLGlot,</text>
+  <text class="dt mu" x="328" y="226">tsql → databricks</text>
+
+  <!-- Stage 4: semantic hazards -->
+  <rect class="n slate st d45" x="480" y="128" width="104" height="184" rx="10"/>
+  <text class="tag ts" x="496" y="150">4</text>
+  <text class="lb" x="496" y="170">Semantic</text>
+  <text class="lb" x="496" y="188">hazards</text>
+  <text class="dt mu" x="496" y="210">on the parse</text>
+  <text class="dt mu" x="496" y="226">tree</text>
+
+  <!-- Stage 5: rewrite rules (chips: T-SQL form over Databricks form) -->
+  <rect class="n violet st5 d6" x="608" y="128" width="160" height="184" rx="10"/>
+  <text class="tag tv" x="624" y="150">5</text>
+  <text class="lb" x="624" y="170">Rewrite rules</text>
+  <rect class="chip" x="620" y="184" width="136" height="34" rx="8"/>
+  <text class="cx c fromT d6" x="688" y="198"><tspan class="mono">+</tspan> on strings</text>
+  <text class="cx mono c toD d6" x="688" y="212">→ ||</text>
+  <rect class="chip" x="620" y="226" width="136" height="34" rx="8"/>
+  <text class="cx mono c fromT d64" x="688" y="240">LEN(x)</text>
+  <text class="cx mono c toD d64" x="688" y="254">→ LENGTH(RTRIM(x))</text>
+  <rect class="chip" x="620" y="268" width="136" height="34" rx="8"/>
+  <text class="cx mono c fromT d68" x="688" y="282">int / int</text>
+  <text class="cx c toD d68" x="688" y="296"><tspan class="mono">→ DIV</tspan> (schema-aware)</text>
+
+  <!-- Stage 6: validate -->
+  <rect class="n st d85" x="792" y="128" width="136" height="184" rx="10" style="fill:var(--teal-f);stroke:var(--teal)"/>
+  <text class="tag" x="808" y="150" style="fill:var(--teal)">6</text>
+  <text class="lb" x="808" y="170">Validate</text>
+  <text class="dt mu" x="808" y="192">on DuckDB</text>
+  <text class="dt mu" x="808" y="208">fixtures vs</text>
+  <text class="dt mu" x="808" y="224">independent</text>
+  <text class="dt mu" x="808" y="240">reference SQL</text>
+
+  <!-- Main flow -->
+  <path class="ln flow" d="M160,220 H182" marker-end="url(#ar)"/>
+  <path class="ln flow" d="M288,220 H310" marker-end="url(#ar)"/>
+  <path class="ln flow" d="M456,220 H478" marker-end="url(#ar)"/>
+  <path class="ln flow" d="M584,220 H606" marker-end="url(#ar)"/>
+  <path class="ln flow" d="M768,220 H790" marker-end="url(#ar)"/>
+
+  <!-- Exit from 2: blockers -->
+  <path class="ln" d="M236,312 V350" marker-end="url(#ar)"/>
+  <rect class="n amber" x="32" y="352" width="256" height="112" rx="10"/>
+  <text class="mono code c" x="160" y="374">needs_manual_redesign</text>
+  <text class="dt c" x="160" y="396">cursor · WHILE loop · TRY/CATCH</text>
+  <text class="dt c" x="160" y="414">transaction · temp table</text>
+  <text class="dt c" x="160" y="432">dynamic SQL · GETDATE</text>
+  <text class="dt mono c" x="160" y="450">@@ROWCOUNT/@@ERROR</text>
+
+  <!-- Exit from 3 -->
+  <path class="ln" d="M384,312 V350" marker-end="url(#ar)"/>
+  <rect class="n red" x="312" y="352" width="144" height="48" rx="10"/>
+  <text class="mono code c" x="384" y="381">transpile_error</text>
+
+  <!-- Exit from 4: DATEDIFF hazard -->
+  <path class="ln" d="M532,312 V350" marker-end="url(#ar)"/>
+  <rect class="n amber" x="480" y="352" width="232" height="112" rx="10"/>
+  <text class="mono code c" x="596" y="376">needs_manual_redesign</text>
+  <text class="dt c" x="596" y="400"><tspan class="mono">DATEDIFF</tspan> with a non-day unit:</text>
+  <text class="dt c" x="596" y="418">T-SQL counts boundaries,</text>
+  <text class="dt c" x="596" y="436">Databricks counts whole units</text>
+
+  <!-- Exit from 6: three outcomes -->
+  <path class="ln" d="M860,312 V324 Q860,332 852,332 H756 Q748,332 748,340 V466 Q748,474 756,474 H758" marker-end="url(#ar)"/>
+  <path class="ln" d="M748,374 H758" marker-end="url(#ar)"/>
+  <path class="ln" d="M748,426 H758" marker-end="url(#ar)"/>
+  <rect class="n green pv" x="760" y="352" width="168" height="44" rx="10"/>
+  <text class="mono code c" x="844" y="372">validated</text>
+  <text class="sm c" x="844" y="388">exact match</text>
+  <rect class="n red" x="760" y="408" width="168" height="36" rx="10"/>
+  <text class="mono code c" x="844" y="431">mismatch</text>
+  <rect class="n red" x="760" y="456" width="168" height="36" rx="10"/>
+  <text class="mono code c" x="844" y="479">execution_error</text>
+
+  <!-- Result strip -->
+  <rect class="strip" x="32" y="520" width="896" height="40" rx="10"/>
+  <text class="dt c" x="480" y="545"><tspan font-weight="600">22 cases:</tspan> <tspan class="tg" font-weight="600">17 validated</tspan> · <tspan class="ta" font-weight="600">5 must-flag</tspan> correctly sent to manual redesign · <tspan font-weight="600">0 must-flag accepted</tspan></text>
+
+  <!-- Limitation -->
+  <text class="sm" x="32" y="590"><tspan class="tag ts">LIMITATION</tspan>  DuckDB can share T-SQL behaviour and hide a difference (<tspan class="mono">sql17</tspan>, DATEDIFF month) — now blocked by a hazard rule;</text>
+  <text class="sm" x="32" y="608">only Databricks SQL execution would close this fully.</text>
+
+  <!-- Query card on the track -->
+  <g opacity="0">
+    <animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.8333"/>
+    <animateMotion dur="12s" repeatCount="indefinite" calcMode="linear"
+      keyPoints="0;0;0.1832;0.1832;0.377;0.377;0.5707;0.5707;0.7749;0.7749;1;1"
+      keyTimes="0;0.0833;0.125;0.2083;0.25;0.3333;0.375;0.4583;0.5;0.6667;0.7083;1"
+      path="M96,108 H860"/>
+    <rect class="n violet" x="-14" y="-9" width="28" height="18" rx="3"/>
+    <path class="ln" d="M-8,-3 H8 M-8,3 H4" style="stroke:var(--violet)"/>
+  </g>
+</svg>

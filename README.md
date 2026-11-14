@@ -39,7 +39,10 @@ reconciliation tool, and a SQLGlot-based T-SQL → Databricks SQL modernizer
 validated against independent reference queries. Rules decide; a model's label
 is acted on only when it matches the rules classifier, and remediation stops at
 an approval request. Contract: [`docs/contracts-adp.md`](docs/contracts-adp.md).
-Local demo: `uv run --locked python scripts/adp_demo.py`.
+Local demo: `uv run --locked python scripts/adp_demo.py`. **User guide with ten
+animated diagrams: [`docs/adp/README.md`](docs/adp/README.md).**
+
+<p align="center"><img src="docs/adp/diagrams/01-platform-overview.svg" width="960" alt="Track 4 overview: synthetic sources, ingest and reconcile tasks on Azure Databricks, Unity Catalog schemas, rule-opened incidents, Agent A with rules-based triage, Agent C, and the OIDC deploy path."></p>
 
 Track 4 results on Azure Databricks (workspace `adb-adp-dev`, Unity Catalog,
 serverless jobs):

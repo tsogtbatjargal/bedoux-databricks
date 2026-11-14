@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="t d">
+  <title id="t">What actually ran in Azure</title>
+  <desc id="d">Six runs of adp_platform_job in workspace adb-adp-dev: two successes, four runs that failed by design, one finding about automatic retries, and bronze row counts after run 6.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb; --blue-f:#eff6ff; --teal:#0e7490; --teal-f:#ecfeff;
+      --violet:#7c3aed; --violet-f:#f5f3ff; --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb; --red:#b91c1c; --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:var(--ink)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .ttl{font-size:20px;font-weight:700}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lbl{font-size:14px;font-weight:600}
+    .dt{font-size:12px}
+    .sm{font-size:11px}
+    .mut{fill:var(--muted)}
+    .eb{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .pt{font-size:11px;font-weight:600;letter-spacing:.04em}
+    .c-green{fill:var(--green)} .c-amber{fill:var(--amber)} .c-red{fill:var(--red)}
+    .ok{fill:var(--green-f);stroke:var(--green);stroke-width:1.5}
+    .wd{fill:var(--amber-f);stroke:var(--amber);stroke-width:1.5}
+    .fd{fill:var(--red-f);stroke:var(--red);stroke-width:1.5}
+    .p-ok{fill:var(--green)} .p-wd{fill:var(--amber)}
+    .pl{fill:var(--bg);font-size:11px;font-weight:700;letter-spacing:.04em}
+    .badge{fill:var(--bg);stroke:var(--ink);stroke-width:1.5}
+    .rail{stroke:var(--line);stroke-width:1.5;fill:none}
+    .tick{stroke:var(--line);stroke-width:1.5}
+    .dot{fill:var(--bg);stroke:var(--line);stroke-width:1.5}
+    .panel{fill:var(--slate-f);stroke:var(--grid)}
+    .bar{fill:var(--slate)}
+    .bar-new{fill:var(--green)}
+    .head{fill:var(--teal);stroke:var(--bg);stroke-width:2}
+    /* playhead reaches a card every 2 s; card glows while it is current */
+    .act{animation:act 12s linear infinite}
+    @keyframes act{0%{stroke-width:3.5}15%{stroke-width:3.5}18%{stroke-width:1.5}100%{stroke-width:1.5}}
+    /* run 6's +198 order_lines pulse at the end of the story */
+    .gain{animation:gain 12s linear infinite}
+    @keyframes gain{0%,82%{opacity:1}87%{opacity:.35}92%{opacity:1}96%{opacity:.35}100%{opacity:1}}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="639" rx="16"/>
+
+  <!-- title + legend -->
+  <text class="ttl" x="32" y="44">What actually ran in Azure</text>
+  <text class="sub" x="32" y="68">adp_platform_job, workspace adb-adp-dev, 2026-11-13/14 — results equal the local engine for the same inputs.</text>
+  <rect class="p-ok" x="616" y="28" width="68" height="20" rx="10"/>
+  <text class="pl" x="650" y="42" text-anchor="middle">SUCCESS</text>
+  <rect class="p-wd" x="692" y="28" width="148" height="20" rx="10"/>
+  <text class="pl" x="766" y="42" text-anchor="middle">FAILED · BY DESIGN</text>
+  <rect class="fd" x="848" y="28" width="80" height="20" rx="10"/>
+  <text class="pt c-red" x="888" y="42" text-anchor="middle">FINDING</text>
+
+  <!-- timeline rails -->
+  <path class="rail" d="M32 104 H928"/>
+  <path class="rail" d="M32 304 H928"/>
+  <path class="tick" d="M172 104 V120 M480 104 V120 M788 104 V120 M172 304 V320 M480 304 V320 M788 304 V320"/>
+  <circle class="dot" cx="172" cy="104" r="5"/><circle class="dot" cx="480" cy="104" r="5"/><circle class="dot" cx="788" cy="104" r="5"/>
+  <circle class="dot" cx="172" cy="304" r="5"/><circle class="dot" cx="480" cy="304" r="5"/><circle class="dot" cx="788" cy="304" r="5"/>
+
+  <!-- run 1 -->
+  <rect class="ok act" x="32" y="120" width="280" height="152" rx="10"/>
+  <circle class="badge" cx="60" cy="150" r="12"/><text class="lbl" x="60" y="155" text-anchor="middle">1</text>
+  <text class="lbl" x="82" y="155">Run 1</text>
+  <rect class="p-ok" x="228" y="140" width="68" height="20" rx="10"/>
+  <text class="pl" x="262" y="154" text-anchor="middle">SUCCESS</text>
+  <text class="dt mono" x="48" y="182">day=1</text>
+  <text class="dt" x="48" y="206">loaded: orders 80 · lines 198</text>
+  <text class="dt" x="48" y="222">payments 48</text>
+
+  <!-- run 2 -->
+  <rect class="ok act" x="340" y="120" width="280" height="152" rx="10" style="animation-delay:2s"/>
+  <circle class="badge" cx="368" cy="150" r="12"/><text class="lbl" x="368" y="155" text-anchor="middle">2</text>
+  <text class="lbl" x="390" y="155">Run 2</text>
+  <rect class="p-ok" x="536" y="140" width="68" height="20" rx="10"/>
+  <text class="pl" x="570" y="154" text-anchor="middle">SUCCESS</text>
+  <text class="dt mono" x="356" y="182">day=2</text>
+  <text class="dt" x="356" y="206">orders 131 rows</text>
+  <text class="dt mut" x="356" y="222">(80 new, 51 updated)</text>
+  <text class="dt" x="356" y="238">lines 204 · payments 14</text>
+
+  <!-- run 3 -->
+  <rect class="wd act" x="648" y="120" width="280" height="152" rx="10" style="animation-delay:4s"/>
+  <circle class="badge" cx="676" cy="150" r="12"/><text class="lbl" x="676" y="155" text-anchor="middle">3</text>
+  <text class="lbl" x="698" y="155">Run 3</text>
+  <rect class="p-wd" x="764" y="140" width="148" height="20" rx="10"/>
+  <text class="pl" x="838" y="154" text-anchor="middle">FAILED · BY DESIGN</text>
+  <text class="dt mono" x="664" y="182">day=2 <tspan class="mut" style="font-family:ui-sans-serif,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">(repeat)</tspan></text>
+  <text class="dt" x="664" y="206">0 new rows → <tspan class="mono">no_new_data</tspan> incidents</text>
+  <rect class="fd" x="664" y="218" width="248" height="40" rx="8"/>
+  <text class="eb c-red" x="676" y="234">FINDING</text>
+  <text class="dt" x="676" y="250">auto-retry duplicated audit rows</text>
+
+  <!-- run 4 -->
+  <rect class="wd act" x="32" y="320" width="280" height="152" rx="10" style="animation-delay:6s"/>
+  <circle class="badge" cx="60" cy="350" r="12"/><text class="lbl" x="60" y="355" text-anchor="middle">4</text>
+  <text class="lbl" x="82" y="355">Run 4</text>
+  <rect class="p-wd" x="148" y="340" width="148" height="20" rx="10"/>
+  <text class="pl" x="222" y="354" text-anchor="middle">FAILED · BY DESIGN</text>
+  <text class="dt mono" x="48" y="382">day=3 + bad_unit_price</text>
+  <text class="dt" x="48" y="406">27 rows quarantined</text>
+  <text class="dt mut" x="48" y="422">(<tspan class="mono">unit_price</tspan> "N/A")</text>
+  <text class="dt" x="48" y="438"><tspan class="mono">order_lines</tspan> watermark held</text>
+
+  <!-- run 5 -->
+  <rect class="wd act" x="340" y="320" width="280" height="152" rx="10" style="animation-delay:8s"/>
+  <circle class="badge" cx="368" cy="350" r="12"/><text class="lbl" x="368" y="355" text-anchor="middle">5</text>
+  <text class="lbl" x="390" y="355">Run 5</text>
+  <rect class="p-wd" x="456" y="340" width="148" height="20" rx="10"/>
+  <text class="pl" x="530" y="354" text-anchor="middle">FAILED · BY DESIGN</text>
+  <text class="dt mono" x="356" y="382">day=3 + bad_unit_price</text>
+  <text class="dt" x="356" y="406">retry check: one attempt per task</text>
+  <text class="dt mut" x="356" y="422">fix: <tspan class="mono">disable_auto_optimization</tspan></text>
+  <text class="dt mut" x="356" y="438"><tspan class="mono">max_retries 0</tspan></text>
+
+  <!-- run 6 -->
+  <rect class="wd act" x="648" y="320" width="280" height="152" rx="10" style="animation-delay:10s"/>
+  <circle class="badge" cx="676" cy="350" r="12"/><text class="lbl" x="676" y="355" text-anchor="middle">6</text>
+  <text class="lbl" x="698" y="355">Run 6</text>
+  <rect class="p-wd" x="764" y="340" width="148" height="20" rx="10"/>
+  <text class="pl" x="838" y="354" text-anchor="middle">FAILED · BY DESIGN</text>
+  <text class="dt mono" x="664" y="382">day=3, defect=none</text>
+  <text class="dt" x="664" y="406">CI as service principal, source fixed</text>
+  <text class="dt" x="664" y="422">198 lines recovered</text>
+  <text class="dt" x="664" y="438">bronze <tspan class="mono">order_lines</tspan> 402 → 600</text>
+  <text class="dt mut" x="664" y="454">orders, payments: <tspan class="mono">no_new_data</tspan></text>
+
+  <!-- playheads: row 1 during 0-6 s, row 2 during 6-12 s -->
+  <circle class="head" r="7" cx="0" cy="0" opacity="0">
+    <animateMotion dur="12s" repeatCount="indefinite" path="M172 104 H788" keyPoints="0;0;0.5;0.5;1;1" keyTimes="0;0.083;0.167;0.25;0.333;1" calcMode="linear"/>
+    <animate attributeName="opacity" dur="12s" repeatCount="indefinite" values="1;1;0;0" keyTimes="0;0.47;0.49;1"/>
+  </circle>
+  <circle class="head" r="7" cx="0" cy="0" opacity="0">
+    <animateMotion dur="12s" begin="6s" repeatCount="indefinite" path="M172 304 H788" keyPoints="0;0;0.5;0.5;1;1" keyTimes="0;0.083;0.167;0.25;0.333;1" calcMode="linear"/>
+    <animate attributeName="opacity" dur="12s" begin="6s" repeatCount="indefinite" values="1;1;0;0" keyTimes="0;0.47;0.49;1"/>
+  </circle>
+
+  <!-- bronze after run 6 -->
+  <rect class="panel" x="32" y="496" width="600" height="112" rx="12"/>
+  <text class="lbl" x="48" y="522">Bronze after run 6</text>
+  <text class="dt mut" x="186" y="522">rows in <tspan class="mono">adp_bronze</tspan></text>
+  <text class="dt mono" x="152" y="547" text-anchor="end">orders</text>
+  <rect class="bar" x="164" y="536" width="128" height="14" rx="3"/>
+  <text class="dt" x="300" y="547">240</text>
+  <text class="dt mono" x="152" y="571" text-anchor="end">order_lines</text>
+  <rect class="bar" x="164" y="560" width="214.4" height="14" rx="3"/>
+  <rect class="bar-new gain" x="378.4" y="560" width="105.6" height="14" rx="3"/>
+  <text class="dt" x="492" y="571">600 <tspan class="mut">(402 + 198, run 6)</tspan></text>
+  <text class="dt mono" x="152" y="595" text-anchor="end">payments</text>
+  <rect class="bar" x="164" y="584" width="56" height="14" rx="3"/>
+  <text class="dt" x="228" y="595">105</text>
+
+  <!-- the alert note -->
+  <rect class="wd" x="656" y="496" width="272" height="112" rx="12"/>
+  <text class="eb c-amber" x="672" y="522">ALERTING</text>
+  <text class="lbl" x="672" y="546">A failed run is the alert:</text>
+  <text class="dt" x="672" y="566">incidents end the run red</text>
+  <text class="dt" x="672" y="582">on purpose.</text>
+</svg>

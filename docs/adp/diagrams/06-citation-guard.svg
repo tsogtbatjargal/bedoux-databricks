@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="904" viewBox="0 0 960 904" role="img" aria-labelledby="t d">
+  <title id="t">Citation guard: every claim must point at evidence the model saw</title>
+  <desc id="d">Decision flow in bedoux.model_call that refuses a report when its citations are missing, malformed, unresolved or redacted, or when its text leaks a canary or sensitive value; empty containers are allowed.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb; --blue-f:#eff6ff; --teal:#0e7490; --teal-f:#ecfeff;
+      --violet:#7c3aed; --violet-f:#f5f3ff; --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb; --red:#b91c1c; --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    svg{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .ttl{font-size:20px;font-weight:700;fill:var(--ink)}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lb{font-size:14px;font-weight:600;fill:var(--ink)}
+    .dt{font-size:12px;fill:var(--ink)}
+    .sm{font-size:11px;fill:var(--muted)}
+    .tag{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .code{font-size:13px;font-weight:600}
+    .c{text-anchor:middle}
+    .n{stroke-width:1.5px}
+    .violet{fill:var(--violet-f);stroke:var(--violet)} .tv{fill:var(--violet)}
+    .green{fill:var(--green-f);stroke:var(--green)}   .tg{fill:var(--green)}
+    .red{fill:var(--red-f);stroke:var(--red)}         .tr{fill:var(--red)}
+    .slate{fill:var(--slate-f);stroke:var(--slate)}   .ts{fill:var(--slate)}
+    .frame{fill:none;stroke:var(--slate);stroke-width:1.5px;stroke-dasharray:4 4}
+    .panel{fill:var(--slate-f);stroke:var(--grid);stroke-width:1.5px}
+    .chip{fill:var(--violet-f);stroke:var(--violet);stroke-width:1px}
+    .ln{stroke:var(--line);stroke-width:1.5px;fill:none}
+    .ah{fill:var(--line)}
+    .dash{stroke-dasharray:3 4}
+    .flow{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-12}}
+    /* one 12 s story: three citations, 4 s each */
+    .hc{animation:hc 12s linear infinite}
+    .hd{animation:hd 12s linear infinite}
+    @keyframes hc{0%,32%{stroke-width:2.5px}34%,100%{stroke-width:1px}}
+    @keyframes hd{0%,22%{stroke-width:1.5px}24%,32%{stroke-width:4px}34%,100%{stroke-width:1.5px}}
+    .d4{animation-delay:4s} .d8{animation-delay:8s}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="903" rx="16"/>
+
+  <!-- Title -->
+  <text class="ttl" x="32" y="44">Citation guard: every claim must point at evidence the model saw</text>
+  <text class="sub" x="32" y="68"><tspan class="mono">bedoux.model_call</tspan> checks each citation against the payload that was actually sent.</text>
+
+  <!-- Start + example citations -->
+  <rect class="n violet" x="48" y="96" width="304" height="48" rx="10"/>
+  <text class="lb c" x="200" y="125">Report from the model</text>
+  <text class="sm" x="376" y="124">example citations:</text>
+  <rect class="chip hc" x="480" y="108" width="184" height="24" rx="12"/>
+  <text class="dt mono c" x="572" y="124">schema_diff.added → []</text>
+  <rect class="chip hc d4" x="672" y="108" width="48" height="24" rx="12"/>
+  <text class="dt mono c" x="696" y="124">ssn</text>
+  <rect class="chip hc d8" x="728" y="108" width="112" height="24" rx="12"/>
+  <text class="dt mono c" x="784" y="124">rows[5].stage</text>
+
+  <!-- Q1, Q2: shape of the citations field -->
+  <rect class="n slate" x="48" y="176" width="304" height="48" rx="10"/>
+  <text class="lb c" x="200" y="205">citations missing or an empty list?</text>
+  <rect class="n red" x="448" y="168" width="240" height="64" rx="10"/>
+  <text class="tag tr c" x="568" y="194">PENDING → HUMAN</text>
+  <text class="mono code c" x="568" y="214" style="fill:var(--ink)">no_citations</text>
+
+  <rect class="n slate" x="48" y="264" width="304" height="48" rx="10"/>
+  <text class="lb c" x="200" y="293">not a list of non-empty strings?</text>
+  <rect class="n red" x="448" y="256" width="240" height="64" rx="10"/>
+  <text class="tag tr c" x="568" y="282">PENDING → HUMAN</text>
+  <text class="mono code c" x="568" y="302" style="fill:var(--ink)">malformed_response</text>
+
+  <!-- For each citation -->
+  <rect class="frame" x="32" y="344" width="336" height="360" rx="14"/>
+  <text class="tag ts" x="48" y="368">FOR EACH CITATION</text>
+
+  <rect class="n slate" x="48" y="384" width="304" height="48" rx="10"/>
+  <text class="lb c" x="200" y="413">resolves in the sent payload?</text>
+  <rect class="n red hd d8" x="448" y="376" width="240" height="64" rx="10"/>
+  <text class="tag tr c" x="568" y="396">PENDING → HUMAN</text>
+  <text class="mono code c" x="568" y="415" style="fill:var(--ink)">unresolved_citation</text>
+  <text class="sm mono c" x="568" y="431">e.g. rows[5].stage</text>
+
+  <rect class="n slate" x="48" y="464" width="304" height="64" rx="10"/>
+  <text class="lb c" x="200" y="491">value is [REDACTED], or a container</text>
+  <text class="lb c" x="200" y="511">holding only redacted values?</text>
+  <rect class="n red hd d4" x="448" y="464" width="240" height="64" rx="10"/>
+  <text class="tag tr c" x="568" y="484">PENDING → HUMAN</text>
+  <text class="mono code c" x="568" y="503" style="fill:var(--ink)">redacted_citation</text>
+  <text class="sm mono c" x="568" y="519">e.g. ssn</text>
+
+  <rect class="n slate" x="48" y="560" width="304" height="48" rx="10"/>
+  <text class="lb c" x="200" y="589">empty container?</text>
+  <rect class="n green hd" x="448" y="552" width="240" height="64" rx="10"/>
+  <text class="tag tg c" x="568" y="572">CHANGED IN TRACK 4</text>
+  <text class="c" x="568" y="591"><tspan class="lb">allowed</tspan><tspan class="dt"> — emptiness was visible</tspan></text>
+  <text class="sm mono c" x="568" y="607">schema_diff.added → []</text>
+
+  <rect class="n green" x="48" y="644" width="304" height="40" rx="10"/>
+  <text class="lb c" x="200" y="669">allowed</text>
+
+  <!-- Q6: leak check, then REPORTED -->
+  <rect class="n slate" x="48" y="728" width="304" height="64" rx="10"/>
+  <text class="lb c" x="200" y="755">report text contains canary</text>
+  <text class="lb c" x="200" y="775">or a sensitive value?</text>
+  <rect class="n red" x="448" y="728" width="240" height="64" rx="10"/>
+  <text class="tag tr c" x="568" y="754">PENDING → HUMAN</text>
+  <text class="mono code c" x="568" y="774" style="fill:var(--ink)">report_leak</text>
+
+  <rect class="n green" x="48" y="824" width="304" height="48" rx="10"/>
+  <text class="lb c" x="200" y="853">REPORTED</text>
+
+  <!-- Main-column connectors -->
+  <path class="ln flow" d="M200,144 V174" marker-end="url(#ar)"/>
+  <path class="ln flow" d="M200,224 V262" marker-end="url(#ar)"/>
+  <text class="sm" x="208" y="248">no</text>
+  <path class="ln flow" d="M200,312 V382" marker-end="url(#ar)"/>
+  <text class="sm" x="208" y="336">no</text>
+  <path class="ln flow" d="M200,432 V462" marker-end="url(#ar)"/>
+  <text class="sm" x="208" y="452">yes</text>
+  <path class="ln flow" d="M200,528 V558" marker-end="url(#ar)"/>
+  <text class="sm" x="208" y="548">no</text>
+  <path class="ln flow" d="M200,608 V642" marker-end="url(#ar)"/>
+  <text class="sm" x="208" y="630">no</text>
+  <path class="ln flow" d="M200,684 V726" marker-end="url(#ar)"/>
+  <text class="sm" x="208" y="720">all allowed</text>
+  <path class="ln flow" d="M200,792 V822" marker-end="url(#ar)"/>
+  <text class="sm" x="208" y="812">no</text>
+
+  <!-- Exits to the right -->
+  <path class="ln" d="M352,200 H446" marker-end="url(#ar)"/>
+  <text class="sm c" x="400" y="194">yes</text>
+  <path class="ln" d="M352,288 H446" marker-end="url(#ar)"/>
+  <text class="sm c" x="400" y="282">yes</text>
+  <path class="ln" d="M352,408 H446" marker-end="url(#ar)"/>
+  <text class="sm c" x="400" y="402">no</text>
+  <path class="ln" d="M352,496 H446" marker-end="url(#ar)"/>
+  <text class="sm c" x="400" y="490">yes</text>
+  <path class="ln" d="M352,584 H446" marker-end="url(#ar)"/>
+  <text class="sm c" x="400" y="578">yes</text>
+  <path class="ln" d="M352,760 H446" marker-end="url(#ar)"/>
+  <text class="sm c" x="400" y="754">yes</text>
+  <!-- empty-container branch rejoins the main column -->
+  <path class="ln" d="M568,616 V656 Q568,664 560,664 H354" marker-end="url(#ar)"/>
+
+  <!-- Side panels -->
+  <rect class="panel" x="712" y="168" width="216" height="152" rx="10"/>
+  <text class="tag ts" x="728" y="192">RULE</text>
+  <text class="dt" x="728" y="216">Every red outcome is</text>
+  <text class="dt" x="728" y="234"><tspan class="mono">PENDING</tspan> → human.</text>
+  <text class="dt" x="728" y="262">One bad citation refuses</text>
+  <text class="dt" x="728" y="280">the whole report.</text>
+
+  <rect class="panel" x="712" y="552" width="216" height="168" rx="10"/>
+  <path class="ln dash" d="M688,584 H712"/>
+  <text class="tag ts" x="728" y="576">WHY IT CHANGED</text>
+  <text class="dt" x="728" y="600">The first Azure eval run</text>
+  <text class="dt" x="728" y="618">refused 15 of 30 correct</text>
+  <text class="dt" x="728" y="636">reports for citing empty</text>
+  <text class="dt" x="728" y="654">lists; after the fix the</text>
+  <text class="dt" x="728" y="672">next run validated 25</text>
+  <text class="dt" x="728" y="690">(from 13).</text>
+
+  <!-- Packets: one citation per 4 s -->
+  <circle r="5" class="tv" opacity="0">
+    <animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.3333"/>
+    <animateMotion dur="12s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1;1" keyTimes="0;0.2333;1" path="M200,144 V584 H460"/>
+  </circle>
+  <circle r="5" class="tv" opacity="0">
+    <animate attributeName="opacity" dur="12s" begin="4s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.3333"/>
+    <animateMotion dur="12s" begin="4s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1;1" keyTimes="0;0.2333;1" path="M200,144 V496 H460"/>
+  </circle>
+  <circle r="5" class="tv" opacity="0">
+    <animate attributeName="opacity" dur="12s" begin="8s" repeatCount="indefinite" calcMode="discrete" values="1;0" keyTimes="0;0.3333"/>
+    <animateMotion dur="12s" begin="8s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1;1" keyTimes="0;0.2333;1" path="M200,144 V408 H460"/>
+  </circle>
+</svg>
