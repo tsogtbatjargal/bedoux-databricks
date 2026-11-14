@@ -27,6 +27,36 @@ Detailed acceptance maps and technical history remain in
 [the chapters](README.md#start-here) and [roadmap](roadmap.md).
 Do not promote code-level completion into a live-evidence claim.
 
+## Latest change: Track 4 deployed to Azure Databricks (same branch)
+
+`azure_dev` now targets workspace `adb-adp-dev`
+(`https://adb-7405615454810108.8.azuredatabricks.net`, catalog `adb_adp_dev`);
+inventory in `docs/adp/azure-setup.md`. With the user's approval: bundle
+deployed (13 resources, all serverless, manual-trigger) and `adp_platform_job`
+run four times (day 1, day 2, day 2 repeat, day 3 + `bad_unit_price`). Results
+equal the local engine; evidence in `docs/adp/live-evidence.md`. A US$50/month
+Azure budget alert (`adp-dev-monthly-50`, email to Owners) was created; it does
+not cap spend.
+
+Finding fixed: serverless auto-retry re-ran a failed reconcile task and
+duplicated audit/incident rows; `resources/adp.yml` now sets
+`disable_auto_optimization: true`, `max_retries: 0` (deployed, not yet
+exercised by a failing run). Checks: pytest 480 passed; `bundle validate`
+for `azure_dev` OK. `dev` (Free Edition) validate not rerun: its token is
+still invalid.
+
+Local tooling: Azure CLI is not installed; it ran via
+`uvx --python 3.13 --from azure-cli az` (the `databricks` az extension fails
+to install that way; use `az resource` / `az rest`). Credit: US$200 sign-up
+credit, expires 2026-12-13. Trial SKU ends about 2026-11-28. NAT gateway +
+public IP in the managed resource group bill hourly while the workspace exists.
+
+Next useful task: decide the PR order (Track 3, then Track 4) and push only
+with approval; then the GitHub OIDC service principal setup
+(`docs/adp/azure-setup.md` §3); then one capped, opt-in Claude eval run. If the
+workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
+the managed resource group and its hourly charges (destructive; user's call).
+
 ## Latest change: Track 4 started (branch `track4/01-agentic-platform`)
 
 Branched from `track3/01-contract-generator` at `28b1195` (Track 3 is a

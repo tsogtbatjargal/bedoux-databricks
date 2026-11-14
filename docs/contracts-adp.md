@@ -98,8 +98,11 @@ ALL_DONE`). Job parameters `seed`, `day`, `defect`, `defect_day`.
 
 ## Known gaps
 
-- Not yet run in any workspace: `databricks bundle validate`, deploy and job
-  runs for Track 4 are pending (see the handoff).
+- Demonstrated in one Azure workspace for days 1–3 with `bad_unit_price`
+  (`docs/adp/live-evidence.md`). Other defects, the Free Edition target and the
+  GitHub OIDC workflow have not run.
+- Audit and incident rows are appended, not keyed by job run. A task retry
+  duplicates them; retries are disabled on both tasks for that reason.
 - Bronze is overwritten from the engine's merged state rather than written with
   Delta `MERGE`. Correct at this scale; not how a large source should load.
 - Engine state is a JSON row. Concurrent runs are prevented by

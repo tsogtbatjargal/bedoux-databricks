@@ -22,6 +22,12 @@ resources:
       tasks:
         - task_key: adp_ingest_task
           timeout_seconds: 900
+          # Failures here are deliberate alerts (failed contract, open incident),
+          # not transient errors. Serverless auto-optimization retried a failed
+          # reconcile task in Azure run 77696391076074 and appended its audit and
+          # incident rows twice, so automatic retries are off for both tasks.
+          disable_auto_optimization: true
+          max_retries: 0
           notebook_task:
             notebook_path: ../src/adp/ingest_task.py
             base_parameters:
@@ -35,6 +41,8 @@ resources:
             - task_key: adp_ingest_task
           run_if: ALL_DONE
           timeout_seconds: 900
+          disable_auto_optimization: true
+          max_retries: 0
           notebook_task:
             notebook_path: ../src/adp/reconcile_task.py
             base_parameters:
