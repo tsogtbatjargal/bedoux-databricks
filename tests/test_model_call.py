@@ -317,6 +317,26 @@ def test_citing_a_container_that_holds_a_redacted_field_is_allowed():
     assert outcome.status == REPORTED
 
 
+@pytest.mark.parametrize("empty", ["added", "removed", "extra"])
+def test_citing_an_empty_container_is_allowed(empty):
+    """Emptiness is visible evidence: "added -> []" shows no column was
+    added. Redaction replaces values, it never empties a container, so an
+    empty one can't hide anything. (Found in the Track 4 Azure eval, where
+    15 of 30 correct reports were refused for citing schema_diff.added.)"""
+    fields = {"source": "orders", "added": [], "removed": [], "extra": {}}
+    outcome = model_call.call_model(fields, FakeProvider(behavior=_report(["source", empty])))
+    assert outcome.status == REPORTED
+
+
+def test_an_empty_container_beside_redacted_values_does_not_unlock_them():
+    """The container is citable (its empty list was visible), but the
+    redacted value inside it still is not."""
+    fields = {"row": {"ssn": "123-45-6789", "tags": []}}
+    assert model_call.call_model(fields, FakeProvider(behavior=_report(["row"]))).status == REPORTED
+    outcome = model_call.call_model(fields, FakeProvider(behavior=_report(["row", "row.ssn"])))
+    assert (outcome.status, outcome.reason_codes) == (PENDING, ("redacted_citation",))
+
+
 @pytest.mark.parametrize("container", ["secrets", "rows[0]", "rows"])
 def test_citing_a_container_whose_values_are_all_redacted_is_refused(container):
     """Nothing in it was visible to the provider, so it supports nothing."""
