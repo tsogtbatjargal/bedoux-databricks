@@ -74,10 +74,15 @@ Evidence: run 43550439595 signed in but failed validation with 403 (the service
 principal had no `workspace-access` entitlement; added). Run 43550611869:
 `bundle validate --target azure_dev` → `Validation OK!` as the service principal.
 
-Before CI deploys: `azure_dev` is `mode: development`, so a deploy as the
-service principal creates its own `[dev id-adp-github-deploy]` copy of every
-resource, and running its job needs Unity Catalog grants on `adb_adp_dev` that
-have not been given. Grants are a separate, reviewed change.
+CI deploys target `azure_ci` (`mode: production`, root path in the service
+principal's home, `run_as` the service principal). People and CI deploy the
+same copy, and jobs always run as one identity. The service principal owns the
+Track 4 schemas and tables (`adp_meta`, `adp_bronze`, `adp_gold`) and has
+`USE CATALOG`, `CREATE SCHEMA` on `adb_adp_dev`; the workspace owner keeps
+`USE SCHEMA`, `SELECT`, `MODIFY` on those schemas. The personal `azure_dev`
+deployment was destroyed when `azure_ci` took over (tables are not bundle
+resources and were kept). Track 1–3 resources deploy under `azure_ci` but have
+no grants for the service principal, so they would fail if run.
 
 To remove: `az identity delete -g rg-adp-dev -n id-adp-github-deploy`, then
 `databricks service-principals delete <id> --profile ADP_AZURE` and the GitHub

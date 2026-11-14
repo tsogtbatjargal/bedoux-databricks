@@ -43,3 +43,23 @@ targets:
       # The workspace catalog Azure created with the workspace. The metastore
       # has no root storage, so a new catalog would need its own managed location.
       catalog: adb_adp_dev
+
+  # Track 4 CI: one shared deployment of the bundle in adb-adp-dev, deployed by
+  # GitHub Actions (OIDC) or by a person, run as the deploy service principal so
+  # Unity Catalog grants apply to one identity. Production mode: no name
+  # prefixes, schedules not paused (there are none). The root path is in the
+  # service principal's home, not /Workspace/Shared; workspace admins can deploy too.
+  azure_ci:
+    mode: production
+    workspace:
+      host: https://adb-7405615454810108.8.azuredatabricks.net
+      root_path: /Workspace/Users/f7545e16-39c2-4302-8235-acc66c69f617/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      service_principal_name: f7545e16-39c2-4302-8235-acc66c69f617
+    permissions:
+      - user_name: tsoglog.uli@gmail.com
+        level: CAN_MANAGE
+      - service_principal_name: f7545e16-39c2-4302-8235-acc66c69f617
+        level: CAN_MANAGE
+    variables:
+      catalog: adb_adp_dev
