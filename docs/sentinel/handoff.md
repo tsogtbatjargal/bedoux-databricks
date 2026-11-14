@@ -27,7 +27,7 @@ Detailed acceptance maps and technical history remain in
 [the chapters](README.md#start-here) and [roadmap](roadmap.md).
 Do not promote code-level completion into a live-evidence claim.
 
-## Latest change: Track 4 deployed to Azure Databricks (same branch)
+## Latest change: Track 4 deployed to Azure Databricks and merged
 
 `azure_dev` now targets workspace `adb-adp-dev`
 (`https://adb-7405615454810108.8.azuredatabricks.net`, catalog `adb_adp_dev`);
@@ -53,11 +53,13 @@ public IP in the managed resource group bill hourly while the workspace exists.
 
 PRs: #33 (Track 3) and #34 (Track 4, base `main`, depends on #33), both
 pushed with the user's approval; CI `Unit tests` and `Validate bundle` (Free
-Edition `dev`, stored secrets) passed on both. Merging either deploys to Free
-Edition `dev` via CI; merging is the user's decision.
+Edition `dev`, stored secrets) passed on both. The user merged both on
+2026-11-13: #33 → `35a4951` (CI run 43542939016), #34 → `edd76f8` (CI run
+43543041793); unit tests, validate and Free Edition deploy succeeded each time.
+Remote branches `track3/01-contract-generator` and `track4/01-agentic-platform`
+are kept.
 
-Next useful task: after the user merges #33 then #34, confirm the CI deploy
-on `main`; then the GitHub OIDC service principal setup
+Next useful task: the GitHub OIDC service principal setup
 (`docs/adp/azure-setup.md` §3); then one capped, opt-in Claude eval run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
