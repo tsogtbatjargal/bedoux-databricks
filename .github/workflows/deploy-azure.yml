@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: "Deploy the bundle to azure_dev (unchecked = validate only)"
+        description: "Deploy the bundle to azure_ci (unchecked = validate only)"
         type: boolean
         default: false
       run_day:
@@ -24,9 +24,14 @@ on:
 permissions:
   contents: read
 
+# One deploy or run at a time against the shared azure_ci deployment.
+concurrency:
+  group: azure-ci
+  cancel-in-progress: false
+
 jobs:
   azure:
-    name: Validate / deploy azure_dev
+    name: Validate / deploy azure_ci
     runs-on: ubuntu-latest
     # The environment holds the variables below and can require a reviewer.
     environment: azure-dev
@@ -55,10 +60,10 @@ jobs:
           allow-no-subscriptions: true
       - uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
       # --target: inside the bundle root the CLI otherwise uses the default (dev) host.
-      - run: databricks current-user me --target azure_dev
-      - run: databricks bundle validate --target azure_dev
+      - run: databricks current-user me --target azure_ci
+      - run: databricks bundle validate --target azure_ci
       - if: inputs.deploy
-        run: databricks bundle deploy --target azure_dev
+        run: databricks bundle deploy --target azure_ci
       - if: inputs.deploy && inputs.run_day != ''
         env:
           RUN_DAY: ${{ inputs.run_day }}
@@ -66,5 +71,5 @@ jobs:
         run: |
           case "$RUN_DAY" in 1|2|3) ;; *) echo "run_day must be 1, 2 or 3"; exit 1 ;; esac
           case "$DEFECT" in *[!a-z_]*|"") echo "defect must be lower_snake_case"; exit 1 ;; esac
-          databricks bundle run adp_platform_job --target azure_dev \
+          databricks bundle run adp_platform_job --target azure_ci \
             --params "day=${RUN_DAY},defect=${DEFECT},defect_day=${RUN_DAY}"
