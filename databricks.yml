@@ -30,12 +30,16 @@ targets:
     run_as:
       user_name: tsoglog.uli@gmail.com
 
-  # Track 4: Azure Databricks workspace (docs/adp/azure-setup.md). Deploys the
-  # same bundle; CI authenticates with GitHub OIDC as a service principal
-  # (.github/workflows/deploy-azure.yml). Replace the host before first use.
+  # Track 4: Azure Databricks workspace adb-adp-dev (rg-adp-dev, canadacentral;
+  # docs/adp/azure-setup.md). Deploys the same bundle; every job and pipeline is
+  # serverless and manual-trigger. Locally pass --profile; CI authenticates with
+  # GitHub OIDC (.github/workflows/deploy-azure.yml). No profile is named here so
+  # CI does not depend on a local ~/.databrickscfg entry.
   azure_dev:
     mode: development
     workspace:
-      host: https://adb-0000000000000000.0.azuredatabricks.net
+      host: https://adb-7405615454810108.8.azuredatabricks.net
     variables:
-      catalog: workspace
+      # The workspace catalog Azure created with the workspace. The metastore
+      # has no root storage, so a new catalog would need its own managed location.
+      catalog: adb_adp_dev
