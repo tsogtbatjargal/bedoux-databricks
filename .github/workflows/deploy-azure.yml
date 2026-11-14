@@ -54,7 +54,8 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
       - uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
-      - run: databricks current-user me -o json | jq '{userName, displayName}'
+      # --target: inside the bundle root the CLI otherwise uses the default (dev) host.
+      - run: databricks current-user me --target azure_dev
       - run: databricks bundle validate --target azure_dev
       - if: inputs.deploy
         run: databricks bundle deploy --target azure_dev

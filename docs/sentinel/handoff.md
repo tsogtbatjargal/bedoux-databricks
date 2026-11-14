@@ -65,7 +65,9 @@ Azure-native way, because the workspace owner is not a Databricks account admin:
 managed identity `id-adp-github-deploy` + federated credential (immutable
 subject), added as a workspace service principal with no UC grants; GitHub
 environment `azure-dev` (main only). `deploy-azure.yml` now uses `azure/login`
-and `DATABRICKS_AUTH_TYPE: azure-cli` (branch `track4/02-azure-oidc`).
+and `DATABRICKS_AUTH_TYPE: azure-cli` (#36, merged). Validate-only dispatch
+succeeded as the service principal (run 43550611869) after granting it the
+`workspace-access` entitlement.
 
 Next useful task: if CI should deploy/run, propose (and get approval for) the
 service principal's UC grants and decide how a development-mode SP deploy should
