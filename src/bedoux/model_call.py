@@ -209,7 +209,9 @@ def _check_citations(report, payload_text):
     report claims from it has no basis in the evidence. A container (e.g.
     "rows[0]") is allowed only if it holds at least one value other than
     the redaction marker -- one whose values are all redacted gives the
-    provider nothing it saw, so it's refused the same way."""
+    provider nothing it saw, so it's refused the same way. An empty
+    container is allowed: its emptiness was visible ("schema_diff.added
+    -> []" is evidence that no column was added)."""
     packet = json.loads(payload_text)
     for citation in report["citations"]:
         value = resolve_citation(packet, citation)
@@ -221,12 +223,13 @@ def _check_citations(report, payload_text):
 
 
 def _holds_visible_value(node):
-    """True if `node` is, or contains at any depth, a value other than the
-    redaction marker. An empty container holds none."""
+    """True if `node` is, or contains at any depth, something the provider
+    saw: a value other than the redaction marker, or an empty container
+    (the provider saw that it was empty; redaction never empties one)."""
     if isinstance(node, dict):
-        return any(_holds_visible_value(v) for v in node.values())
+        return not node or any(_holds_visible_value(v) for v in node.values())
     if isinstance(node, list):
-        return any(_holds_visible_value(v) for v in node)
+        return not node or any(_holds_visible_value(v) for v in node)
     return node != evidence.REDACTED
 
 

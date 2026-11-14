@@ -216,7 +216,11 @@ redacted field even to say "this was withheld" — it has to say that in
 least one value other than the marker: `rows[0]` with a redacted `ssn`
 beside a visible `stage` is fine, but a `secrets` object holding only a
 redacted `ssn` and `password` gave the provider nothing, so it's refused.
-An empty container is refused by the same rule.
+An empty container is allowed (changed during Track 4): the provider saw
+that it was empty, so `schema_diff.added -> []` supports "no column was
+added". Redaction replaces values and never empties a container, so this
+can't expose anything; a container holding only redacted values is still
+refused.
 
 **Leaks are refused before they reach anyone.** `send_payload` screens
 the report itself, before returning it. `prepare_payload` already has the

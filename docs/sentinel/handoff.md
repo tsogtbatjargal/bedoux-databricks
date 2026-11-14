@@ -88,11 +88,16 @@ routed), 17 pending (15 `redacted_citation` from citing empty containers such as
 Results: `docs/adp/evaluation-results-azure-openai.md`. Key passed from
 `az cognitiveservices account keys list` at run time; never stored.
 
-Next useful task: user decision on the citation guard: allow citing an empty
-container that was visible as empty (keep refusing all-redacted ones, give it
-its own reason code), then re-run the Azure eval and report both runs. Claude
-eval still needs an Anthropic key. Track 1–3 resources under `azure_ci` have no
-SP grants and would fail if run. If the
+Citation guard changed (user-approved): `bedoux.model_call._holds_visible_value`
+treats an empty container as visible, so citing `schema_diff.added -> []` is
+allowed; all-redacted containers and the marker are still refused (chapter 04
+doc updated, 4 new tests). Azure re-run: 25/30 validated and routed, 5
+`unresolved_citation` (vary between runs; two re-probed cases passed), 0 wrong
+labels, 0 forbidden tools, $0.167. Total model spend about $0.36.
+
+Next useful task: a Claude eval when an Anthropic key is available; optionally
+repeat the Azure run a few times to measure variance. Track 1–3 resources under
+`azure_ci` have no SP grants and would fail if run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
 
