@@ -58,7 +58,7 @@ workload identity federation instead:
 |---|---|
 | Entra identity | user-assigned managed identity `id-adp-github-deploy` in `rg-adp-dev`, client id `f7545e16-39c2-4302-8235-acc66c69f617`, no Azure RBAC roles |
 | Federated credential | `github-azure-dev`: issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, subject `repo:tsogtbatjargal@122837521/bedoux-databricks@1317616316:environment:azure-dev` |
-| Workspace principal | service principal `id-adp-github-deploy` (same application id), no Unity Catalog grants |
+| Workspace principal | service principal `id-adp-github-deploy` (same application id), entitlement `workspace-access` only, no Unity Catalog grants |
 | GitHub environment | `azure-dev`, deployable from `main` only; variables `AZURE_DATABRICKS_HOST`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` |
 
 The subject uses GitHub's immutable form (owner and repo with numeric ids)
@@ -69,6 +69,10 @@ The `owner/repo` form would never match.
 `.github/workflows/deploy-azure.yml` signs in with `azure/login` (OIDC), then
 the Databricks CLI uses `DATABRICKS_AUTH_TYPE: azure-cli`. Run it manually from
 `main`; unchecked `deploy` validates only.
+
+Evidence: run 43550439595 signed in but failed validation with 403 (the service
+principal had no `workspace-access` entitlement; added). Run 43550611869:
+`bundle validate --target azure_dev` → `Validation OK!` as the service principal.
 
 Before CI deploys: `azure_dev` is `mode: development`, so a deploy as the
 service principal creates its own `[dev id-adp-github-deploy]` copy of every
