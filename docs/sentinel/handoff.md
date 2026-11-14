@@ -95,8 +95,14 @@ doc updated, 4 new tests). Azure re-run: 25/30 validated and routed, 5
 `unresolved_citation` (vary between runs; two re-probed cases passed), 0 wrong
 labels, 0 forbidden tools, $0.167. Total model spend about $0.36.
 
-Next useful task: a Claude eval when an Anthropic key is available; optionally
-repeat the Azure run a few times to measure variance. Track 1–3 resources under
+Variance (runs 2–5, user-requested): routed 25/25/29/27 of 30, wrong labels
+0/3/1/2 (all escalated, none routed), 0 forbidden tools, $0.72 for three new
+runs; total eval spend $0.92. Wrong labels are two near-miss pairs
+(bad_unit_price → INVALID_DOMAIN_VALUE, late_arrival → MISSING_PAYMENT).
+
+Next useful task: a Claude eval when an Anthropic key is available. The Azure
+deployment `adp-eval-gpt-5-4-mini` has no standing charge; delete it if no
+more runs are planned. Track 1–3 resources under
 `azure_ci` have no SP grants and would fail if run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
