@@ -3,8 +3,8 @@
 A Databricks Asset Bundle showcasing lakehouse data engineering across two
 tracks: a classic TPC-H medallion benchmark, and an original, Bedoux-branded
 analytics domain — both built contracts-first, tested, CI/CD'd, and queryable
-through Genie's natural-language BI, entirely within the constraints of
-**Databricks Free Edition**.
+through Genie's natural-language BI, within the constraints of
+**Databricks Free Edition**. Track 4 also runs on **Azure Databricks**.
 
 ## Why two tracks
 
@@ -31,16 +31,40 @@ against a simulated legacy report before "cutover". Contract:
 [`docs/contracts-aglc.md`](docs/contracts-aglc.md). Decisions:
 [`docs/adr/`](docs/adr/). All data is synthetic.
 
-**Track 4: Agentic Data Platform** (in progress) adds a metadata-driven
-incremental ingestion engine (composite cursor, lookback, quarantine, audit
-records), deterministic Decimal reconciliation, and three bounded agent
-workflows: an incident investigator that reuses Sentinel's guarded model path,
-a reconciliation tool, and a SQLGlot-based T-SQL → Databricks SQL modernizer
-validated against independent reference queries. It deploys to Azure Databricks
-through a manual OIDC workflow as well as to Free Edition. Contract:
-[`docs/contracts-adp.md`](docs/contracts-adp.md). Measured offline results:
-[`docs/adp/evaluation-results.md`](docs/adp/evaluation-results.md). Local demo:
-`uv run --locked python scripts/adp_demo.py`. Not yet run in a workspace.
+**Track 4: Agentic Data Platform** adds a metadata-driven incremental
+ingestion engine (composite cursor, lookback, quarantine, audit records),
+deterministic Decimal reconciliation, and three bounded agent workflows: an
+incident investigator that reuses Sentinel's guarded model path, a
+reconciliation tool, and a SQLGlot-based T-SQL → Databricks SQL modernizer
+validated against independent reference queries. Rules decide; a model's label
+is acted on only when it matches the rules classifier, and remediation stops at
+an approval request. Contract: [`docs/contracts-adp.md`](docs/contracts-adp.md).
+Local demo: `uv run --locked python scripts/adp_demo.py`.
+
+Track 4 results on Azure Databricks (workspace `adb-adp-dev`, Unity Catalog,
+serverless jobs):
+
+- **Pipeline, live** ([`docs/adp/live-evidence.md`](docs/adp/live-evidence.md)):
+  six runs of `adp_platform_job` covered incremental loads, a repeat run that
+  changed nothing, 27 bad prices quarantined with the watermark held, and
+  recovery after the source was fixed. Audit rows, watermarks, row counts, gold
+  and reconciliation equal the local engine for the same inputs.
+- **Found live:** serverless auto-retry re-ran a deliberately failing task and
+  duplicated audit rows. Retries are now off; a later failing run made one
+  attempt per task.
+- **CI/CD:** GitHub Actions deploys target `azure_ci` and runs the job as a
+  service principal through Azure workload identity federation (no stored
+  secret); it owns the Track 4 tables ([`docs/adp/azure-setup.md`](docs/adp/azure-setup.md)).
+- **Real-model evaluation**
+  ([`docs/adp/evaluation-results-azure-openai.md`](docs/adp/evaluation-results-azure-openai.md)):
+  Azure OpenAI `gpt-5.4-mini` on 30 incident cases, four runs. 25–29 of 30
+  (mean 26.5) routed with the correct label; 6 wrong labels in 120 case-runs,
+  all sent to a human by the rules check; 0 forbidden tool executions; about
+  $0.18 a run under a hard spend cap. The first run exposed a citation-guard
+  bug (empty lists refused as redacted), since fixed. Claude itself has not
+  been evaluated yet. The scripted fake agent's offline results, which measure
+  the harness rather than a model, are in
+  [`docs/adp/evaluation-results.md`](docs/adp/evaluation-results.md).
 
 Full architecture, diagram, and the Free-Edition trade-offs behind each design
 choice: [`docs/architecture.md`](docs/architecture.md).
@@ -115,6 +139,9 @@ project guidance and chapter skills.
   `main`. Pipeline/bundle changes also validate, then deploy on `main`.
   Documentation and tooling changes alone do not deploy. Manual dispatch has
   separate deployment and pipeline-run options (`.github/workflows/ci.yml`).
+- **Cloud evidence, not only local tests** — Track 4 ran in Azure Databricks
+  and records run ids, row counts and a defect found only in the workspace
+  ([`docs/adp/live-evidence.md`](docs/adp/live-evidence.md)).
 - **A BI layer, not just pipelines** — both tracks' Gold layers are queryable
   through Genie's natural-language interface ([`docs/genie.md`](docs/genie.md)).
 - **Honest engineering trade-offs under Free Edition** — see below. A senior
@@ -140,16 +167,22 @@ AGENTS.md                       # shared agent instructions (Codex + Claude Code
 CLAUDE.md                       # Claude Code entry point; imports AGENTS.md
 pyproject.toml, uv.lock         # declared and locked local Python dependencies
 .python-version, mise.toml      # Python selection and optional uv tool bootstrap
-databricks.yml                  # bundle definition (target: dev)
+databricks.yml                  # bundle definition (targets: dev, azure_dev, azure_ci)
 resources/
   pipelines.yml, jobs.yml         # Track 1 (TPC-H)
   bedoux_pipelines.yml, bedoux_jobs.yml   # Track 2 (Bedoux)
+  aglc.yml                        # Track 3 (regulated gaming & retail)
+  adp.yml                         # Track 4 (adp_platform_job)
 src/
   bronze.py, silver.py, gold.py    # Track 1 DLT pipeline source
   bedoux/
     generator.py                   # deterministic synthetic data (no external deps)
     transforms.py                  # pure business-logic functions, unit tested
     bronze.py, silver.py, gold.py  # Track 2 DLT pipeline source
+  aglc/                            # Track 3
+  adp/                             # Track 4: engine, agents, providers, notebook tasks
+config/adp/datasets/              # Track 4 dataset specs
+scripts/adp_demo.py, adp_eval.py  # Track 4 local demo and evaluation
 tests/                            # pytest, no Spark/workspace dependency
 docs/
   contracts.md, contracts-bedoux.md   # locked layer/naming/business rules per track
@@ -162,6 +195,7 @@ docs/
 .claude/skills/                    # Claude Code adapters onto those same bodies
 scripts/genie.sh                   # thin wrapper over `databricks genie ...`
 .github/workflows/ci.yml           # local tests always; workspace jobs gated by changes
+.github/workflows/deploy-azure.yml # Track 4: manual Azure validate/deploy/run (OIDC)
 ```
 
 LinkedIn drafts, video narration, publication tracking and editorial graphics
@@ -192,6 +226,14 @@ databricks bundle validate --profile bedoux-databricks
 databricks bundle deploy --profile bedoux-databricks
 databricks bundle run tpch_medallion_pipeline_job --profile bedoux-databricks
 databricks bundle run bedoux_analytics_job --profile bedoux-databricks
+```
+
+Track 4 on Azure ([setup](docs/adp/azure-setup.md)):
+
+```bash
+databricks bundle validate --target azure_ci --profile ADP_AZURE
+gh workflow run deploy-azure.yml --ref main -f deploy=false   # CI validate only
+gh workflow run deploy-azure.yml --ref main -f deploy=true -f run_day=1 -f defect=none
 ```
 
 > **Note on the live resources:** Track 1's pipelines/job already exist in the
