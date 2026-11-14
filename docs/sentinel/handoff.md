@@ -101,8 +101,11 @@ runs; total eval spend $0.92. Wrong labels are two near-miss pairs
 (bad_unit_price → INVALID_DOMAIN_VALUE, late_arrival → MISSING_PAYMENT).
 
 Next useful task: a Claude eval when an Anthropic key is available. The Azure
-deployment `adp-eval-gpt-5-4-mini` has no standing charge; delete it if no
-more runs are planned. Track 1–3 resources under
+deployment `adp-eval-gpt-5-4-mini` was deleted on 2026-11-14 at the user's
+request; to re-run the Azure eval, redeploy `gpt-5.4-mini` (Data Zone Standard,
+the SKU with quota) on `tsogloguli-6913-resource`. The only idle-billing items
+left are the NAT gateway and public IP in `rg-adp-dev-bedoux-agentic`, which go
+only with the workspace. Track 1–3 resources under
 `azure_ci` have no SP grants and would fail if run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
