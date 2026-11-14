@@ -23,6 +23,14 @@ that TPC-H can be run once. **All Track 2 data is synthetic and fictional** —
 see [`docs/contracts-bedoux.md`](docs/contracts-bedoux.md) for why that's a
 deliberate choice, not an oversight.
 
+**Track 3: Regulated Gaming & Retail Lakehouse** (in progress) applies the
+same discipline to a regulated domain: domain-owned tables (gaming, liquor,
+cannabis), explainable responsible-gaming flags, Unity Catalog column masks and
+a domain row filter for synthetic PII, and a reconciliation gate that must pass
+against a simulated legacy report before "cutover". Contract:
+[`docs/contracts-aglc.md`](docs/contracts-aglc.md). Decisions:
+[`docs/adr/`](docs/adr/). All data is synthetic.
+
 Full architecture, diagram, and the Free-Edition trade-offs behind each design
 choice: [`docs/architecture.md`](docs/architecture.md).
 
