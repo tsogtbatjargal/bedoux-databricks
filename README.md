@@ -60,8 +60,9 @@ serverless jobs):
   secret); it owns the Track 4 tables ([`docs/adp/azure-setup.md`](docs/adp/azure-setup.md)).
 - **Real-model evaluation**
   ([`docs/adp/evaluation-results-azure-openai.md`](docs/adp/evaluation-results-azure-openai.md)):
-  Azure OpenAI `gpt-5.4-mini` on 30 incident cases, four runs. 25–29 of 30
-  (mean 26.5) routed with the correct label; 6 wrong labels in 120 case-runs,
+  Azure OpenAI `gpt-5.4-mini` on 30 incident cases, five runs, four with the
+  current guard. In those four, 25–29 of 30 (mean 26.5) routed with the correct
+  label; 6 wrong labels in 120 case-runs,
   all sent to a human by the rules check; 0 forbidden tool executions; about
   $0.18 a run under a hard spend cap. The first run exposed a citation-guard
   bug (empty lists refused as redacted), since fixed. Claude itself has not
