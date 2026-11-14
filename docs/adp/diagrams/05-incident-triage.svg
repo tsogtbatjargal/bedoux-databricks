@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="760" viewBox="0 0 960 760" role="img" aria-labelledby="t d">
+  <title id="t">Agent A: investigate, then let the rules decide</title>
+  <desc id="d">A rules-opened incident enters a bounded read-only investigation loop of at most five gated tool calls; the model's root-cause label routes to a runbook only when it matches the rules label, otherwise a human triages.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb; --blue-f:#eff6ff; --teal:#0e7490; --teal-f:#ecfeff;
+      --violet:#7c3aed; --violet-f:#f5f3ff; --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb; --red:#b91c1c; --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    svg{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .ttl{font-size:20px;font-weight:700;fill:var(--ink)}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lb{font-size:14px;font-weight:600;fill:var(--ink)}
+    .dt{font-size:12px;fill:var(--ink)}
+    .mu{fill:var(--muted)}
+    .sm{font-size:11px;fill:var(--muted)}
+    .tag{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .c{text-anchor:middle}
+    .n{stroke-width:1.5px}
+    .violet{fill:var(--violet-f);stroke:var(--violet)} .tv{fill:var(--violet)}
+    .amber{fill:var(--amber-f);stroke:var(--amber)}   .ta{fill:var(--amber)}
+    .green{fill:var(--green-f);stroke:var(--green)}   .tg{fill:var(--green)}
+    .slate{fill:var(--slate-f);stroke:var(--slate)}   .ts{fill:var(--slate)}
+    .tr{fill:var(--red)}
+    .loop{fill:none;stroke:var(--violet);stroke-width:1.5px;stroke-dasharray:4 4}
+    .strip{fill:var(--slate-f);stroke:var(--grid)}
+    .ln{stroke:var(--line);stroke-width:1.5px;fill:none}
+    .ah{fill:var(--line)}
+    .lbg{fill:var(--bg)}
+    .flow{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-12}}
+    .hlg{animation:hlg 24s linear infinite}
+    .hla{animation:hla 24s linear infinite}
+    @keyframes hlg{0%,40%{stroke-width:1.5px}44%,52%{stroke-width:4px}56%,100%{stroke-width:1.5px}}
+    @keyframes hla{0%,4%{stroke-width:4px}8%,88%{stroke-width:1.5px}92%,100%{stroke-width:4px}}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="759" rx="16"/>
+
+  <!-- Title -->
+  <text class="ttl" x="32" y="44">Agent A: investigate, then let the rules decide</text>
+  <text class="sub" x="32" y="68">A bounded, read-only investigation loop. The model's label is acted on only when it matches the rules.</text>
+
+  <!-- Incident (left) -->
+  <rect class="n amber" x="32" y="496" width="112" height="80" rx="10"/>
+  <text class="lb c" x="88" y="526">Incident</text>
+  <text class="dt c" x="88" y="546">opened by</text>
+  <text class="dt c" x="88" y="562">the rules</text>
+
+  <!-- Investigation loop frame -->
+  <rect class="loop" x="168" y="96" width="432" height="568" rx="14"/>
+  <text x="184" y="124"><tspan class="lb">Investigation loop</tspan><tspan class="sub" dx="6">· ≤ 5 tool calls · 60 s</tspan></text>
+
+  <!-- Model -->
+  <rect class="n violet" x="232" y="144" width="288" height="64" rx="10"/>
+  <text class="lb c" x="376" y="170">Model</text>
+  <text class="dt c" x="376" y="190">returns a tool request or a report</text>
+
+  <!-- send_payload -->
+  <rect class="n violet" x="184" y="240" width="176" height="88" rx="10"/>
+  <text class="lb mono c" x="272" y="268">send_payload</text>
+  <text class="dt c" x="272" y="292">parse · citations</text>
+  <text class="dt c" x="272" y="310">resolve · no leak</text>
+
+  <!-- prepare_payload -->
+  <rect class="n violet" x="184" y="488" width="176" height="96" rx="10"/>
+  <text class="lb mono c" x="272" y="516">prepare_payload</text>
+  <text class="dt c" x="272" y="540">redact sensitive</text>
+  <text class="dt c" x="272" y="558">fields · canary check</text>
+
+  <!-- execute_tool gate -->
+  <rect class="n slate" x="400" y="240" width="184" height="192" rx="10"/>
+  <text class="lb c" x="492" y="268"><tspan class="mono">execute_tool</tspan> gate</text>
+  <text class="tag ts" x="416" y="290">CHECKS, IN ORDER</text>
+  <text class="dt" x="416" y="316">1  prohibited name</text>
+  <text class="dt" x="428" y="332">→ <tspan class="mono tr">refused</tspan></text>
+  <text class="dt" x="416" y="356">2  not allowlisted</text>
+  <text class="dt" x="428" y="372">→ <tspan class="mono tr">tool_not_allowed</tspan></text>
+  <text class="dt" x="416" y="396">3  bad args</text>
+  <text class="dt" x="428" y="412">→ <tspan class="mono tr">invalid_tool_args</tspan></text>
+
+  <!-- Read-only tools -->
+  <rect class="n slate" x="400" y="456" width="184" height="160" rx="10"/>
+  <text class="lb c" x="492" y="484">Read-only tool</text>
+  <g class="dt mono">
+    <text x="420" y="508">get_pipeline_run</text>
+    <text x="420" y="524">get_schema_diff</text>
+    <text x="420" y="540">get_contract_results</text>
+    <text x="420" y="556">get_recent_success</text>
+    <text x="420" y="572">get_dataset_runs</text>
+    <text x="420" y="588">get_reconciliation</text>
+  </g>
+
+  <!-- Loop connectors -->
+  <path class="ln flow" d="M144,536 H182" marker-end="url(#ar)"/>
+  <path class="ln flow" d="M272,488 V330" marker-end="url(#ar)"/>
+  <rect class="lbg" x="222" y="398" width="100" height="18"/>
+  <text class="sm mono c" x="272" y="411">CheckedPayload</text>
+  <path class="ln flow" d="M272,240 V210" marker-end="url(#ar)"/>
+  <path class="ln flow" d="M492,208 V238" marker-end="url(#ar)"/>
+  <text class="sm" x="500" y="228">tool request</text>
+  <path class="ln flow" d="M492,432 V454" marker-end="url(#ar)"/>
+  <text class="sm" x="500" y="448">allowed</text>
+  <path class="ln flow" d="M492,616 V632 Q492,640 484,640 H280 Q272,640 272,632 V586" marker-end="url(#ar)"/>
+  <rect class="lbg" x="347" y="632" width="74" height="16"/>
+  <text class="sm c" x="384" y="644">evidence</text>
+
+  <!-- Exit: report -->
+  <path class="ln flow" d="M520,176 H622" marker-end="url(#ar)"/>
+  <text class="sm c" x="560" y="168">report</text>
+
+  <!-- Right: decision -->
+  <rect class="n violet" x="624" y="144" width="304" height="64" rx="10"/>
+  <text class="lb c" x="776" y="170">Report</text>
+  <text class="dt mono c" x="776" y="192">ROOT_CAUSE: &lt;LABEL&gt; + citations</text>
+
+  <path class="ln" d="M680,208 V238" marker-end="url(#ar)"/>
+  <text class="sm" x="688" y="228">compare</text>
+
+  <rect class="n slate" x="624" y="240" width="304" height="88" rx="10"/>
+  <text class="lb c" x="776" y="268"><tspan class="mono">classify()</tspan> rules label</text>
+  <text class="dt c" x="776" y="292">also require: no instruction-like</text>
+  <text class="dt c" x="776" y="310">text in the evidence</text>
+
+  <path class="ln" d="M680,328 V350" marker-end="url(#ar)"/>
+  <path class="n slate" d="M680,352 L736,384 L680,416 L624,384 z"/>
+  <text class="lb c" x="680" y="389">agree?</text>
+
+  <path class="ln" d="M736,384 H758" marker-end="url(#ar)"/>
+  <text class="sm c" x="747" y="376">no</text>
+  <rect class="n amber hla" x="760" y="352" width="168" height="64" rx="10"/>
+  <text class="tag ta c" x="844" y="376">HUMAN</text>
+  <text class="dt mono c" x="844" y="398">needs_human_triage</text>
+
+  <path class="ln" d="M680,416 V446" marker-end="url(#ar)"/>
+  <text class="sm" x="688" y="436">yes</text>
+  <rect class="n green hlg" x="624" y="448" width="304" height="128" rx="10"/>
+  <text class="lb mono c" x="776" y="476">routed_to_runbook</text>
+  <text class="dt c" x="776" y="500">↓ runbook keyed by the rules label</text>
+  <text class="dt c" x="776" y="524">↓ <tspan class="mono">request_approval: awaiting_approval</tspan></text>
+  <text class="sm c" x="776" y="548">(nothing is applied)</text>
+
+  <!-- Footer -->
+  <rect class="strip" x="32" y="688" width="896" height="40" rx="10"/>
+  <text class="dt c" x="480" y="713">Every step is appended to <tspan class="mono">IncidentLog</tspan> <tspan class="mu">(incident, tool calls, triage decision, approval request)</tspan>.</text>
+
+  <!-- Packets: 24 s = two stories (routed, then human) -->
+  <circle r="5" class="tv" opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="1;0;1;0" keyTimes="0;0.3333;0.5;0.8333"/>
+    <animateMotion dur="24s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1;1;0;1;1" keyTimes="0;0.3333;0.5;0.5;0.8333;1"
+      path="M272,488 V176 H492 V640 H272 V488 V176 H492 V640 H272 V488"/>
+  </circle>
+  <circle r="5" class="tv" opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="0;1;0;1;0" keyTimes="0;0.3333;0.4375;0.8333;0.9375"/>
+    <animateMotion dur="24s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1;0;0;1;1" keyTimes="0;0.3333;0.4167;0.5;0.5;0.8333;0.9167;1"
+      path="M376,176 H680 V384"/>
+  </circle>
+  <circle r="5" class="tg" opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="0;1;0" keyTimes="0;0.4167;0.5"/>
+    <animateMotion dur="24s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.4167;0.4792;1" path="M680,384 V456"/>
+  </circle>
+  <circle r="5" class="ta" opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" calcMode="discrete" values="0;1" keyTimes="0;0.9167"/>
+    <animateMotion dur="24s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.9167;0.9792;1" path="M680,384 H770"/>
+  </circle>
+</svg>

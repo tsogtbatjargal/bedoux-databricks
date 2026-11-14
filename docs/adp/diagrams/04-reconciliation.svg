@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="704" viewBox="0 0 960 704" role="img" aria-labelledby="t d" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">Reconciliation and incident triggers</title>
+  <desc id="d">Gold daily_revenue, the source-to-target payment check and the payments-versus-orders anti-joins, followed by the six rule triggers that open incidents and fail the run.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb;  --blue-f:#eff6ff;
+      --teal:#0e7490;  --teal-f:#ecfeff;
+      --violet:#7c3aed;--violet-f:#f5f3ff;
+      --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb;
+      --red:#b91c1c;   --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .title{font-size:20px;font-weight:700;fill:var(--ink)}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lbl{font-size:14px;font-weight:600;fill:var(--ink)}
+    .det{font-size:12px;fill:var(--muted)}
+    .cap{font-size:11px;fill:var(--muted)}
+    .ink{fill:var(--ink)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .tag{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .n{stroke-width:1.5}
+    .blue{fill:var(--blue-f);stroke:var(--blue)}   .c-blue{fill:var(--blue)}
+    .teal{fill:var(--teal-f);stroke:var(--teal)}   .c-teal{fill:var(--teal)}
+    .green{fill:var(--green-f);stroke:var(--green)} .c-green{fill:var(--green)}
+    .amber{fill:var(--amber-f);stroke:var(--amber)} .c-amber{fill:var(--amber)}
+    .red{fill:var(--red-f);stroke:var(--red)}       .c-red{fill:var(--red)}
+    .slate{fill:var(--slate-f);stroke:var(--slate)} .c-slate{fill:var(--slate)}
+    .row{fill:var(--bg);stroke:var(--grid);stroke-width:1}
+    .bar-b{fill:var(--blue);fill-opacity:.75}
+    .bar-t{fill:var(--teal);fill-opacity:.75}
+    .base{stroke:var(--line);stroke-width:1.5}
+    .eq{stroke:var(--teal);stroke-width:3;stroke-linecap:round}
+    .pulse{animation:pulse 2s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+    .hl{animation:hl 10s ease-in-out infinite}
+    @keyframes hl{0%,14%,100%{stroke-width:1.5}5%{stroke-width:4}}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="703" rx="16"/>
+  <text class="title" x="32" y="44">Reconciliation and incident triggers</text>
+  <text class="sub" x="32" y="68">Deterministic Decimal checks after every run (<tspan class="mono">src/adp/reconcile.py</tspan>, <tspan class="mono">src/adp/pipeline.py</tspan>).</text>
+
+  <!-- Panel A: Gold daily_revenue -->
+  <rect class="n blue hl" x="32" y="96" width="232" height="320" rx="10"/>
+  <text class="tag c-blue" x="48" y="120">A · GOLD</text>
+  <text class="lbl" x="48" y="142">Gold · <tspan class="mono">daily_revenue</tspan></text>
+  <text class="det" x="48" y="164">paid or shipped orders by order date</text>
+  <text class="det" x="48" y="180">Decimal sums</text>
+  <rect class="bar-b" x="64" y="252" width="40" height="84" rx="3"/>
+  <rect class="bar-b" x="128" y="220" width="40" height="116" rx="3"/>
+  <rect class="bar-b" x="192" y="236" width="40" height="100" rx="3"/>
+  <line class="base" x1="48" y1="336" x2="248" y2="336"/>
+  <text class="cap" x="84" y="352" text-anchor="middle">day 1</text>
+  <text class="cap" x="148" y="352" text-anchor="middle">day 2</text>
+  <text class="cap" x="212" y="352" text-anchor="middle">day 3</text>
+  <text class="det" x="148" y="392" text-anchor="middle">money is Decimal end to end</text>
+
+  <!-- Panel B: source to target -->
+  <rect class="n teal hl" style="animation-delay:1.2s" x="288" y="96" width="296" height="320" rx="10"/>
+  <text class="tag c-teal" x="304" y="120">B · SOURCE → TARGET</text>
+  <text class="lbl" x="304" y="142">Source → target</text>
+  <text class="det" x="304" y="164">daily payment totals:</text>
+  <text class="det" x="304" y="180">raw extract vs ingested table</text>
+  <rect class="bar-t" x="356" y="212" width="56" height="76" rx="3"/>
+  <rect class="bar-t" x="460" y="212" width="56" height="76" rx="3"/>
+  <line class="base" x1="340" y1="288" x2="532" y2="288"/>
+  <g class="pulse">
+    <line class="eq" x1="426" y1="244" x2="446" y2="244"/>
+    <line class="eq" x1="426" y1="256" x2="446" y2="256"/>
+  </g>
+  <text class="cap" x="384" y="304" text-anchor="middle">source</text>
+  <text class="cap" x="488" y="304" text-anchor="middle">target</text>
+  <text class="det" x="304" y="328">key <tspan class="mono">business_date</tspan> · exact <tspan class="mono">payment_count</tspan></text>
+  <text class="det" x="304" y="344">money <tspan class="mono">amount</tspan> · tolerance 0</text>
+  <text class="det" x="304" y="360">reuses Track 3 <tspan class="mono">aglc.reconcile</tspan></text>
+  <rect class="n green" x="304" y="376" width="56" height="24" rx="12"/>
+  <text class="det ink" x="332" y="392" text-anchor="middle">pass ✓</text>
+  <rect class="n red" x="368" y="376" width="200" height="24" rx="12"/>
+  <text class="det mono ink" x="468" y="392" text-anchor="middle">source_to_target_mismatch</text>
+
+  <!-- Panel C: payments vs orders -->
+  <rect class="n slate hl" style="animation-delay:2.4s" x="608" y="96" width="320" height="320" rx="10"/>
+  <text class="tag c-slate" x="624" y="120">C · PAYMENTS ↔ ORDERS</text>
+  <text class="lbl" x="624" y="142">Payments ↔ orders</text>
+  <text class="det" x="624" y="164">anti-joins between orders and payments</text>
+  <text class="det" x="624" y="180">find, with sample ids as evidence:</text>
+  <rect class="row" x="624" y="196" width="288" height="28" rx="6"/>
+  <text class="det ink" x="636" y="214">unpaid orders</text>
+  <text class="cap mono" x="900" y="214" text-anchor="end">sample_unpaid</text>
+  <rect class="row" x="624" y="230" width="288" height="28" rx="6"/>
+  <text class="det ink" x="636" y="248">overpaid orders</text>
+  <text class="cap mono" x="900" y="248" text-anchor="end">sample_overpaid</text>
+  <rect class="row" x="624" y="264" width="288" height="28" rx="6"/>
+  <text class="det ink" x="636" y="282">underpaid orders</text>
+  <text class="cap mono" x="900" y="282" text-anchor="end">sample_underpaid</text>
+  <rect class="row" x="624" y="298" width="288" height="28" rx="6"/>
+  <text class="det ink" x="636" y="316">orphan payments</text>
+  <text class="cap mono" x="900" y="316" text-anchor="end">sample_orphan</text>
+  <text class="det" x="624" y="352">order ids (payment ids for orphans)</text>
+  <rect class="n green" x="624" y="376" width="56" height="24" rx="12"/>
+  <text class="det ink" x="652" y="392" text-anchor="middle">pass ✓</text>
+  <rect class="n red" x="688" y="376" width="224" height="24" rx="12"/>
+  <text class="det mono ink" x="800" y="392" text-anchor="middle">payments_vs_orders_mismatch</text>
+
+  <!-- Incident triggers (3 x 2, columns match the panels) -->
+  <text class="lbl" x="32" y="456">Rules open incidents <tspan class="det">(a model never opens or closes one)</tspan></text>
+
+  <rect class="n amber hl" style="animation-delay:4s" x="32" y="472" width="232" height="56" rx="10"/>
+  <text class="det mono ink" x="48" y="496" font-weight="600">ingestion_failed</text>
+  <text class="cap" x="48" y="514">ingest run status <tspan class="mono">failed</tspan></text>
+  <rect class="n amber hl" style="animation-delay:4.8s" x="288" y="472" width="296" height="56" rx="10"/>
+  <text class="det mono ink" x="304" y="496" font-weight="600">rows_quarantined</text>
+  <text class="cap" x="304" y="514">status <tspan class="mono">succeeded_with_quarantine</tspan></text>
+  <rect class="n amber hl" style="animation-delay:5.6s" x="608" y="472" width="320" height="56" rx="10"/>
+  <text class="det mono ink" x="624" y="496" font-weight="600">no_new_data</text>
+  <text class="cap" x="624" y="514">run read no new rows</text>
+
+  <rect class="n amber hl" style="animation-delay:6.4s" x="32" y="544" width="232" height="56" rx="10"/>
+  <text class="det mono ink" x="48" y="568" font-weight="600">schema_drift_additive</text>
+  <text class="cap" x="48" y="586"><tspan class="mono">schema_diff</tspan> lists an added column</text>
+  <rect class="n amber hl" style="animation-delay:7.2s" x="288" y="544" width="296" height="56" rx="10"/>
+  <text class="det mono ink" x="304" y="568" font-weight="600">source_to_target_mismatch</text>
+  <text class="cap" x="304" y="586">check B failed</text>
+  <rect class="n amber hl" style="animation-delay:8s" x="608" y="544" width="320" height="56" rx="10"/>
+  <text class="det mono ink" x="624" y="568" font-weight="600">payments_vs_orders_mismatch</text>
+  <text class="cap" x="624" y="586">check C failed</text>
+
+  <!-- Alert note -->
+  <rect class="n red" x="32" y="624" width="896" height="48" rx="10"/>
+  <text class="det ink" x="480" y="653" text-anchor="middle" font-weight="600">Any incident fails the run on purpose: the red run is the alert.</text>
+</svg>

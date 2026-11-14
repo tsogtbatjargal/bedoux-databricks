@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="784" viewBox="0 0 960 784" role="img" aria-labelledby="t d" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">Track 4 at a glance</title>
+  <desc id="d">Synthetic sources flow through the adp_ingest_task and adp_reconcile_task into Unity Catalog, rules open incidents, Agent A proposes a runbook or hands off to a human, and GitHub Actions deploys the job over OIDC.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb;  --blue-f:#eff6ff;
+      --teal:#0e7490;  --teal-f:#ecfeff;
+      --violet:#7c3aed;--violet-f:#f5f3ff;
+      --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb;
+      --red:#b91c1c;   --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .title{font-size:20px;font-weight:700;fill:var(--ink)}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lbl{font-size:14px;font-weight:600;fill:var(--ink)}
+    .det{font-size:12px;fill:var(--muted)}
+    .cap{font-size:11px;fill:var(--muted)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .tag{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .n{stroke-width:1.5}
+    .blue{fill:var(--blue-f);stroke:var(--blue)}   .c-blue{fill:var(--blue)}
+    .teal{fill:var(--teal-f);stroke:var(--teal)}   .c-teal{fill:var(--teal)}
+    .violet{fill:var(--violet-f);stroke:var(--violet)} .c-violet{fill:var(--violet)}
+    .green{fill:var(--green-f);stroke:var(--green)} .c-green{fill:var(--green)}
+    .amber{fill:var(--amber-f);stroke:var(--amber)} .c-amber{fill:var(--amber)}
+    .slate{fill:var(--slate-f);stroke:var(--slate)} .c-slate{fill:var(--slate)}
+    .card{fill:var(--bg);stroke:var(--slate);stroke-width:1}
+    .outline{fill:none;stroke:var(--teal);stroke-width:1.5}
+    .rule{stroke:var(--grid);stroke-width:1}
+    .wire{fill:none;stroke:var(--line);stroke-width:1.5}
+    .ah{fill:var(--line)}
+    .flow{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-12}}
+    .hl{animation:hl 10s ease-in-out infinite}
+    @keyframes hl{0%,14%,100%{stroke-width:1.5}5%{stroke-width:4}}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="783" rx="16"/>
+  <text class="title" x="32" y="44">Track 4 at a glance</text>
+  <text class="sub" x="32" y="68">Synthetic order-to-cash data on Azure Databricks. Rules decide; models explain; humans approve.</text>
+
+  <!-- Azure Databricks job outline around columns 2-3 -->
+  <rect class="outline teal" x="208" y="96" width="432" height="432" rx="14" fill-opacity=".45"/>
+  <text x="224" y="120"><tspan class="tag c-teal">AZURE DATABRICKS · SERVERLESS JOB</tspan><tspan class="mono c-teal" font-size="12" font-weight="600" dx="8">adp_platform_job</tspan></text>
+
+  <!-- Column 1: synthetic sources -->
+  <rect class="n blue hl" x="32" y="136" width="160" height="168" rx="10"/>
+  <text class="lbl" x="112" y="164" text-anchor="middle">Synthetic sources</text>
+  <text class="det mono" x="112" y="188" text-anchor="middle">sales.orders</text>
+  <text class="det mono" x="112" y="204" text-anchor="middle">sales.order_lines</text>
+  <text class="det mono" x="112" y="220" text-anchor="middle">sales.payments</text>
+  <line class="rule" x1="48" y1="234" x2="176" y2="234"/>
+  <text class="det" x="112" y="252" text-anchor="middle">seeded generator</text>
+  <text class="det" x="112" y="268" text-anchor="middle">days 1–3</text>
+  <text class="det" x="112" y="284" text-anchor="middle">injectable defects</text>
+
+  <!-- Column 2: job tasks -->
+  <rect class="n blue hl" style="animation-delay:1s" x="224" y="136" width="184" height="136" rx="10"/>
+  <text class="lbl mono" x="316" y="164" text-anchor="middle">adp_ingest_task</text>
+  <text class="det" x="316" y="188" text-anchor="middle">metadata specs</text>
+  <text class="det mono" x="316" y="204" text-anchor="middle">config/adp/datasets</text>
+  <text class="det" x="316" y="220" text-anchor="middle">composite cursor</text>
+  <text class="det" x="316" y="236" text-anchor="middle">24 h lookback</text>
+  <text class="det" x="316" y="252" text-anchor="middle">quarantine · audit</text>
+
+  <rect class="n blue hl" style="animation-delay:2.6s" x="224" y="304" width="184" height="88" rx="10"/>
+  <text class="lbl mono" x="316" y="332" text-anchor="middle">adp_reconcile_task</text>
+  <text class="det" x="316" y="354" text-anchor="middle">gold + Decimal reconciliation</text>
+  <text class="det mono" x="316" y="372" text-anchor="middle">run_if: ALL_DONE</text>
+
+  <!-- Column 3: Unity Catalog -->
+  <rect class="n slate hl" style="animation-delay:1.8s" x="432" y="136" width="192" height="372" rx="10"/>
+  <text class="tag c-slate" x="528" y="160" text-anchor="middle">UNITY CATALOG</text>
+  <text class="lbl mono" x="528" y="180" text-anchor="middle">adb_adp_dev</text>
+
+  <rect class="card" x="444" y="196" width="168" height="124" rx="8"/>
+  <text class="lbl mono" x="528" y="220" text-anchor="middle">adp_meta</text>
+  <text class="det mono" x="528" y="242" text-anchor="middle">engine_state</text>
+  <text class="det mono" x="528" y="258" text-anchor="middle">ingest_runs</text>
+  <text class="det mono" x="528" y="274" text-anchor="middle">quarantine</text>
+  <text class="det mono" x="528" y="290" text-anchor="middle">reconcile_runs</text>
+  <text class="det mono" x="528" y="306" text-anchor="middle">incidents</text>
+
+  <rect class="card" x="444" y="332" width="168" height="92" rx="8"/>
+  <text class="lbl mono" x="528" y="356" text-anchor="middle">adp_bronze</text>
+  <text class="det mono" x="528" y="378" text-anchor="middle">bronze_orders</text>
+  <text class="det mono" x="528" y="394" text-anchor="middle">bronze_order_lines</text>
+  <text class="det mono" x="528" y="410" text-anchor="middle">bronze_payments</text>
+
+  <rect class="card" x="444" y="436" width="168" height="60" rx="8"/>
+  <text class="lbl mono" x="528" y="460" text-anchor="middle">adp_gold</text>
+  <text class="det mono" x="528" y="482" text-anchor="middle">daily_revenue</text>
+
+  <!-- Column 4: rules and agents -->
+  <rect class="n amber hl" style="animation-delay:4.4s" x="672" y="136" width="256" height="64" rx="10"/>
+  <text class="tag c-amber" x="800" y="160" text-anchor="middle">MONITOR</text>
+  <text class="lbl" x="800" y="182" text-anchor="middle">Rules open incidents</text>
+
+  <rect class="n violet hl" style="animation-delay:5.2s" x="672" y="232" width="256" height="72" rx="10"/>
+  <text class="lbl" x="800" y="260" text-anchor="middle">Agent A · incident investigator</text>
+  <text class="det" x="800" y="282" text-anchor="middle">6 read-only tools · guarded model path</text>
+
+  <rect class="n violet hl" style="animation-delay:6s" x="704" y="336" width="192" height="40" rx="20"/>
+  <text class="det mono" x="800" y="360" text-anchor="middle" style="fill:var(--ink)">label == rules label?</text>
+
+  <rect class="n green hl" style="animation-delay:6.8s" x="672" y="408" width="256" height="64" rx="10"/>
+  <text class="lbl" x="800" y="434" text-anchor="middle">Runbook proposal</text>
+  <text class="det" x="800" y="454" text-anchor="middle">awaiting approval</text>
+
+  <rect class="n amber hl" style="animation-delay:6.8s" x="672" y="496" width="256" height="48" rx="10"/>
+  <text class="lbl mono" x="800" y="525" text-anchor="middle">needs_human_triage</text>
+
+  <rect class="n violet" x="672" y="584" width="256" height="88" rx="10"/>
+  <text class="lbl" x="800" y="612" text-anchor="middle">Agent C · SQL modernizer</text>
+  <text class="det" x="800" y="634" text-anchor="middle">T-SQL → Databricks SQL,</text>
+  <text class="det" x="800" y="650" text-anchor="middle">validated on fixtures</text>
+
+  <!-- Connectors -->
+  <path class="wire flow" d="M192,204 H224" marker-end="url(#a)"/>
+  <path class="wire flow" d="M408,204 H432" marker-end="url(#a)"/>
+  <path class="wire flow" d="M316,272 V304" marker-end="url(#a)"/>
+  <path class="wire flow" d="M408,348 H432" marker-end="url(#a)"/>
+  <path class="wire flow" d="M624,168 H672" marker-end="url(#a)"/>
+  <path class="wire flow" d="M800,200 V232" marker-end="url(#a)"/>
+  <path class="wire flow" d="M800,304 V336" marker-end="url(#a)"/>
+  <path class="wire flow" d="M800,376 V408" marker-end="url(#a)"/>
+  <path class="wire flow" d="M704,356 H664 Q656,356 656,364 V512 Q656,520 664,520 H672" marker-end="url(#a)"/>
+  <text class="cap" x="808" y="396">yes</text>
+  <text class="cap" x="680" y="350" text-anchor="middle">no</text>
+
+  <!-- Packets (one story loop: 10 s) -->
+  <g>
+    <circle r="0" class="c-blue">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M192,204 H224" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.02;0.10;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.02;0.03;0.09;0.10;1"/>
+    </circle>
+    <circle r="0" class="c-blue">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M408,204 H432" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.12;0.18;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.12;0.13;0.17;0.18;1"/>
+    </circle>
+    <circle r="0" class="c-blue">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M316,272 V304" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.20;0.26;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.20;0.21;0.25;0.26;1"/>
+    </circle>
+    <circle r="0" class="c-blue">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M408,348 H432" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.28;0.34;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.28;0.29;0.33;0.34;1"/>
+    </circle>
+    <circle r="0" class="c-amber">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M624,168 H672" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.36;0.44;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.36;0.37;0.43;0.44;1"/>
+    </circle>
+    <circle r="0" class="c-violet">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M800,200 V232" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.46;0.52;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.46;0.47;0.51;0.52;1"/>
+    </circle>
+    <circle r="0" class="c-violet">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M800,304 V336" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.54;0.60;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.54;0.55;0.59;0.60;1"/>
+    </circle>
+    <circle r="0" class="c-green">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M800,376 V408" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.62;0.68;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.62;0.63;0.67;0.68;1"/>
+    </circle>
+    <circle r="0" class="c-amber">
+      <animateMotion dur="10s" repeatCount="indefinite" path="M704,356 H664 Q656,356 656,364 V512 Q656,520 664,520 H672" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.62;0.74;1"/>
+      <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4.5;4.5;0;0" keyTimes="0;0.62;0.63;0.73;0.74;1"/>
+    </circle>
+  </g>
+
+  <!-- Colour key -->
+  <text class="tag c-slate" x="32" y="584">COLOUR KEY</text>
+  <rect class="n blue" x="32" y="598" width="12" height="12" rx="3"/>
+  <text class="cap" x="52" y="608">data / ingestion</text>
+  <rect class="n teal" x="32" y="622" width="12" height="12" rx="3"/>
+  <text class="cap" x="52" y="632">Azure platform / CI</text>
+  <rect class="n slate" x="32" y="646" width="12" height="12" rx="3"/>
+  <text class="cap" x="52" y="656">storage (Unity Catalog)</text>
+  <rect class="n violet" x="208" y="598" width="12" height="12" rx="3"/>
+  <text class="cap" x="228" y="608">model / agent</text>
+  <rect class="n green" x="208" y="622" width="12" height="12" rx="3"/>
+  <text class="cap" x="228" y="632">routed for approval</text>
+  <rect class="n amber" x="208" y="646" width="12" height="12" rx="3"/>
+  <text class="cap" x="228" y="656">rules / human attention</text>
+
+  <!-- CI strip -->
+  <path class="wire flow" d="M420,704 V528" marker-end="url(#a)"/>
+  <text class="cap" x="428" y="620">deploy</text>
+  <rect class="n teal" x="32" y="704" width="896" height="48" rx="10"/>
+  <text x="480" y="733" text-anchor="middle" class="det" style="fill:var(--ink)">GitHub Actions → OIDC (no stored secret) → deploys <tspan class="mono">azure_ci</tspan>, runs as service principal <tspan class="mono">id-adp-github-deploy</tspan></text>
+</svg>

@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="608" viewBox="0 0 960 608" role="img" aria-labelledby="t d" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">Composite cursor and 24 h lookback</title>
+  <desc id="d">A three-day time axis with the watermark and a read window that starts 24 hours before it, showing how ties, late rows inside and outside the lookback, and replayed rows are handled.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb;  --blue-f:#eff6ff;
+      --teal:#0e7490;  --teal-f:#ecfeff;
+      --violet:#7c3aed;--violet-f:#f5f3ff;
+      --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb;
+      --red:#b91c1c;   --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .title{font-size:20px;font-weight:700;fill:var(--ink)}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lbl{font-size:14px;font-weight:600;fill:var(--ink)}
+    .det{font-size:12px;fill:var(--muted)}
+    .cap{font-size:11px;fill:var(--muted)}
+    .ink{fill:var(--ink)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .sep{stroke:var(--grid);stroke-width:1}
+    .axis{stroke:var(--line);stroke-width:1.5}
+    .dot{stroke:var(--bg);stroke-width:1.5}
+    .dot.blue{fill:var(--blue)} .dot.green{fill:var(--green)} .dot.amber{fill:var(--amber)} .dot.slate{fill:var(--slate)}
+    .glow{fill-opacity:.28}
+    .g-blue{fill:var(--blue)} .g-green{fill:var(--green)} .g-amber{fill:var(--amber)} .g-slate{fill:var(--slate)}
+    .win-old{fill:var(--blue);fill-opacity:.10}
+    .win-new{fill:var(--blue);fill-opacity:.05}
+    .edge{stroke:var(--blue);stroke-width:1.5;stroke-dasharray:4 4}
+    .wm{stroke:var(--ink);stroke-width:2}
+    .brk{fill:none;stroke:var(--blue);stroke-width:1.5}
+    .c-blue{fill:var(--blue)}
+    .tagt{font-size:11px;font-weight:600;letter-spacing:.06em}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="607" rx="16"/>
+  <text class="title" x="32" y="44">Composite cursor and 24 h lookback</text>
+  <text class="sub" x="32" y="68">Why ties, replays and late rows don't break incremental loads.</text>
+
+  <!-- Moving read window + watermark (day-2 position, advances 24 h to day-3 position) -->
+  <g>
+    <animateTransform attributeName="transform" type="translate" dur="10s" repeatCount="indefinite"
+      values="0,0;0,0;192,0;192,0;0,0" keyTimes="0;0.30;0.55;0.85;1" calcMode="linear"/>
+    <rect class="win-old" x="400" y="128" width="192" height="400"/>
+    <rect class="win-new" x="592" y="128" width="144" height="400"/>
+    <line class="edge" x1="400" y1="128" x2="400" y2="528"/>
+    <line class="edge" x1="736" y1="128" x2="736" y2="528"/>
+    <text class="tagt c-blue" x="408" y="116">READ WINDOW</text>
+    <line class="wm" x1="592" y1="96" x2="592" y2="536"/>
+    <text class="cap ink" x="600" y="104" style="font-weight:600">watermark</text>
+    <text class="cap mono" x="600" y="118">(updated_at, pk)</text>
+    <path class="brk" d="M402,492 v8 H590 v-8"/>
+    <text class="cap ink" x="496" y="516" text-anchor="middle">lookback 24 h</text>
+    <text class="cap ink" x="730" y="516" text-anchor="end">now</text>
+  </g>
+
+  <!-- Lanes -->
+  <line class="sep" x1="32" y1="128" x2="928" y2="128"/>
+  <line class="sep" x1="32" y1="200" x2="928" y2="200"/>
+  <line class="sep" x1="32" y1="272" x2="928" y2="272"/>
+  <line class="sep" x1="32" y1="344" x2="928" y2="344"/>
+  <line class="sep" x1="32" y1="416" x2="928" y2="416"/>
+  <line class="sep" x1="32" y1="488" x2="928" y2="488"/>
+  <!-- Lane 1: Normal rows -->
+  <circle class="dot blue" cx="40" cy="149" r="5"/>
+  <text class="lbl" x="52" y="154">Normal rows</text>
+  <text class="det" x="52" y="172">new versions arrive in cursor order</text>
+  <circle class="glow g-blue" cx="416" cy="164" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.301;0.321;0.968;0.988;1" values="11;11;0;0;11;11"/></circle>
+  <circle class="dot blue" cx="416" cy="164" r="6"/>
+  <circle class="glow g-blue" cx="496" cy="164" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.405;0.425;0.905;0.925;1" values="11;11;0;0;11;11"/></circle>
+  <circle class="dot blue" cx="496" cy="164" r="6"/>
+  <circle class="glow g-blue" cx="560" cy="164" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.489;0.509;0.856;0.876;1" values="11;11;0;0;11;11"/></circle>
+  <circle class="dot blue" cx="560" cy="164" r="6"/>
+  <circle class="glow g-blue" cx="640" cy="164" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;1" values="11;11"/></circle>
+  <circle class="dot blue" cx="640" cy="164" r="6"/>
+  <circle class="glow g-blue" cx="688" cy="164" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;1" values="11;11"/></circle>
+  <circle class="dot blue" cx="688" cy="164" r="6"/>
+  <circle class="glow g-blue" cx="720" cy="164" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;1" values="11;11"/></circle>
+  <circle class="dot blue" cx="720" cy="164" r="6"/>
+  <circle class="glow g-blue" cx="768" cy="164" r="0"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.322;0.342;0.956;0.976;1" values="0;0;11;11;0;0"/></circle>
+  <circle class="dot blue" cx="768" cy="164" r="6" style="fill-opacity:.4"/>
+  <circle class="glow g-blue" cx="832" cy="164" r="0"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.405;0.425;0.905;0.925;1" values="0;0;11;11;0;0"/></circle>
+  <circle class="dot blue" cx="832" cy="164" r="6" style="fill-opacity:.4"/>
+  <circle class="glow g-blue" cx="880" cy="164" r="0"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.468;0.488;0.868;0.888;1" values="0;0;11;11;0;0"/></circle>
+  <circle class="dot blue" cx="880" cy="164" r="6" style="fill-opacity:.4"/>
+  <!-- Lane 2: Tie at the batch boundary -->
+  <circle class="dot blue" cx="40" cy="221" r="5"/>
+  <text class="lbl" x="52" y="226">Tie at the batch boundary</text>
+  <text class="det" x="52" y="244">same <tspan class="mono">updated_at</tspan> → ordered by primary key,</text>
+  <text class="det" x="52" y="260">neither skipped</text>
+  <circle class="glow g-blue" cx="592" cy="228" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.53;0.55;0.831;0.851;1" values="11;11;0;0;11;11"/></circle>
+  <circle class="dot blue" cx="592" cy="228" r="6"/>
+  <circle class="glow g-blue" cx="592" cy="244" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.53;0.55;0.831;0.851;1" values="11;11;0;0;11;11"/></circle>
+  <circle class="dot blue" cx="592" cy="244" r="6"/>
+  <text class="cap mono" x="604" y="232">pk 1001</text>
+  <text class="cap mono" x="604" y="248">pk 1002</text>
+  <!-- Lane 3: Late row inside lookback -->
+  <circle class="dot green" cx="40" cy="293" r="5"/>
+  <text class="lbl" x="52" y="298">Late row inside lookback</text>
+  <text class="det" x="52" y="316">→ picked up</text>
+  <circle class="glow g-green" cx="512" cy="308" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.426;0.446;0.893;0.913;1" values="11;11;0;0;11;11"/></circle>
+  <circle class="dot green" cx="512" cy="308" r="6"/>
+  <!-- Lane 4: Late row older than lookback -->
+  <circle class="dot amber" cx="40" cy="365" r="5"/>
+  <text class="lbl" x="52" y="370">Late row older than lookback</text>
+  <text class="det" x="52" y="388">missed by ingestion, caught by reconciliation</text>
+  <text class="det mono" x="52" y="404">LATE_ARRIVAL_BEYOND_LOOKBACK</text>
+  <circle class="glow g-amber" cx="368" cy="380" r="0"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;1" values="0;0"/></circle>
+  <circle class="dot amber" cx="368" cy="380" r="6"/>
+  <!-- Lane 5: Already-loaded row re-read -->
+  <circle class="dot slate" cx="40" cy="437" r="5"/>
+  <text class="lbl" x="52" y="442">Already-loaded row re-read</text>
+  <text class="det" x="52" y="460">→ no-op (cursor not newer)</text>
+  <circle class="glow g-slate" cx="464" cy="452" r="11"><animate attributeName="r" dur="10s" repeatCount="indefinite" keyTimes="0;0.364;0.384;0.931;0.951;1" values="11;11;0;0;11;11"/></circle>
+  <circle class="dot slate" cx="464" cy="452" r="6"/>
+
+  <!-- Time axis: Day 1 to Day 3, ticks every 6 h -->
+  <line class="axis" x1="352" y1="536" x2="928" y2="536"/>
+  <line class="axis" x1="352" y1="528" x2="352" y2="544"/>
+  <text class="cap" x="352" y="558" text-anchor="middle">00</text>
+  <line class="axis" x1="400" y1="532" x2="400" y2="540"/>
+  <text class="cap" x="400" y="558" text-anchor="middle">06</text>
+  <line class="axis" x1="448" y1="532" x2="448" y2="540"/>
+  <text class="cap" x="448" y="558" text-anchor="middle">12</text>
+  <line class="axis" x1="496" y1="532" x2="496" y2="540"/>
+  <text class="cap" x="496" y="558" text-anchor="middle">18</text>
+  <line class="axis" x1="544" y1="528" x2="544" y2="544"/>
+  <text class="cap" x="544" y="558" text-anchor="middle">00</text>
+  <line class="axis" x1="592" y1="532" x2="592" y2="540"/>
+  <text class="cap" x="592" y="558" text-anchor="middle">06</text>
+  <line class="axis" x1="640" y1="532" x2="640" y2="540"/>
+  <text class="cap" x="640" y="558" text-anchor="middle">12</text>
+  <line class="axis" x1="688" y1="532" x2="688" y2="540"/>
+  <text class="cap" x="688" y="558" text-anchor="middle">18</text>
+  <line class="axis" x1="736" y1="528" x2="736" y2="544"/>
+  <text class="cap" x="736" y="558" text-anchor="middle">00</text>
+  <line class="axis" x1="784" y1="532" x2="784" y2="540"/>
+  <text class="cap" x="784" y="558" text-anchor="middle">06</text>
+  <line class="axis" x1="832" y1="532" x2="832" y2="540"/>
+  <text class="cap" x="832" y="558" text-anchor="middle">12</text>
+  <line class="axis" x1="880" y1="532" x2="880" y2="540"/>
+  <text class="cap" x="880" y="558" text-anchor="middle">18</text>
+  <line class="axis" x1="928" y1="528" x2="928" y2="544"/>
+  <text class="lbl" x="448" y="580" text-anchor="middle" style="font-size:12px">Day 1</text>
+  <text class="lbl" x="640" y="580" text-anchor="middle" style="font-size:12px">Day 2</text>
+  <text class="lbl" x="832" y="580" text-anchor="middle" style="font-size:12px">Day 3</text>
+</svg>

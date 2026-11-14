@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="704" viewBox="0 0 960 704" role="img" aria-labelledby="t d">
+  <title id="t">CI/CD: two paths, no stored Azure secret</title>
+  <desc id="d">Two swimlanes: every pull request runs tests and validates the bundle when bundle paths change, main deploys Free Edition with a stored token, and Azure deploys only on a manual deploy-azure.yml run that signs in with GitHub OIDC to a managed identity.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb; --blue-f:#eff6ff; --teal:#0e7490; --teal-f:#ecfeff;
+      --violet:#7c3aed; --violet-f:#f5f3ff; --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb; --red:#b91c1c; --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:var(--ink)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .ttl{font-size:20px;font-weight:700}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lbl{font-size:14px;font-weight:600}
+    .dt{font-size:12px}
+    .sm{font-size:11px}
+    .mut{fill:var(--muted)}
+    .eb{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .c-teal{fill:var(--teal)} .c-violet{fill:var(--violet)} .c-slate{fill:var(--slate)}
+    .lane{fill:var(--slate-f);stroke:var(--grid);stroke-width:1}
+    .n-teal{fill:var(--teal-f);stroke:var(--teal);stroke-width:1.5}
+    .n-violet{fill:var(--violet-f);stroke:var(--violet);stroke-width:1.5}
+    .n-slate{fill:var(--slate-f);stroke:var(--slate);stroke-width:1.5}
+    .chip{fill:var(--bg);stroke:var(--line);stroke-width:1}
+    .stop{fill:var(--slate-f);stroke:var(--slate);stroke-width:1.2;stroke-dasharray:4 3}
+    .ln{fill:none;stroke:var(--line);stroke-width:1.5}
+    .ahp{fill:var(--line)}
+    .flow{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-12}}
+    /* branch: yes and no paths take turns (8 s cycle) */
+    .yes{animation:dash 1.2s linear infinite,alt 8s step-end infinite}
+    .no{animation:dash 1.2s linear infinite,alt 8s step-end infinite -4s}
+    @keyframes alt{0%{opacity:1}50%{opacity:.35}100%{opacity:1}}
+    /* lane 2: each step glows as the token reaches it (9 s cycle) */
+    .hl{animation:hl 9s ease-out infinite}
+    @keyframes hl{0%{stroke-width:3.5}12%{stroke-width:1.5}100%{stroke-width:1.5}}
+    .pk-teal{fill:var(--teal)}
+    .key-b{fill:var(--violet)}
+    .key-g{fill:none;stroke:var(--bg);stroke-width:1.8;stroke-linecap:round}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" class="ahp"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="703" rx="16"/>
+
+  <!-- title -->
+  <text class="ttl" x="32" y="44">CI/CD: two paths, no stored Azure secret</text>
+  <text class="sub" x="32" y="68">Pull requests test; main deploys Free Edition; Azure deploys only on a manual, OIDC-authenticated run.</text>
+
+  <!-- ============ lane 1: ci.yml ============ -->
+  <rect class="lane" x="32" y="96" width="896" height="228" rx="12"/>
+  <text x="48" y="124"><tspan class="eb c-teal">LANE 1</tspan><tspan class="lbl" dx="10">Every PR and push to main</tspan><tspan class="dt mono mut" dx="6">(ci.yml)</tspan></text>
+
+  <!-- connectors -->
+  <path class="ln flow" d="M168 200 H185" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M306 200 H323" marker-end="url(#ah)"/>
+  <path class="ln yes" d="M448 200 H475" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M612 200 H629" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M758 200 H775" marker-end="url(#ah)"/>
+  <path class="ln no" d="M386 256 V279" marker-end="url(#ah)"/>
+  <text class="sm mut" x="462" y="190" text-anchor="middle">yes</text>
+  <text class="sm mut" x="394" y="272">no</text>
+
+  <!-- lane 1 packets: yes path (0-4 s), then no path (4-8 s)  · drawn under the boxes -->
+  <circle class="pk-teal" r="4.5" opacity="0">
+    <animateMotion dur="8s" repeatCount="indefinite" path="M108 200 H844" keyPoints="0;1;1" keyTimes="0;0.45;1" calcMode="linear"/>
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.42;0.47;1"/>
+  </circle>
+  <circle class="pk-teal" r="4.5" opacity="0">
+    <animateMotion dur="8s" begin="4s" repeatCount="indefinite" path="M108 200 H386 V294" keyPoints="0;1;1" keyTimes="0;0.45;1" calcMode="linear"/>
+    <animate attributeName="opacity" dur="8s" begin="4s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.04;0.42;0.47;1"/>
+  </circle>
+
+  <!-- steps -->
+  <rect class="n-teal" x="48" y="144" width="120" height="112" rx="10"/>
+  <text class="lbl" x="108" y="194" text-anchor="middle">Pull request</text>
+  <text class="dt mut" x="108" y="214" text-anchor="middle">into main</text>
+
+  <rect class="n-teal" x="186" y="144" width="120" height="112" rx="10"/>
+  <text class="lbl" x="246" y="180" text-anchor="middle">Unit tests</text>
+  <text class="dt" x="246" y="200" text-anchor="middle">pytest +</text>
+  <text class="dt" x="246" y="216" text-anchor="middle">offline eval</text>
+  <text class="dt mut" x="246" y="232" text-anchor="middle">(fake agent)</text>
+
+  <rect class="n-slate" x="324" y="144" width="124" height="112" rx="10"/>
+  <text class="lbl" x="386" y="172" text-anchor="middle">Bundle paths</text>
+  <text class="lbl" x="386" y="190" text-anchor="middle">changed?</text>
+  <text class="sm mono" x="386" y="210" text-anchor="middle">src/</text>
+  <text class="sm mono" x="386" y="225" text-anchor="middle">resources/</text>
+  <text class="sm mono" x="386" y="240" text-anchor="middle">databricks.yml</text>
+
+  <rect class="n-teal" x="476" y="144" width="136" height="112" rx="10"/>
+  <text class="lbl" x="544" y="186" text-anchor="middle">Validate</text>
+  <text class="sm mono" x="544" y="206" text-anchor="middle">bundle validate</text>
+  <text class="dt mut" x="544" y="222" text-anchor="middle">target <tspan class="mono">dev</tspan></text>
+
+  <rect class="n-teal" x="630" y="144" width="128" height="112" rx="10"/>
+  <text class="lbl" x="694" y="194" text-anchor="middle">Merge to main</text>
+  <text class="dt mut" x="694" y="214" text-anchor="middle">push event</text>
+
+  <rect class="n-teal" x="776" y="144" width="136" height="112" rx="10"/>
+  <text class="lbl" x="844" y="186" text-anchor="middle">Deploy</text>
+  <text class="dt" x="844" y="206" text-anchor="middle">Free Edition dev</text>
+  <text class="dt mut" x="844" y="222" text-anchor="middle">(stored token)</text>
+
+  <!-- docs-only stop -->
+  <rect class="stop" x="270" y="280" width="232" height="28" rx="14"/>
+  <text class="sm" x="386" y="298" text-anchor="middle">Docs-only change: stops after tests</text>
+
+  <!-- ============ lane 2: deploy-azure.yml ============ -->
+  <rect class="lane" x="32" y="348" width="896" height="324" rx="12"/>
+  <text x="48" y="377"><tspan class="eb c-violet">LANE 2</tspan><tspan class="lbl" dx="10">Manual:</tspan><tspan class="dt mono" dx="6">deploy-azure.yml (workflow_dispatch)</tspan></text>
+  <rect class="chip" x="460" y="361" width="256" height="22" rx="11"/>
+  <text class="sm" x="588" y="376" text-anchor="middle">concurrency group <tspan class="mono">azure-ci</tspan> · one run at a time</text>
+  <rect class="chip" x="728" y="361" width="184" height="22" rx="11"/>
+  <text class="sm" x="820" y="376" text-anchor="middle">deploy unchecked = validate only</text>
+
+  <!-- connectors -->
+  <path class="ln flow" d="M246 448 H269" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M468 448 H491" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M690 448 H713" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M813 504 V516 Q813 524 805 524 H155 Q147 524 147 532 V543" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M246 600 H269" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M468 600 H491" marker-end="url(#ah)"/>
+  <path class="ln flow" d="M690 600 H713" marker-end="url(#ah)"/>
+
+  <!-- lane 2 token packet (key badge) runs under the boxes; 8 s travel + 1 s rest -->
+  <g opacity="0">
+    <rect class="key-b" x="-12" y="-8" width="24" height="16" rx="8"/>
+    <circle class="key-g" cx="-4" cy="0" r="3"/>
+    <path class="key-g" d="M-1 0 H7 M5 0 V3"/>
+    <animateMotion dur="9s" repeatCount="indefinite" path="M147 448 H813 V524 H147 V600 H813" keyPoints="0;1;1" keyTimes="0;0.889;1" calcMode="linear"/>
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.03;0.87;0.92;1"/>
+  </g>
+
+  <!-- row 1 -->
+  <rect class="n-teal hl" x="48" y="392" width="198" height="112" rx="10"/>
+  <text class="eb c-teal" x="147" y="416" text-anchor="middle">TRIGGER</text>
+  <text class="lbl" x="147" y="436" text-anchor="middle">Dispatch from main</text>
+  <text class="dt mono" x="147" y="456" text-anchor="middle">workflow_dispatch</text>
+  <text class="sm mono mut" x="147" y="472" text-anchor="middle">deploy · run_day · defect</text>
+
+  <rect class="n-teal hl" x="270" y="392" width="198" height="112" rx="10" style="animation-delay:.86s"/>
+  <text class="eb c-teal" x="369" y="416" text-anchor="middle">GITHUB</text>
+  <text class="lbl" x="369" y="436" text-anchor="middle">Environment <tspan class="mono">azure-dev</tspan></text>
+  <text class="dt" x="369" y="456" text-anchor="middle">deployable from main only</text>
+
+  <rect class="n-violet hl" x="492" y="392" width="198" height="112" rx="10" style="animation-delay:1.71s"/>
+  <text class="eb c-violet" x="591" y="416" text-anchor="middle">SHORT-LIVED</text>
+  <text class="lbl" x="591" y="436" text-anchor="middle">GitHub OIDC token</text>
+  <text class="dt mut" x="591" y="456" text-anchor="middle">subject <tspan class="mono" style="fill:var(--ink)">repo:…@ids…</tspan></text>
+  <text class="dt mono" x="591" y="472" text-anchor="middle">:environment:azure-dev</text>
+
+  <rect class="n-violet hl" x="714" y="392" width="198" height="112" rx="10" style="animation-delay:2.57s"/>
+  <text class="eb c-violet" x="813" y="416" text-anchor="middle">MICROSOFT ENTRA ID</text>
+  <text class="lbl" x="813" y="436" text-anchor="middle">Federated credential</text>
+  <text class="dt" x="813" y="456" text-anchor="middle">→ managed identity</text>
+  <text class="dt mono" x="813" y="472" text-anchor="middle">id-adp-github-deploy</text>
+  <text class="dt mut" x="813" y="488" text-anchor="middle">no Azure RBAC role</text>
+
+  <!-- row 2 -->
+  <rect class="n-teal hl" x="48" y="544" width="198" height="112" rx="10" style="animation-delay:5.43s"/>
+  <text class="eb c-teal" x="147" y="568" text-anchor="middle">SIGN-IN</text>
+  <text class="lbl mono" x="147" y="588" text-anchor="middle">azure/login</text>
+  <text class="dt" x="147" y="608" text-anchor="middle">→ Databricks CLI</text>
+  <text class="dt mut" x="147" y="624" text-anchor="middle"><tspan class="mono">azure-cli</tspan> auth</text>
+
+  <rect class="n-teal hl" x="270" y="544" width="198" height="112" rx="10" style="animation-delay:6.29s"/>
+  <text class="eb c-teal" x="369" y="568" text-anchor="middle">BUNDLE</text>
+  <text class="lbl" x="369" y="588" text-anchor="middle">Validate / deploy</text>
+  <text class="dt mut" x="369" y="608" text-anchor="middle">target <tspan class="mono" style="fill:var(--ink)">azure_ci</tspan></text>
+
+  <rect class="n-teal hl" x="492" y="544" width="198" height="112" rx="10" style="animation-delay:7.14s"/>
+  <text class="eb c-teal" x="591" y="568" text-anchor="middle">JOB RUN</text>
+  <text class="lbl" x="591" y="588" text-anchor="middle">Run <tspan class="mono">adp_platform_job</tspan></text>
+  <text class="dt" x="591" y="608" text-anchor="middle">as the service principal</text>
+
+  <rect class="n-slate hl" x="714" y="544" width="198" height="112" rx="10" style="animation-delay:8s"/>
+  <text class="eb c-slate" x="813" y="568" text-anchor="middle">UNITY CATALOG</text>
+  <text class="lbl mono" x="813" y="588" text-anchor="middle">adb_adp_dev</text>
+  <text class="dt mut" x="813" y="608" text-anchor="middle">service principal owns</text>
+  <text class="dt mono" x="813" y="624" text-anchor="middle">adp_meta, adp_bronze,</text>
+  <text class="dt mono" x="813" y="640" text-anchor="middle">adp_gold</text>
+
+</svg>

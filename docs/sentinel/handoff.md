@@ -107,6 +107,12 @@ yet evaluated. Numbers there are copied from those docs; update them together.
 Merged local branches were deleted after checking each had an identical remote
 copy; remote branches are kept.
 
+Docs: `docs/adp/README.md` is the Track 4 user guide, embedding ten hand-written
+animated SVGs in `docs/adp/diagrams/` (light/dark via prefers-color-scheme,
+reduced-motion respected, no scripts). Their facts mirror the contract, live
+evidence and eval docs; when those numbers change, update the matching diagram.
+Render check used headless Chrome (flatpak) into an untracked `.svgcheck/`.
+
 Next useful task: a Claude eval when an Anthropic key is available. The Azure
 deployment `adp-eval-gpt-5-4-mini` was deleted on 2026-11-14 at the user's
 request; to re-run the Azure eval, redeploy `gpt-5.4-mini` (Data Zone Standard,

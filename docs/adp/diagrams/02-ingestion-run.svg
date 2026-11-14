@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="992" viewBox="0 0 960 992" role="img" aria-labelledby="t d" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">One ingestion run</title>
+  <desc id="d">The seven steps adp_ingest_task runs for each dataset, from loading the spec to advancing the watermark, with the failure, quarantine and tombstone branches and the audit record every run writes.</desc>
+  <style>
+    :root{ --bg:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#94a3b8; --grid:#e2e8f0;
+      --blue:#2563eb;  --blue-f:#eff6ff;
+      --teal:#0e7490;  --teal-f:#ecfeff;
+      --violet:#7c3aed;--violet-f:#f5f3ff;
+      --green:#15803d; --green-f:#f0fdf4;
+      --amber:#b45309; --amber-f:#fffbeb;
+      --red:#b91c1c;   --red-f:#fef2f2;
+      --slate:#475569; --slate-f:#f8fafc; }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#0d1117; --ink:#e6edf3; --muted:#8b949e;
+      --line:#6e7681; --grid:#21262d;
+      --blue:#58a6ff; --blue-f:#0d1d33; --teal:#39c5cf; --teal-f:#0b2226;
+      --violet:#bc8cff; --violet-f:#1d1530; --green:#3fb950; --green-f:#0f2417;
+      --amber:#d29922; --amber-f:#2a1f08; --red:#f85149; --red-f:#2d1214;
+      --slate:#8b949e; --slate-f:#161b22; } }
+    .bg{fill:var(--bg);stroke:var(--grid)}
+    .title{font-size:20px;font-weight:700;fill:var(--ink)}
+    .sub{font-size:13px;fill:var(--muted)}
+    .lbl{font-size:14px;font-weight:600;fill:var(--ink)}
+    .det{font-size:12px;fill:var(--muted)}
+    .num{font-size:12px;font-weight:700}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .tag{font-size:11px;font-weight:600;letter-spacing:.06em}
+    .n{stroke-width:1.5}
+    .blue{fill:var(--blue-f);stroke:var(--blue)}   .c-blue{fill:var(--blue)}
+    .green{fill:var(--green-f);stroke:var(--green)} .c-green{fill:var(--green)}
+    .amber{fill:var(--amber-f);stroke:var(--amber)} .c-amber{fill:var(--amber)}
+    .red{fill:var(--red-f);stroke:var(--red)}       .c-red{fill:var(--red)}
+    .slate{fill:var(--slate-f);stroke:var(--slate)} .c-slate{fill:var(--slate)}
+    .note{stroke-dasharray:4 3}
+    .halo{fill:none;stroke:var(--blue);stroke-width:2.5}
+    .wire{fill:none;stroke:var(--line);stroke-width:1.5}
+    .w-red{stroke:var(--red)} .w-amber{stroke:var(--amber)} .w-slate{stroke:var(--slate)}
+    .ah{fill:var(--line)} .ah-red{fill:var(--red)} .ah-amber{fill:var(--amber)} .ah-slate{fill:var(--slate)}
+    .flow{stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+    @keyframes dash{to{stroke-dashoffset:-12}}
+    .hl{animation:hl 10s ease-in-out infinite}
+    @keyframes hl{0%,14%,100%{stroke-width:1.5}5%{stroke-width:4}}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah-red" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah-amber" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="as" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah-slate" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="991" rx="16"/>
+  <text class="title" x="32" y="44">One ingestion run</text>
+  <text class="sub" x="32" y="68">What <tspan class="mono">adp_ingest_task</tspan> does for each dataset (<tspan class="mono">src/adp/ingest.py</tspan>).</text>
+
+  <!-- Spine between steps -->
+  <path class="wire" d="M60,176 V200" marker-end="url(#a)"/>
+  <path class="wire" d="M60,280 V376" marker-end="url(#a)"/>
+  <path class="wire" d="M60,456 V480" marker-end="url(#a)"/>
+  <path class="wire" d="M60,584 V608" marker-end="url(#a)"/>
+  <path class="wire" d="M60,688 V712" marker-end="url(#a)"/>
+  <path class="wire" d="M60,792 V816" marker-end="url(#a)"/>
+
+  <!-- 1 Load spec -->
+  <rect class="n blue hl" x="32" y="96" width="400" height="80" rx="10"/>
+  <circle class="n blue" cx="60" cy="119" r="12"/><text class="num c-blue" x="60" y="123" text-anchor="middle">1</text>
+  <text class="lbl" x="88" y="124">Load spec</text>
+  <text class="det" x="88" y="146">YAML in <tspan class="mono">config/adp/datasets</tspan>, validated:</text>
+  <text class="det" x="88" y="162">a spec that would make the engine guess fails</text>
+
+  <!-- 2 Schema diff -->
+  <rect class="n blue hl" style="animation-delay:1.2s" x="32" y="200" width="400" height="80" rx="10"/>
+  <circle class="n blue" cx="60" cy="223" r="12"/><text class="num c-blue" x="60" y="227" text-anchor="middle">2</text>
+  <text class="lbl" x="88" y="228">Schema diff</text>
+  <text class="det" x="88" y="250">observed columns vs the spec</text>
+
+  <path class="wire w-red flow" d="M432,240 H528" marker-end="url(#ar)"/>
+  <rect class="n red" x="528" y="200" width="400" height="80" rx="10"/>
+  <text class="tag c-red" x="544" y="224">REQUIRED COLUMN MISSING</text>
+  <text class="lbl" x="544" y="246">FAILED · <tspan class="mono">schema_required_column_missing</tspan></text>
+  <text class="det" x="544" y="266">before any row is read</text>
+
+  <path class="wire w-slate flow" d="M480,240 V316 Q480,324 488,324 H528" marker-end="url(#as)"/>
+  <rect class="n slate note" x="528" y="296" width="400" height="56" rx="10"/>
+  <text class="tag c-slate" x="544" y="318">COLUMN ADDED</text>
+  <text class="det" x="544" y="338">recorded in <tspan class="mono">schema_diff</tspan>, run continues</text>
+
+  <!-- 3 Read window -->
+  <rect class="n blue hl" style="animation-delay:2.6s" x="32" y="376" width="400" height="80" rx="10"/>
+  <circle class="n blue" cx="60" cy="399" r="12"/><text class="num c-blue" x="60" y="403" text-anchor="middle">3</text>
+  <text class="lbl" x="88" y="404">Read window</text>
+  <text class="det" x="88" y="426">rows with cursor &gt; watermark − <tspan class="mono">lookback_hours</tspan> (24 h)</text>
+  <text class="det" x="88" y="442">cursor = (<tspan class="mono">updated_at</tspan>, primary key)</text>
+
+  <!-- 4 Validate rows -->
+  <rect class="n blue hl" style="animation-delay:3.8s" x="32" y="480" width="400" height="104" rx="10"/>
+  <circle class="n blue" cx="60" cy="503" r="12"/><text class="num c-blue" x="60" y="507" text-anchor="middle">4</text>
+  <text class="lbl" x="88" y="508">Validate rows</text>
+  <text class="det" x="88" y="530">cast types (decimal, date, timestamp, enum, bool, int)</text>
+  <text class="det" x="88" y="546">null key · duplicate key · invalid enum</text>
+
+  <path class="wire w-amber flow" d="M432,532 H528" marker-end="url(#aa)"/>
+  <rect class="n amber" x="528" y="480" width="400" height="104" rx="10"/>
+  <text class="tag c-amber" x="544" y="504">ROW REJECTED</text>
+  <text class="lbl" x="544" y="526">Quarantine with raw values + reason</text>
+  <text class="det mono" x="544" y="548">missing_required · cast_failed · invalid_enum</text>
+  <text class="det mono" x="544" y="564">null_primary_key · duplicate_key</text>
+
+  <!-- 5 Quarantine ratio check -->
+  <rect class="n blue hl" style="animation-delay:5.4s" x="32" y="608" width="400" height="80" rx="10"/>
+  <circle class="n blue" cx="60" cy="631" r="12"/><text class="num c-blue" x="60" y="635" text-anchor="middle">5</text>
+  <text class="lbl" x="88" y="636">Quarantine ratio check</text>
+  <text class="det" x="88" y="658">quarantined share vs <tspan class="mono">max_quarantine_ratio</tspan> (0.02)</text>
+
+  <path class="wire w-red flow" d="M432,648 H528" marker-end="url(#ar)"/>
+  <rect class="n red" x="528" y="608" width="400" height="80" rx="10"/>
+  <text class="tag c-red" x="544" y="632">SHARE &gt; 0.02</text>
+  <text class="lbl" x="544" y="654">FAILED · <tspan class="mono">quarantine_ratio_exceeded</tspan></text>
+  <text class="det" x="544" y="674">nothing written · watermark held</text>
+
+  <!-- 6 Merge -->
+  <rect class="n blue hl" style="animation-delay:6.6s" x="32" y="712" width="400" height="80" rx="10"/>
+  <circle class="n blue" cx="60" cy="735" r="12"/><text class="num c-blue" x="60" y="739" text-anchor="middle">6</text>
+  <text class="lbl" x="88" y="740">Merge</text>
+  <text class="det" x="88" y="762">a version replaces the stored one only if its cursor is newer</text>
+  <text class="det" x="88" y="778">replays are no-ops</text>
+
+  <path class="wire w-slate flow" d="M432,752 H528" marker-end="url(#as)"/>
+  <rect class="n slate note" x="528" y="720" width="400" height="64" rx="10"/>
+  <text class="tag c-slate" x="544" y="744">TOMBSTONE</text>
+  <text class="det" x="544" y="766"><tspan class="mono">is_deleted = true</tspan> → kept, but excluded from Gold</text>
+
+  <!-- 7 Advance watermark -->
+  <rect class="n green hl" style="animation-delay:7.8s" x="32" y="816" width="400" height="64" rx="10"/>
+  <circle class="n green" cx="60" cy="839" r="12"/><text class="num c-green" x="60" y="843" text-anchor="middle">7</text>
+  <text class="lbl" x="88" y="844">Advance watermark</text>
+  <text class="det" x="88" y="864">only after success</text>
+
+  <!-- Audit footer -->
+  <rect class="n slate" x="32" y="912" width="896" height="48" rx="10"/>
+  <text class="det" x="480" y="941" text-anchor="middle" style="fill:var(--ink)">Every run writes an audit record → <tspan class="mono">adp_meta.ingest_runs</tspan> · status: <tspan class="mono">succeeded | succeeded_with_quarantine | failed</tspan></text>
+
+  <!-- Packets (one story loop: 10 s) -->
+  <circle r="0" class="halo">
+    <animateMotion dur="10s" repeatCount="indefinite" path="M60,119 V839" calcMode="linear"
+      keyPoints="0;0;.1444;.1444;.3889;.3889;.5333;.5333;.7111;.7111;.8556;.8556;1;1"
+      keyTimes="0;0.06;0.12;0.18;0.26;0.32;0.38;0.48;0.54;0.60;0.66;0.72;0.78;1"/>
+    <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;17;17;0;0" keyTimes="0;0.02;0.88;0.90;1"/>
+  </circle>
+  <circle r="0" class="c-amber">
+    <animateMotion dur="10s" repeatCount="indefinite" path="M432,532 H528" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.39;0.45;1"/>
+    <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4;4;0;0" keyTimes="0;0.39;0.40;0.44;0.45;1"/>
+  </circle>
+  <circle r="0" class="c-amber">
+    <animateMotion dur="10s" repeatCount="indefinite" path="M432,532 H528" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.41;0.47;1"/>
+    <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4;4;0;0" keyTimes="0;0.41;0.42;0.46;0.47;1"/>
+  </circle>
+  <circle r="0" class="c-amber">
+    <animateMotion dur="10s" repeatCount="indefinite" path="M432,532 H528" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.43;0.49;1"/>
+    <animate attributeName="r" dur="10s" repeatCount="indefinite" values="0;0;4;4;0;0" keyTimes="0;0.43;0.44;0.48;0.49;1"/>
+  </circle>
+</svg>
