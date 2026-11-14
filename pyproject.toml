@@ -8,6 +8,7 @@ dependencies = []
 [dependency-groups]
 agents = [
     "anthropic>=2.8.0",
+    "openai>=2",
 ]
 dev = [
     "duckdb>=2.0.0",

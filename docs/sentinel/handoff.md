@@ -76,9 +76,23 @@ service principal); the SP owns the Track 4 schemas/tables; the personal
 matching the local engine (`docs/adp/live-evidence.md`). Re-validated runs:
 43551167534 (identity step fixed by #37).
 
-Next useful task: one capped, opt-in Claude eval run (needs the user's spend
-limit and API-key location). Track 1–3 resources under `azure_ci` have no SP
-grants and would fail if run. If the
+Real-model eval (user chose Azure OpenAI on the Azure credit instead of an
+Anthropic key): deployment `adp-eval-gpt-5-4-mini` (gpt-5.4-mini, Data Zone
+Standard, 100k TPM, pay-per-token, no standing charge) on AI Services
+`tsogloguli-6913-resource`; gpt-5.4 had 0 real-time quota. New
+`src/adp/azure_openai_provider.py`, `src/adp/budget.py` (hard cap: reserve the
+worst case before each call), eval `--provider azure-openai|claude --max-usd
+--cases`. Result, all 30 cases, $0.17 of a $5 cap: 13 reported (all correct,
+routed), 17 pending (15 `redacted_citation` from citing empty containers such as
+`schema_diff.added -> []`, 2 `unresolved_citation`), 0 forbidden tools.
+Results: `docs/adp/evaluation-results-azure-openai.md`. Key passed from
+`az cognitiveservices account keys list` at run time; never stored.
+
+Next useful task: user decision on the citation guard: allow citing an empty
+container that was visible as empty (keep refusing all-redacted ones, give it
+its own reason code), then re-run the Azure eval and report both runs. Claude
+eval still needs an Anthropic key. Track 1–3 resources under `azure_ci` have no
+SP grants and would fail if run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
 

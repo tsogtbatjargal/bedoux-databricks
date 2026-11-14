@@ -5,13 +5,18 @@ estimate plus the full max_tokens of output. A call that could cross the cap is
 never sent. After the call the actual usage is charged. So the recorded spend
 can't exceed the cap, whatever the model does.
 
-Prices are USD per million tokens, from Anthropic's published list for
-claude-opus-5-5 (input $4, output $20), checked 2026-11-13. Thinking tokens are
-billed as output. The eval pins the model (no server-side fallback), so a reply
-from any other model is an error rather than an unpriced charge.
+Prices are USD per million tokens (input, output), checked 2026-11-13:
+- claude-opus-5-5: Anthropic's published list ($4 / $20).
+- gpt-5.4-mini: Azure Retail Prices API, meters "5.4 mini Inp Dz" / "5.4 mini
+  Opt Dz" (Foundry Models, Data Zone Standard, westus3: $0.825 / $4.95).
+Thinking/reasoning tokens are billed as output. The eval pins the model, so a
+reply from any other model is an error rather than an unpriced charge.
 """
 
-PRICES_PER_MTOK = {"claude-opus-5-5": (4.0, 20.0)}
+PRICES_PER_MTOK = {
+    "claude-opus-5-5": (4.0, 20.0),
+    "gpt-5.4-mini": (0.825, 4.95),
+}
 
 
 class BudgetExceeded(RuntimeError):

@@ -355,3 +355,38 @@ def test_claude_provider_charges_the_budget_and_can_pin_the_model():
         ClaudeProvider(client=_FakeClient(), budget=Budget(0.01), fallback=False).complete("{}", timeout_s=5)
     with pytest.raises(ValueError):  # a reply from an unpriced model stops the run
         ClaudeProvider(client=_FakeClient("other-model"), budget=Budget(1.0)).complete("{}", timeout_s=5)
+
+
+class _FakeChat:
+    def __init__(self, model):
+        self.model, self.kwargs = model, None
+        self.completions = self
+
+    def create(self, **kwargs):
+        self.kwargs = kwargs
+        usage = type("U", (), {"prompt_tokens": 4000, "completion_tokens": 1000})()
+        msg = type("M", (), {"content": '{"ok": 1}', "refusal": None})()
+        choice = type("C", (), {"message": msg, "finish_reason": "stop"})()
+        return type("R", (), {"model": self.model, "usage": usage, "choices": [choice], "id": "x"})()
+
+
+class _FakeOpenAI:
+    def __init__(self, model="gpt-5.4-mini-2026-03-17"):
+        self.chat = _FakeChat(model)
+
+    def with_options(self, **_):
+        return self
+
+
+def test_azure_openai_provider_charges_the_budget_and_rejects_other_models():
+    pytest.importorskip("openai")
+    from src.adp.azure_openai_provider import AzureOpenAIProvider
+    from src.adp.budget import Budget
+    budget, client = Budget(1.0), _FakeOpenAI()
+    p = AzureOpenAIProvider("gpt-5.4-mini", deployment="d", client=client, budget=budget)
+    assert p.complete("{}", timeout_s=5) == '{"ok": 1}'
+    assert client.chat.kwargs["response_format"] == {"type": "json_object"}
+    assert budget.spent_usd == pytest.approx(4000 * 0.825 / 1e6 + 1000 * 4.95 / 1e6)
+    with pytest.raises(ValueError):
+        AzureOpenAIProvider("gpt-5.4-mini", deployment="d", client=_FakeOpenAI("gpt-4o"),
+                            budget=Budget(1.0)).complete("{}", timeout_s=5)
