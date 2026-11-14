@@ -26,6 +26,7 @@ timestamps are UTC, 2026-11-14 01:31–01:38). Fake data only; no model was call
 | 3 | `day=2` (repeat) | `77696391076074` | FAILED, as designed | 70 s | ingest 38 s; reconcile 12 s + automatic retry 10 s |
 | 4 | `day=3,defect=bad_unit_price,defect_day=3` | `767978114792943` | FAILED, as designed | 54 s | ingest 38 s, reconcile 11 s |
 | 5 | same as 4 (retry check, after the fix) | `910590590998406` | FAILED, as designed | 68 s | ingest 50 s, reconcile 12 s, no retries |
+| 6 | `day=3,defect=none` via GitHub Actions, target `azure_ci` | `892095403308316` | FAILED, as designed | 65 s | ingest 44 s, reconcile 14 s, no retries |
 
 A failed run is the alert: run 3 opened `no_new_data` incidents, run 4 opened
 `ingestion_failed`. The reconcile task ran after the failed ingest in run 4
@@ -91,10 +92,29 @@ only. It added exactly one `reconcile_runs` row and one row per incident
 `N/A` prices (quarantined under `sales.order_lines:day3:5`) with its watermark
 still at 2026-11-03T19:59:07; orders and payments read 0 new rows.
 
+## CI deploy and run as the service principal
+
+Run 6 is the first deploy and job run by GitHub Actions: workflow run
+`43552132296` (`deploy-azure.yml`, `deploy=true`, `run_day=3`, `defect=none`)
+signed in with OIDC, validated and deployed target `azure_ci` (26 created:
+13 resources and their permissions) and ran `adp_platform_job` (job
+`1023469102611052`, `run_as` = `id-adp-github-deploy`). Before it, the Track 4
+schemas and tables were handed to the service principal (16 grant statements,
+`docs/adp/azure-setup.md` §3) and the personal `azure_dev` deployment was
+destroyed (13 deleted; tables kept).
+
+It shows recovery after a fixed source, matching the local engine for the same
+sequence: `sales.order_lines:day3:6` succeeded with 198 new rows, its watermark
+moved from 2026-11-03T19:59:07 to 2026-11-04T19:41:23 [235,3]; bronze
+order_lines 402 → 600; orders and payments read 0 rows and opened
+`day3:sales.orders:no_new_data` and `day3:sales.payments:no_new_data` (one row
+each), which ends the run red by design. Reconciliation passed; gold unchanged
+(order dates 2026-11-02 and 2026-11-03 only).
+
 ## Cost evidence
 
-- Compute used: serverless job compute, 5 runs, about 300 s of total run time
-  (task execution 268 s); serverless SQL warehouse (Small) for the checks, which
+- Compute used: serverless job compute, 6 runs, about 365 s of total run time
+  (task execution 326 s); serverless SQL warehouse (Small) for the checks, which
   stops after 10 idle minutes.
 - `system.billing.usage` is not readable by this user (no `USE SCHEMA` on
   `system.billing`), and Azure Cost Management had no data yet for the new

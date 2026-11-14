@@ -69,9 +69,16 @@ and `DATABRICKS_AUTH_TYPE: azure-cli` (#36, merged). Validate-only dispatch
 succeeded as the service principal (run 43550611869) after granting it the
 `workspace-access` entitlement.
 
-Next useful task: if CI should deploy/run, propose (and get approval for) the
-service principal's UC grants and decide how a development-mode SP deploy should
-coexist with the user's copy; then one capped, opt-in Claude eval run. If the
+CI now deploys and runs: target `azure_ci` (#38, production mode, `run_as` the
+service principal); the SP owns the Track 4 schemas/tables; the personal
+`azure_dev` deployment was destroyed (all user-approved). Workflow run
+43552132296 deployed and ran job `1023469102611052` (run `892095403308316`),
+matching the local engine (`docs/adp/live-evidence.md`). Re-validated runs:
+43551167534 (identity step fixed by #37).
+
+Next useful task: one capped, opt-in Claude eval run (needs the user's spend
+limit and API-key location). Track 1–3 resources under `azure_ci` have no SP
+grants and would fail if run. If the
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
 
