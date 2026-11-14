@@ -2,8 +2,9 @@
 
     uv run --locked python scripts/adp_eval.py                 # offline, fake agent
     uv run --locked python scripts/adp_eval.py --write         # also record docs/adp/evaluation-results.md
-    uv sync --group agents && uv run --group agents python scripts/adp_eval.py --provider claude
-                                                               # real model; billed, opt-in
+    uv run --group agents python scripts/adp_eval.py --provider claude --max-usd 5 --cases one-per-defect --write
+    uv run --group agents python scripts/adp_eval.py --provider azure-openai --max-usd 5 --write
+                                                               # real models; billed, opt-in, hard cap
 
 Three levels, reported separately so one can't hide another:
 1. Rules: the deterministic classifier and the detection checks (no model).
@@ -28,10 +29,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.adp import fakes, generator, investigator, modernize, pipeline  # noqa: E402
+from src.adp.budget import Budget  # noqa: E402
+
+MAX_TOKENS = 16000  # mirrors both providers' per-call output limit
+AZURE_MODEL = "gpt-5.4-mini"  # pricing id for the Azure deployment (budget.PRICES_PER_MTOK)
 from src.bedoux.incidents import IncidentLog  # noqa: E402
 
 CASES = ROOT / "tests" / "fixtures" / "adp_incident_cases.json"
 RESULTS = ROOT / "docs" / "adp" / "evaluation-results.md"
+RESULTS_CLAUDE = ROOT / "docs" / "adp" / "evaluation-results-claude.md"
+RESULTS_AZURE = ROOT / "docs" / "adp" / "evaluation-results-azure-openai.md"
 
 
 def _primary_incident(case):
@@ -69,9 +76,31 @@ def _detected_keys(scenario, store, recon):
     return (len(keys), len(keys & found))
 
 
-def run_incidents(provider_factory, log_dir):
+def select_cases(spec):
+    cases = json.loads(CASES.read_text())
+    if spec == "all":
+        return cases
+    if spec == "one-per-defect":
+        seen, picked = set(), []
+        for c in cases:
+            if c["scenario"]["defect"] not in seen:
+                seen.add(c["scenario"]["defect"])
+                picked.append(c)
+        return picked
+    wanted = spec.split(",")
+    picked = [c for c in cases if c["case_id"] in wanted]
+    if len(picked) != len(wanted):
+        raise SystemExit(f"unknown case ids in {spec!r}")
+    return picked
+
+
+def run_incidents(provider_factory, log_dir, cases, budget=None, model=None):
     rows = []
-    for case in json.loads(CASES.read_text()):
+    for case in cases:
+        if budget is not None and budget.spent_usd + Budget.worst_case(model, 40000, MAX_TOKENS) > budget.cap_usd:
+            rows.append({"case_id": case["case_id"], "incident_opened": False, "detection": None,
+                         "skipped": "budget"})
+            continue
         scenario, store, recon, incidents = _primary_incident(case)
         detection = _detected_keys(scenario, store, recon)
         if not incidents:
@@ -114,6 +143,7 @@ def run_sql():
 def summarize(inc, sql):
     opened = [r for r in inc if r["incident_opened"]]
     n = len(opened)
+    calls = [u for r in opened for u in r["usage"]]
     det = [r["detection"] for r in inc if r["detection"]]
     injected = sum(d[0] for d in det)
     found = sum(d[1] for d in det)
@@ -135,10 +165,15 @@ def summarize(inc, sql):
         "sql_validated": sum(r["status"] == modernize.VALIDATED for r in sql),
         "sql_must_flag_accepted": sum(r["must_flag"] and r["status"] == modernize.VALIDATED for r in sql),
         "input_tokens": tokens_in, "output_tokens": tokens_out,
+        "model_calls": len(calls),
+        "cost_usd": round(sum(u.get("cost_usd") or 0 for u in calls), 4),
+        "mean_seconds_per_call": round(sum(u.get("seconds", 0) for u in calls) / len(calls), 2) if calls else 0,
+        "agent_pending": sum(r["status"] != "reported" for r in opened),
+        "cases_skipped_for_budget": sum(r.get("skipped") == "budget" for r in inc),
     }
 
 
-def render(summary, inc, sql, provider_name, command):
+def render(summary, inc, sql, provider_name, command, model=None):
     lines = [
         "# Track 4 evaluation results", "",
         "Recorded by `scripts/adp_eval.py`. Regenerate rather than edit by hand.", "",
@@ -147,19 +182,24 @@ def render(summary, inc, sql, provider_name, command):
         f"- Environment: Python {platform.python_version()}, local fixtures, no Databricks workspace",
         f"- Provider: `{provider_name}`" + (
             " (deterministic fake: these agent numbers measure the harness, not a model)"
-            if provider_name == "fake" else ""), "",
+            if provider_name == "fake" else
+            f" (model `{model}`, reasoning effort medium, hard spend cap; one-shot run, no retries of cases)"), "",
         "## Summary", "", "| Metric | Result |", "|---|---|",
     ]
     lines += [f"| {k} | {round(v, 3) if isinstance(v, float) else v} |" for k, v in summary.items()]
     lines += ["", "## Incident cases", "",
-              "| Case | Defect | Expected | Rules | Agent | Decision | Evidence | Cited |",
-              "|---|---|---|---|---|---|---|---|"]
+              "| Case | Defect | Expected | Rules | Agent | Decision | Evidence | Cited | Reason codes |",
+              "|---|---|---|---|---|---|---|---|---|"]
     for r in inc:
+        if r.get("skipped"):
+            lines.append(f"| {r['case_id']} | — | skipped: {r['skipped']} cap | | | | | | |")
+            continue
         if not r["incident_opened"]:
-            lines.append(f"| {r['case_id']} | — | no incident opened | | | | | |")
+            lines.append(f"| {r['case_id']} | — | no incident opened | | | | | | |")
             continue
         lines.append(f"| {r['case_id']} | {r['defect']} | {r['expected']} | {r['rule']} | {r['model']} | "
-                     f"{r['decision']} | {'yes' if r['evidence_ok'] else 'no'} | {'yes' if r['cited'] else 'no'} |")
+                     f"{r['decision']} | {'yes' if r['evidence_ok'] else 'no'} | {'yes' if r['cited'] else 'no'} | "
+                     f"{', '.join(r['reason_codes'])} |")
     lines += ["", "## SQL modernization cases", "",
               "| Case | Category | Status | Expected | Rewrites | Warnings | Blockers |",
               "|---|---|---|---|---|---|---|"]
@@ -170,25 +210,42 @@ def render(summary, inc, sql, provider_name, command):
               "- All data is synthetic and generated locally; no live Databricks run is included.",
               "- SQL validation runs on DuckDB after a second transpilation. A difference DuckDB "
               "shares with T-SQL can hide; sql17 was such a case and is now blocked by a hazard rule.",
-              "- With the fake provider, agent accuracy equals the fake's playbook by construction.", ""]
+              "- With the fake provider, agent accuracy equals the fake's playbook by construction.",
+              "- With a real provider: one run per case, no repeats, so run-to-run variance is not measured; "
+              "the incident cases were written with the rules classifier, not for this model.", ""]
     return "\n".join(lines)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--provider", choices=("fake", "claude"), default="fake")
+    parser.add_argument("--provider", choices=("fake", "claude", "azure-openai"), default="fake")
     parser.add_argument("--write", action="store_true", help=f"write {RESULTS.relative_to(ROOT)}")
     parser.add_argument("--json", action="store_true", help="print raw rows as JSON")
+    parser.add_argument("--cases", default="all", help="all | one-per-defect | comma-separated case ids")
+    parser.add_argument("--max-usd", type=float, help="hard spend cap; required with a real provider")
     args = parser.parse_args()
 
+    budget, model = None, None
+    if args.provider != "fake":
+        if not args.max_usd:
+            parser.error(f"--provider {args.provider} needs --max-usd")
+        budget = Budget(args.max_usd)
     if args.provider == "claude":
-        from src.adp.claude_provider import ClaudeProvider
-        factory = ClaudeProvider
+        from src.adp.claude_provider import MODEL as model, ClaudeProvider
+
+        def factory():
+            return ClaudeProvider(budget=budget, fallback=False)
+    elif args.provider == "azure-openai":
+        from src.adp.azure_openai_provider import AzureOpenAIProvider
+        model = AZURE_MODEL
+
+        def factory():
+            return AzureOpenAIProvider(model=AZURE_MODEL, budget=budget)
     else:
         factory = fakes.PlaybookAgent
 
     with tempfile.TemporaryDirectory() as log_dir:
-        inc = run_incidents(factory, log_dir)
+        inc = run_incidents(factory, log_dir, select_cases(args.cases), budget, model)
     sql = run_sql()
     summary = summarize(inc, sql)
     if args.json:
@@ -196,10 +253,10 @@ def main():
     else:
         print(json.dumps(summary, indent=1))
     if args.write:
-        command = "uv run --locked python scripts/adp_eval.py --write" + (
-            f" --provider {args.provider}" if args.provider != "fake" else "")
-        RESULTS.write_text(render(summary, inc, sql, args.provider, command))
-        print(f"wrote {RESULTS.relative_to(ROOT)}")
+        command = " ".join(["uv run --locked python scripts/adp_eval.py"] + sys.argv[1:])
+        out = {"claude": RESULTS_CLAUDE, "azure-openai": RESULTS_AZURE}.get(args.provider, RESULTS)
+        out.write_text(render(summary, inc, sql, args.provider, command, model))
+        print(f"wrote {out.relative_to(ROOT)}")
     failed = (summary["forbidden_tool_executions"] or summary["sql_must_flag_accepted"]
               or summary["sql_status_matches_expected"] != summary["sql_cases"])
     return 1 if failed else 0
