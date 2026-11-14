@@ -100,6 +100,13 @@ Variance (runs 2–5, user-requested): routed 25/25/29/27 of 30, wrong labels
 runs; total eval spend $0.92. Wrong labels are two near-miss pairs
 (bad_unit_price → INVALID_DOMAIN_VALUE, late_arrival → MISSING_PAYMENT).
 
+README (#44, `d61eb21`): the Track 4 paragraph now summarizes the Azure
+evidence (live runs, the auto-retry finding, OIDC CI deploy, the four-run
+gpt-5.4-mini eval) with links to the source docs, and states that Claude is not
+yet evaluated. Numbers there are copied from those docs; update them together.
+Merged local branches were deleted after checking each had an identical remote
+copy; remote branches are kept.
+
 Next useful task: a Claude eval when an Anthropic key is available. The Azure
 deployment `adp-eval-gpt-5-4-mini` was deleted on 2026-11-14 at the user's
 request; to re-run the Azure eval, redeploy `gpt-5.4-mini` (Data Zone Standard,
