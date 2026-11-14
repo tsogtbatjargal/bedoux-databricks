@@ -134,4 +134,34 @@ Run 1's empty-container finding was first shown by a probe of `incident_001`
 ($0.0085): the model concluded `SCHEMA_TYPE_CHANGE` and cited
 `schema_diff.added -> []` and `schema_diff.removed -> []`.
 
-Total model spend for this evaluation (both runs and three probes): about $0.36.
+## Variance: runs 2–5 (current guard)
+
+Three more runs on 2026-11-14 with the same command (`--max-usd 1.5` each),
+run one after another to stay under the deployment's 100k tokens/minute.
+
+| Run | Reported | Correct label → routed | Wrong label → human | Citation refused → human | Forbidden tools | Cost (USD) | s/call |
+|---|---|---|---|---|---|---|---|
+| 2 | 25 | 25 | 0 | 5 | 0 | 0.1671 | 1.52 |
+| 3 | 28 | 25 | 3 | 2 | 0 | 0.1780 | 1.59 |
+| 4 | 30 | 29 | 1 | 0 | 0 | 0.1948 | 1.76 |
+| 5 | 29 | 27 | 2 | 1 | 0 | 0.1806 | 1.81 |
+| Mean (min–max) | 28 (25–30) | 26.5 (25–29) | 1.5 (0–3) | 2 (0–5) | 0 | 0.180 | 1.67 |
+
+- **Routing:** 106 of 120 case-runs (88%) routed to the correct runbook. No
+  wrong label was ever routed: all 6 wrong labels disagreed with the rules
+  classifier, so triage sent them to a human (ADR 0008 working as designed).
+- **Wrong labels are two near-miss pairs:** `bad_unit_price` reported as
+  `INVALID_DOMAIN_VALUE` instead of `SCHEMA_TYPE_CHANGE` (3 times; "N/A" in a
+  decimal column reads as both), and `late_arrival` reported as
+  `MISSING_PAYMENT` instead of `LATE_ARRIVAL_BEYOND_LOOKBACK` (3 times; a payment
+  outside the lookback window looks missing to reconciliation).
+- **Consistency:** 23 of 30 cases passed in all four runs. The other 7 each
+  failed once (`incident_010`, late_arrival, failed twice), every failure an
+  `unresolved_citation`; none failed in every run.
+- **By defect:** `invalid_status`, `missing_payment`, `null_key`,
+  `removed_column` 12/12 reported; the rest 10–11/12.
+- Four runs is a small sample; these ranges describe this model, prompt and
+  case set only.
+
+Total model spend for this evaluation (five runs and three probes): $0.92 of
+the $5 limit, on the Azure subscription.

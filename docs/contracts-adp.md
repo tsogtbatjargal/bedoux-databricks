@@ -114,7 +114,6 @@ ALL_DONE`). Job parameters `seed`, `day`, `defect`, `defect_day`.
   accuracy on the eval set is expected, not a generalization result.
 - The Claude provider has not been run. Real-model results exist for Azure
   OpenAI `gpt-5.4-mini` only (`docs/adp/evaluation-results-azure-openai.md`):
-  after the citation guard began allowing empty containers, 25/30 reports
-  validated (all correct and routed), 5 pending on citation paths that vary
-  between runs, 0 forbidden tools, $0.17 a run. One sample per run; variance
-  not measured.
+  over four runs with the current citation guard, 25–29 of 30 (mean 26.5)
+  routed with the correct label; 6 wrong labels in 120 case-runs, all sent to
+  a human by the rules check; 0 forbidden tools; about $0.18 a run.
