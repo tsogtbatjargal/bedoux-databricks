@@ -1,0 +1,22 @@
+dataset_id: sales.order_lines
+contract_version: order_lines_v1
+source:
+  type: postgres
+  table: public.order_lines
+ingestion:
+  mode: incremental
+  cursor_column: updated_at
+  primary_key: [order_id, line_no]
+  lookback_hours: 24
+  deletion_strategy: tombstone
+  max_quarantine_ratio: 0.02
+target:
+  bronze_name: bronze_order_lines
+columns:
+  order_id: {type: int, required: true}
+  line_no: {type: int, required: true}
+  product_id: {type: int, required: true}
+  quantity: {type: int, required: true}
+  unit_price: {type: decimal, scale: 2, required: true}
+  updated_at: {type: timestamp, required: true}
+  is_deleted: {type: bool, required: false}
