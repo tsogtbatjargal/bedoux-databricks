@@ -1,8 +1,10 @@
 name: Deploy to Azure Databricks
 
 # Track 4. Manual only: nothing deploys to Azure on push. Authentication is
-# GitHub OIDC to a Databricks service principal federation policy, so no
-# long-lived token is stored. Setup: docs/adp/azure-setup.md.
+# GitHub OIDC to a Microsoft Entra user-assigned managed identity (federated
+# credential), which is a service principal in the workspace. The Databricks
+# CLI then uses that Azure CLI login. No long-lived secret is stored.
+# Setup: docs/adp/azure-setup.md.
 on:
   workflow_dispatch:
     inputs:
@@ -32,9 +34,8 @@ jobs:
       contents: read
       id-token: write
     env:
-      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_AUTH_TYPE: azure-cli
       DATABRICKS_HOST: ${{ vars.AZURE_DATABRICKS_HOST }}
-      DATABRICKS_CLIENT_ID: ${{ vars.AZURE_DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -45,7 +46,15 @@ jobs:
           uv sync --locked
           uv run --locked python -m pytest -q
           uv run --locked python scripts/adp_eval.py
+      # The identity holds no Azure RBAC role; it only needs an Entra token
+      # for the Databricks resource, hence allow-no-subscriptions.
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
       - uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
+      - run: databricks current-user me -o json | jq '{userName, displayName}'
       - run: databricks bundle validate --target azure_dev
       - if: inputs.deploy
         run: databricks bundle deploy --target azure_dev
