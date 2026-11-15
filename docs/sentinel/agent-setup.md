@@ -7,8 +7,12 @@ but optional. Do not run two writers in one checkout.
 ## What is configured
 
 - `AGENTS.md` is the shared project guide. `CLAUDE.md` imports it.
-- `.agents/skills/` holds the shared technical chapter workflow.
+- `.agents/skills/` holds the shared workflows: `sentinel-chapter` (Sentinel
+  chapters) and `adp-platform` (Track 4: code, Azure, evaluation, evidence,
+  diagrams). Codex discovers them there.
 - `.claude/skills/` contains small adapters that read those same skill bodies.
+- `docs/adp/diagrams/STYLE.md` and `scripts/render_svg.sh` are the shared spec
+  and render check for the animated SVG diagrams.
 - `.codex/config.toml` is an ignored local preference, not a repository requirement.
   The existing local file is preserved. Model choice, reasoning effort,
   credentials, sandbox, approvals and external tools belong to each contributor.
@@ -37,8 +41,9 @@ codex -m gpt-6-astra
 claude
 ```
 
-Use `$sentinel-chapter` in Codex or `/sentinel-chapter` in Claude Code. If discovery
-fails, ask the assistant to read `.agents/skills/sentinel-chapter/SKILL.md` directly.
+Use `$sentinel-chapter` / `$adp-platform` in Codex or `/sentinel-chapter` /
+`/adp-platform` in Claude Code. If discovery fails, ask the assistant to read
+`.agents/skills/<name>/SKILL.md` directly.
 For writing, open the separate `bedoux-sentinel-content` workspace and use its
 `sentinel-story` skill. See [repository scope](repository-scope.md).
 
@@ -47,7 +52,38 @@ they describe how to work on this project and contain no credentials. Neither
 assistant is required to run the project's code or tests. Do not blanket-ignore
 `.agents/` or `.claude/skills/`; ignore personal settings separately.
 
-Suggested continuation prompt:
+### Owner's local setup (this machine, 2026-11-15)
+
+Codex runs in this checkout with the owner's global `~/.codex/config.toml`
+(model `gpt-6-astra`, reasoning effort `high`, a large-read guard hook and herdr
+status hooks; the home directory is trusted, which covers this repo). No project
+`.codex/config.toml` is needed; if one is added it stays ignored. The same
+machine has `uv`, `gh` (authenticated), the Databricks CLI with profile
+`ADP_AZURE`, and Azure CLI via `uvx`. Agreed authority is in `AGENTS.md`
+("Branches and delivery"); both assistants follow the same rules.
+
+`codex doctor` reports the sandbox as restricted filesystem and network with
+approval on request. Network and cloud commands (`uv sync`, `gh`, `databricks`,
+`az` via `uvx`, OAuth token refreshes that write to `~/.databricks`) therefore
+ask for approval in Codex. That is the intended safety default; to reduce prompts,
+the owner can add an ignored project `.codex/config.toml` that allows network in
+the workspace sandbox. Don't commit one.
+
+Check what Codex will load without calling a model:
+
+```bash
+codex debug prompt-input | grep -o '"name": *"[a-z-]*"' | sort -u   # skills offered
+codex doctor                                                      # install/config/auth health
+```
+
+Track 4 continuation prompt:
+
+> Read AGENTS.md and docs/sentinel/handoff.md, check the checkout, then use
+> adp-platform to continue the next Track 4 task recorded in the handoff. Run the
+> local checks, open a PR, and update the handoff. Ask before any merge that
+> deploys, any deploy or job run, grants, deletes, or paid model calls.
+
+Sentinel continuation prompt:
 
 > Read AGENTS.md and docs/sentinel/handoff.md. Check the checkout, then continue
 > the next local task recorded there using sentinel-chapter. Keep the current
@@ -94,8 +130,9 @@ Python, coding-agent installations, and Databricks compute. A docs-only change c
 be checked with `git diff --check`, local-link checks, and skill/config validation.
 Live bundle checks and model calls must be reported separately.
 
-Codex configuration and skill locations rechecked on 2026-09-24; Claude adapter
-behaviour is unchanged from the existing setup:
+Codex configuration and skill locations rechecked on 2026-09-24, and the
+installed client (codex-cli 0.160.1) was checked against this repo on
+2026-11-15; Claude adapter behaviour is unchanged:
 
 - [Codex project configuration](https://learn.chatgpt.com/docs/config-file/config-basic)
 - [Codex skill discovery](https://learn.chatgpt.com/docs/build-skills)
