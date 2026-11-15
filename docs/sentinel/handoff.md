@@ -3,12 +3,35 @@
 This is the technical handoff. Check Git before continuing; recorded state is
 context, not authorization to merge, deploy, publish or call paid APIs.
 
-## Current implementation
+## Start here (state on 2026-11-15)
 
-Chapters 00–07 are integrated at code level. **372 local tests pass**
-(`uv run --locked python -m pytest -q`, run on `docs/separate-editorial-content`
-before commit). The editorial separation changes no Python, tests, dependencies,
-resources or bundle configuration.
+- **Tests:** `uv run --locked python -m pytest -q` → 488 passed on `main`
+  (`6e33fa2` and later docs-only commits). CI runs them plus the offline Track 4 eval.
+- **Tracks:** 1 (TPC-H) and 2 (Bedoux, with Sentinel chapters 00–07) are
+  integrated; 3 (regulated gaming & retail) is merged but has never run in a
+  workspace; 4 (Agentic Data Platform) is merged, deployed to Azure Databricks
+  and run there (`docs/adp/live-evidence.md`), with a real-model eval on Azure
+  OpenAI (`docs/adp/evaluation-results-azure-openai.md`). User guide:
+  `docs/adp/README.md`.
+- **Cloud state:** Azure workspace `adb-adp-dev` (trial SKU, ends about
+  2026-11-28; NAT gateway + public IP bill hourly until the workspace is
+  deleted; $200 sign-up credit expires 2026-12-13; budget alert
+  `adp-dev-monthly-50`). Target `azure_ci` deployed, run as service principal
+  `id-adp-github-deploy`. No model deployment exists.
+- **Agents:** Codex and Claude Code share `AGENTS.md` and the skills
+  `sentinel-chapter` and `adp-platform` (`docs/sentinel/agent-setup.md`).
+  Standing authority is in `AGENTS.md`.
+- **Open tasks, suggested order:** (1) owner decision on the Azure workspace
+  before the trial ends; (2) limit `azure_ci` to Track 4 (Tracks 1–3 there have
+  no grants and fail if run); (3) run the 22 SQL modernizer cases on the Azure
+  SQL warehouse; (4) require `Unit tests` on `main` (branch protection is off);
+  (5) live `late_arrival` run; (6) Claude eval when an Anthropic key exists;
+  (7) CI upkeep (`actions/checkout@v4` on Node 20). Items needing approval are
+  marked in the `adp-platform` skill.
+
+### Sentinel (Track 2 extension)
+
+Chapters 00–07 are integrated at code level.
 
 - **02:** live fault, restore and replay evidence is recorded in
   [chapter-02-evidence.md](chapter-02-evidence.md).
@@ -27,7 +50,19 @@ Detailed acceptance maps and technical history remain in
 [the chapters](README.md#start-here) and [roadmap](roadmap.md).
 Do not promote code-level completion into a live-evidence claim.
 
-## Latest change: Track 4 deployed to Azure Databricks and merged
+## Latest change: Codex/Claude agent setup for Track 4 (2026-11-15)
+
+Added the shared `adp-platform` skill (`.agents/skills/`, Claude adapter in
+`.claude/skills/`), moved the diagram style spec and render check into the repo
+(`docs/adp/diagrams/STYLE.md`, `scripts/render_svg.sh`; output `.svgcheck/` is
+ignored), updated `AGENTS.md` (four tracks, Azure deploy path, standing
+authority, `--target`, Azure CLI via uvx) and `docs/sentinel/agent-setup.md`
+(owner's Codex setup, Track 4 prompt). Checks: `codex debug prompt-input` lists
+both skills and the new `AGENTS.md` text; all four SKILL.md frontmatters valid;
+`codex doctor` healthy (sandbox: restricted fs/network, approval on request, so
+network and cloud commands prompt in Codex). No model was called.
+
+## Previous change: Track 4 deployed to Azure Databricks and merged
 
 `azure_dev` now targets workspace `adb-adp-dev`
 (`https://adb-7405615454810108.8.azuredatabricks.net`, catalog `adb_adp_dev`);
@@ -123,7 +158,7 @@ only with the workspace. Track 1–3 resources under
 workspace is no longer needed after the demo, deleting `adb-adp-dev` removes
 the managed resource group and its hourly charges (destructive; user's call).
 
-## Latest change: Track 4 started (branch `track4/01-agentic-platform`)
+## Earlier change: Track 4 started (branch `track4/01-agentic-platform`)
 
 Branched from `track3/01-contract-generator` at `28b1195` (Track 3 is a
 dependency: `adp` reuses `aglc.reconcile` and `aglc.governance.ident`). Not
@@ -163,7 +198,7 @@ record the evidence (run ids, row counts, incident rows) in
 notebooks. Then: one opt-in Claude eval run with a spend cap, recorded via
 `scripts/adp_eval.py --provider claude --write`.
 
-## Latest change: Track 3 started (branch `track3/01-contract-generator`)
+## Earlier change: Track 3 started (branch `track3/01-contract-generator`)
 
 Branched from `main` at `3675ff5`. Not merged and not pushed. Merging to `main`
 deploys (CI), so integrating is a deployment decision.
@@ -189,7 +224,7 @@ check of `gold_rg_player_flags` against `rules.player_flags`, a dev/prod target
 split (per-target catalog or schema prefix, since one Free Edition workspace),
 a Genie space over RG Gold, a diagram, and a 2-minute demo script.
 
-## Latest change: editorial separation
+## Earlier change: editorial separation
 
 Delivered from the working branch `docs/separate-editorial-content`, based on
 `ede2901766fddbe40263ee601aa3d8eee37a8491`, through a documentation-only PR.
@@ -214,7 +249,7 @@ Retained remote chapter snapshots are untouched; they still include their
 historical editorial material. The external content folder is not a Git repo
 and has no configured remote. Pushing this repo does not back it up.
 
-## Verification
+## Verification: editorial separation (2026-09)
 
 Migration copy checks passed for all eight extracted draft/script sections and
 the moved writing guide, SVG, adapter and inspiration text. A final check of
@@ -230,14 +265,14 @@ validation was not run. No job or provider was called.
 
 ## Branches and next step
 
-- Remote: `main` and the eight retained chapter branches, `series/00-introduction`
-  through `series/07-full-demo`. The working branch `docs/separate-editorial-content`
-  was deleted after merging.
-- Local: `main` only.
+- Remote: `main`, the eight retained chapter branches (`series/00-introduction`
+  through `series/07-full-demo`) and the merged Track 3/4 and docs branches
+  (kept; never delete or force-push them).
+- Local: `main` only; merged local branches are removed after checking each has
+  an identical remote copy.
+- Next: the open tasks under "Start here".
 
 Wait for `Unit tests` on a PR's head before merging, documentation-only included.
 
 Preserve/version the external content workspace; it has no Git remote.
-Existing drafts there still
-need an editorial status review before publication. Technical architecture
-updates and all live provider work remain separate tasks.
+Existing drafts there still need an editorial status review before publication.

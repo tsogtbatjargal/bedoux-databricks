@@ -16,3 +16,5 @@ CLAUDE.local.md
 # mise machine-local overrides; mise.toml itself is committed.
 mise.local.toml
 .mise.local.toml
+# SVG render previews (scripts/render_svg.sh)
+.svgcheck/
